@@ -287,25 +287,25 @@ Surf naar: http://192.168.4.1
 ╠══════════════════════════════════════╣
 ║  Warmtepomp Naam                    ║
 ║  [Kromhout WP            ]          ║
-║                                      ║
+║                                     ║
 ║  WiFi Netwerk Naam (SSID)           ║
-║  [KromhoutWiFi           ]          ║
-║                                      ║
+║  [Kromhou                ]          ║
+║                                     ║
 ║  WiFi Wachtwoord                    ║
 ║  [••••••••••••           ]          ║
-║                                      ║
+║                                     ║
 ║  MQTT Server IP                     ║
-║  [192.168.1.x           ]          ║
-║                                      ║
+║  [192.168.1.00           ]          ║
+║                                     ║
 ║  MQTT Poort                         ║
 ║  [1883                   ]          ║
-║                                      ║
+║                                     ║
 ║  MQTT Gebruiker                     ║
 ║  [mqtt                   ]          ║
-║                                      ║
+║                                     ║
 ║  MQTT Wachtwoord                    ║
 ║  [••••••••••••           ]          ║
-║                                      ║
+║                                     ║
 ║  [💾 Opslaan en Herstarten]         ║
 ╚══════════════════════════════════════╝
 ```
@@ -347,7 +347,7 @@ Surf naar: http://192.168.4.1
 Instellingen geladen:
 Naam: Kromhout WP
 WiFi: KromhoutWiFi
-MQTT: 192.168.1.x:1883
+MQTT: 192.168.1.XX:1883
 
 WiFi verbinden...
 WiFi verbonden!
