@@ -46,14 +46,20 @@ Payload: "35.2"
 
 **Stand Mapping:**
 ```
-0 = UIT       (0W)
-1 = Minimum   (240W)
-2 = Laag      (420W)
-3 = Medium-   (640W)
-4 = Medium    (850W)
-5 = Medium+   (1050W)
-6 = Hoog      (1250W)
-7 = Maximum   (1450W)
+0  = UIT            (0W)
+1  = Minimum        (240W)
+2  = Laag           (420W)
+3  = Medium-        (640W)
+4  = Medium         (850W)
+5  = Medium+        (1050W)
+6  = Hoog           (1250W)
+7  = Hoog+          (1450W)
+8  = Max auto       (1550W)  ← hoogste stand in auto/water modus
+─────────────────────────────── alleen handmatige modus ───
+9  = Uitgebreid-    (1650W)
+10 = Uitgebreid     (1700W)
+11 = Uitgebreid+    (1750W)
+12 = Maximum        (1800W)
 ```
 
 ### Hardware Info
@@ -167,23 +173,30 @@ number:
 #### Stand (0-7)
 ```
 Topic: chofu/cmd/stand
-Payload: "0" - "7" (integer)
+Payload: "0" - "12" (integer)
 
 Effect:
 - Schakelt automatisch naar handmatige modus
 - Zet de compressor op de opgegeven stand
 - PID regeling gepauzeerd
 - Stand 0 = UIT
+- Stands 9-12 zijn alleen beschikbaar in handmatige modus;
+  auto en water modus gebruiken maximaal stand 8
 
 Stand Mapping:
-  0 = UIT       (0W)
-  1 = Minimum   (240W)
-  2 = Laag      (420W)
-  3 = Medium-   (640W)
-  4 = Medium    (850W)
-  5 = Medium+   (1050W)
-  6 = Hoog      (1250W)
-  7 = Maximum   (1450W)
+  0  = UIT         (0W)
+  1  = Minimum     (240W)
+  2  = Laag        (420W)
+  3  = Medium-     (640W)
+  4  = Medium      (850W)
+  5  = Medium+     (1050W)
+  6  = Hoog        (1250W)
+  7  = Hoog+       (1450W)
+  8  = Max auto    (1550W)  ← max in auto/water modus
+  9  = Uitgebr.-   (1650W)  ← alleen handmatig
+  10 = Uitgebr.    (1700W)  ← alleen handmatig
+  11 = Uitgebr.+   (1750W)  ← alleen handmatig
+  12 = Maximum     (1800W)  ← alleen handmatig
 ```
 
 **Home Assistant Number:**

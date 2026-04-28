@@ -85,8 +85,8 @@ long HYST_DOWN_MS = 300000;  // 5 minuten (standverlaging water modus)
 float STOOKLIJN_GRENS = 5.0;   // Onder 5°C buiten
 float STOOKLIJN_FACTOR = 0.5;  // +0.5°C setpoint per graad onder grens
 
-// Vermogen per stand (Watt)
-const int VERMOGEN[] = {0, 240, 420, 640, 850, 1050, 1250, 1450};
+// Vermogen per stand (Watt) — stands 9-12 alleen in handmatige modus
+const int VERMOGEN[] = {0, 240, 420, 640, 850, 1050, 1250, 1450, 1550, 1650, 1700, 1750, 1800};
 
 // ═══════════════════════════════════════════════════════════════
 //  GLOBALE VARIABELEN
@@ -116,7 +116,7 @@ float t_water_gewenst = 40.0;  // Gewenste aanvoertemperatuur, instelbaar via MQ
 // Regelparameters
 float setpoint = 40.0;  // Doel aanvoertemperatuur (auto modus stooklijn)
 float delta_t = 5.0;
-uint8_t stand = 0;  // 0-7
+uint8_t stand = 0;  // 0-12 (9-12 alleen handmatig)
 bool wp_aan = false;
 bool lcd_enabled = true;
 String modus = "auto";  // "auto", "handmatig" of "water"
@@ -396,14 +396,16 @@ void pas_pid_aan(){
       if(pid_output > 100) pid_output = 100;
 
       uint8_t nieuwe_stand = 0;
-      if(pid_output < 5)       nieuwe_stand = 0;
-      else if(pid_output < 15) nieuwe_stand = 1;
-      else if(pid_output < 25) nieuwe_stand = 2;
-      else if(pid_output < 40) nieuwe_stand = 3;
-      else if(pid_output < 55) nieuwe_stand = 4;
-      else if(pid_output < 70) nieuwe_stand = 5;
-      else if(pid_output < 85) nieuwe_stand = 6;
-      else                     nieuwe_stand = 7;
+      if(pid_output < 5)        nieuwe_stand = 0;
+      else if(pid_output < 15)  nieuwe_stand = 1;
+      else if(pid_output < 25)  nieuwe_stand = 2;
+      else if(pid_output < 40)  nieuwe_stand = 3;
+      else if(pid_output < 55)  nieuwe_stand = 4;
+      else if(pid_output < 70)  nieuwe_stand = 5;
+      else if(pid_output < 85)  nieuwe_stand = 6;
+      else if(pid_output < 93)  nieuwe_stand = 7;
+      else                      nieuwe_stand = 8;
+      // Stands 9-12 zijn voorbehouden aan handmatige modus
 
       if(t_outside < 5.0 && nieuwe_stand == 0) nieuwe_stand = 1;
 
@@ -521,15 +523,17 @@ void pas_pid_aan(){
     
     // Vertaal naar stand
     uint8_t nieuwe_stand = 0;
-    if(pid_output < 5) nieuwe_stand = 0;
-    else if(pid_output < 15) nieuwe_stand = 1;
-    else if(pid_output < 25) nieuwe_stand = 2;
-    else if(pid_output < 40) nieuwe_stand = 3;
-    else if(pid_output < 55) nieuwe_stand = 4;
-    else if(pid_output < 70) nieuwe_stand = 5;
-    else if(pid_output < 85) nieuwe_stand = 6;
-    else nieuwe_stand = 7;
-    
+    if(pid_output < 5)        nieuwe_stand = 0;
+    else if(pid_output < 15)  nieuwe_stand = 1;
+    else if(pid_output < 25)  nieuwe_stand = 2;
+    else if(pid_output < 40)  nieuwe_stand = 3;
+    else if(pid_output < 55)  nieuwe_stand = 4;
+    else if(pid_output < 70)  nieuwe_stand = 5;
+    else if(pid_output < 85)  nieuwe_stand = 6;
+    else if(pid_output < 93)  nieuwe_stand = 7;
+    else                      nieuwe_stand = 8;
+    // Stands 9-12 zijn voorbehouden aan handmatige modus
+
     // VORSTBEVEILIGING: minimaal stand 1 bij vorst
     if(t_outside < 5.0 && nieuwe_stand == 0){
       nieuwe_stand = 1;
@@ -599,7 +603,7 @@ void mqtt_ontvang(int len){
   }
   else if(topic == "chofu/cmd/stand"){
     int val = payload.toInt();
-    if(val >= 0 && val <= 7){
+    if(val >= 0 && val <= 12){
       modus = "handmatig";
       handmatig_stand = val;
       mqtt_log("Handmatig stand: " + String(val), "INFO");
@@ -756,7 +760,7 @@ void discovery_fase3(){
   delay(2000);
   
   mqttClient.beginMessage("homeassistant/number/chofu_hp/stand_cmd/config");
-  mqttClient.print("{\"name\":\"Chofu Handmatig Stand\",\"uniq_id\":\"chofu_hp_stand_cmd\",\"cmd_t\":\"chofu/cmd/stand\",\"stat_t\":\"chofu/stand\",\"min\":0,\"max\":7,\"step\":1," + dev + "}");
+  mqttClient.print("{\"name\":\"Chofu Handmatig Stand\",\"uniq_id\":\"chofu_hp_stand_cmd\",\"cmd_t\":\"chofu/cmd/stand\",\"stat_t\":\"chofu/stand\",\"min\":0,\"max\":12,\"step\":1," + dev + "}");
   mqttClient.endMessage();
   delay(2000);
 
