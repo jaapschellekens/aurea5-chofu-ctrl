@@ -38,7 +38,7 @@ Payload: "35.2"
 
 | Topic | Type | Values | Update | Beschrijving |
 |-------|------|--------|--------|--------------|
-| `sensor/kromhout_wp_stand` | int | 0-7 | 10s | Huidige compressor stand |
+| `sensor/kromhout_wp_stand` | int | 0-8 | 10s | Huidige compressor stand |
 | `sensor/kromhout_wp_vermogen` | int | W | 10s | Geschat vermogen |
 | `sensor/kromhout_wp_pid` | int | 0-100 | 10s | PID output (%) |
 | `sensor/kromhout_wp_modus` | string | auto/handmatig/water | 10s | Regelingsmodus |
@@ -170,7 +170,7 @@ number:
 
 ### Handmatige Stand
 
-#### Stand (0-7)
+#### Stand (0-12)
 ```
 Topic: chofu/cmd/stand
 Payload: "0" - "12" (integer)
@@ -207,14 +207,14 @@ number:
     command_topic: "chofu/cmd/stand"
     state_topic: "chofu/stand"
     min: 0
-    max: 7
+    max: 12
     step: 1
 ```
 
 **Verschil met `chofu/cmd/power`:**
 ```
 chofu/cmd/power  → Alleen aan (stand 1) of uit (stand 0)
-chofu/cmd/stand  → Specifieke stand 0-7 instelbaar
+chofu/cmd/stand  → Specifieke stand 0-12 instelbaar
 ```
 
 ---
