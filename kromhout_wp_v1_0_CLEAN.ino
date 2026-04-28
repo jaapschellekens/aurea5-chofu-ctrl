@@ -79,6 +79,7 @@ float Kd = 0.3;   // Derivative gain
 // Hysteresis tijden (voorkomt te veel schakelen)
 long HYST_SLOW_MS = 600000;  // 10 minuten (conservatief)
 long HYST_FAST_MS = 120000;  // 2 minuten (agressief bij grote fout)
+long HYST_DOWN_MS = 300000;  // 5 minuten (standverlaging water modus)
 
 // Stooklijn parameters
 float STOOKLIJN_GRENS = 5.0;   // Onder 5°C buiten
@@ -109,13 +110,16 @@ float werkelijk_vermogen_w = 0;
 float t_kamer = 21.0;
 float t_kamer_gewenst = 21.5;
 
+// Watertemperatuur setpoint (water modus)
+float t_water_gewenst = 40.0;  // Gewenste aanvoertemperatuur, instelbaar via MQTT
+
 // Regelparameters
-float setpoint = 40.0;  // Doel aanvoertemperatuur
+float setpoint = 40.0;  // Doel aanvoertemperatuur (auto modus stooklijn)
 float delta_t = 5.0;
 uint8_t stand = 0;  // 0-7
 bool wp_aan = false;
 bool lcd_enabled = true;
-String modus = "auto";  // "auto" of "handmatig"
+String modus = "auto";  // "auto", "handmatig" of "water"
 uint8_t handmatig_stand = 1;
 
 // PID variabelen
@@ -339,15 +343,90 @@ void lees_warmtepomp_data(){
 // ═══════════════════════════════════════════════════════════════
 
 void pas_pid_aan(){
-  if(modus != "auto"){
+  if(modus == "handmatig"){
     stand = handmatig_stand;
     wp_aan = (stand > 0);
     return;
   }
-  
+
   uint32_t nu = millis();
   if(nu - vorige_pid_ms < 5000) return;  // Elke 5 sec
   vorige_pid_ms = nu;
+
+  // ═══════════════════════════════════════════════════════════
+  // WATER MODUS - Directe aanvoertemperatuur regeling (±1°C)
+  // ═══════════════════════════════════════════════════════════
+  if(modus == "water"){
+    float water_fout = t_water_gewenst - t_supply;
+
+    // Vorstbeveiliging
+    if(t_outside < 5.0 && stand == 0){
+      stand = 1;
+      wp_aan = true;
+      vorige_stand_wijz_ms = nu;
+      mqtt_log("❄️ VORSTBEVEILIGING! Buiten: " + String(t_outside,1) + "°C → Stand 1", "WARNING");
+    }
+
+    if(water_fout > 1.0){
+      // Meer dan 1°C te koud: aan
+      wp_aan = true;
+    } else if(water_fout < -1.0){
+      // Meer dan 1°C te warm: uit
+      if(t_outside >= 5.0){
+        wp_aan = false;
+        stand = 0;
+        pid_integraal = 0;
+        mqtt_log("WATER: Setpoint bereikt (" + String(t_supply,1) + "/" + String(t_water_gewenst,1) + "°C) → WP UIT", "INFO");
+      }
+      return;
+    }
+    // Tussen -1.0 en +1.0: huidige aan/uit staat handhaven
+
+    if(wp_aan){
+      // PID berekening puur op aanvoerfout (geen kamer correctie)
+      pid_integraal += water_fout * 0.005;
+      if(pid_integraal > 50) pid_integraal = 50;
+      if(pid_integraal < -50) pid_integraal = -50;
+
+      float diff = (water_fout - pid_vorige_fout) / 0.005;
+      pid_vorige_fout = water_fout;
+
+      pid_output = Kp * water_fout + Ki * pid_integraal + Kd * diff;
+      // Geen ondergrens — negatieve waarde geeft via mapping stand 0 (geleidelijke afbouw)
+      if(pid_output > 100) pid_output = 100;
+
+      uint8_t nieuwe_stand = 0;
+      if(pid_output < 5)       nieuwe_stand = 0;
+      else if(pid_output < 15) nieuwe_stand = 1;
+      else if(pid_output < 25) nieuwe_stand = 2;
+      else if(pid_output < 40) nieuwe_stand = 3;
+      else if(pid_output < 55) nieuwe_stand = 4;
+      else if(pid_output < 70) nieuwe_stand = 5;
+      else if(pid_output < 85) nieuwe_stand = 6;
+      else                     nieuwe_stand = 7;
+
+      if(t_outside < 5.0 && nieuwe_stand == 0) nieuwe_stand = 1;
+
+      // Kortere hysteresis bij standverlaging: afbouwen is minder belastend dan opstarten
+      long hyst;
+      if(nieuwe_stand < stand)  hyst = HYST_DOWN_MS; // 5 min bij dalen
+      else if(water_fout > 5.0) hyst = HYST_FAST_MS; // 2 min bij grote fout
+      else                      hyst = HYST_SLOW_MS; // 10 min bij stijgen
+
+      if(nieuwe_stand != stand && (nu - vorige_stand_wijz_ms >= hyst)){
+        stand = nieuwe_stand;
+        vorige_stand_wijz_ms = nu;
+        if(stand == 0){
+          wp_aan = false;
+          pid_integraal = 0;
+        }
+        mqtt_log("WATER: A:" + String(t_supply,1) + " Doel:" + String(t_water_gewenst,1) +
+                 " fout:" + String(water_fout,1) + "°C → St" + String(stand) +
+                 " PID:" + String(pid_output,0) + "%", "INFO");
+      }
+    }
+    return;
+  }
   
   float kamer_fout = t_kamer_gewenst - t_kamer;
   
@@ -518,6 +597,14 @@ void mqtt_ontvang(int len){
     modus = "handmatig";
     handmatig_stand = (payload == "1") ? 1 : 0;
   }
+  else if(topic == "chofu/cmd/stand"){
+    int val = payload.toInt();
+    if(val >= 0 && val <= 7){
+      modus = "handmatig";
+      handmatig_stand = val;
+      mqtt_log("Handmatig stand: " + String(val), "INFO");
+    }
+  }
   else if(topic == "chofu/cmd/setpoint"){
     float val = payload.toFloat();
     if(val >= 20 && val <= 45){
@@ -538,9 +625,16 @@ void mqtt_ontvang(int len){
     eeprom_save();
   }
   else if(topic == "chofu/cmd/modus"){
-    if(payload == "auto" || payload == "handmatig"){
+    if(payload == "auto" || payload == "handmatig" || payload == "water"){
       modus = payload;
-      if(modus == "auto") pid_integraal = 0;
+      if(modus != "handmatig") pid_integraal = 0;
+    }
+  }
+  else if(topic == "chofu/cmd/water_setpoint"){
+    float val = payload.toFloat();
+    if(val >= 25 && val <= 55){
+      t_water_gewenst = val;
+      mqtt_log("Water setpoint: " + String(t_water_gewenst,1) + "°C", "INFO");
     }
   }
   else if(topic == "anna/setpoint"){
@@ -619,7 +713,12 @@ void discovery_fase2(){
   mqttClient.print("{\"name\":\"Chofu Setpoint\",\"uniq_id\":\"chofu_hp_setpoint\",\"stat_t\":\"chofu/setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + dev + "}");
   mqttClient.endMessage();
   delay(2000);
-  
+
+  mqttClient.beginMessage("homeassistant/number/chofu_hp/water_setpoint/config");
+  mqttClient.print("{\"name\":\"Chofu Water Setpoint\",\"uniq_id\":\"chofu_hp_water_setpoint\",\"cmd_t\":\"chofu/cmd/water_setpoint\",\"stat_t\":\"chofu/water_setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":25,\"max\":55,\"step\":0.5," + dev + "}");
+  mqttClient.endMessage();
+  delay(2000);
+
   mqttClient.beginMessage("homeassistant/sensor/chofu_hp/modus/config");
   mqttClient.print("{\"name\":\"Chofu Modus\",\"uniq_id\":\"chofu_hp_modus\",\"stat_t\":\"chofu/modus\"," + dev + "}");
   mqttClient.endMessage();
@@ -656,8 +755,13 @@ void discovery_fase3(){
   mqttClient.endMessage();
   delay(2000);
   
+  mqttClient.beginMessage("homeassistant/number/chofu_hp/stand_cmd/config");
+  mqttClient.print("{\"name\":\"Chofu Handmatig Stand\",\"uniq_id\":\"chofu_hp_stand_cmd\",\"cmd_t\":\"chofu/cmd/stand\",\"stat_t\":\"chofu/stand\",\"min\":0,\"max\":7,\"step\":1," + dev + "}");
+  mqttClient.endMessage();
+  delay(2000);
+
   mqttClient.beginMessage("homeassistant/select/chofu_hp/modus_sel/config");
-  mqttClient.print("{\"name\":\"Chofu Modus Select\",\"uniq_id\":\"chofu_hp_modus_sel\",\"cmd_t\":\"chofu/cmd/modus\",\"stat_t\":\"chofu/modus\",\"options\":[\"auto\",\"handmatig\"]," + dev + "}");
+  mqttClient.print("{\"name\":\"Chofu Modus Select\",\"uniq_id\":\"chofu_hp_modus_sel\",\"cmd_t\":\"chofu/cmd/modus\",\"stat_t\":\"chofu/modus\",\"options\":[\"auto\",\"handmatig\",\"water\"]," + dev + "}");
   mqttClient.endMessage();
   
   stuur_data();
@@ -677,6 +781,7 @@ void stuur_data(){
   mqttClient.beginMessage("chofu/kamer");mqttClient.print(t_kamer,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/kamer_gewenst");mqttClient.print(t_kamer_gewenst,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/setpoint");mqttClient.print(setpoint,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/water_setpoint");mqttClient.print(t_water_gewenst,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/modus");mqttClient.print(modus);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/lcd");mqttClient.print(lcd_enabled?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage("chofu/defrost");mqttClient.print(defrost?"1":"0");mqttClient.endMessage();
@@ -745,7 +850,17 @@ void handle_web_client(){
       int idx = request.indexOf("modus=") + 6;
       String val_str = request.substring(idx, request.indexOf("&", idx));
       if(val_str.length() == 0) val_str = request.substring(idx, request.indexOf(" ", idx));
-      modus = val_str;
+      if(val_str == "auto" || val_str == "handmatig" || val_str == "water"){
+        modus = val_str;
+        if(modus != "handmatig") pid_integraal = 0;
+      }
+    }
+    if(request.indexOf("water_setpoint=") >= 0){
+      int idx = request.indexOf("water_setpoint=") + 15;
+      String val_str = request.substring(idx, request.indexOf("&", idx));
+      if(val_str.length() == 0) val_str = request.substring(idx, request.indexOf(" ", idx));
+      float val = val_str.toFloat();
+      if(val >= 25 && val <= 55) t_water_gewenst = val;
     }
   }
   
@@ -838,10 +953,17 @@ void handle_web_client(){
   client.print("<div>Modus: <select name='modus'>");
   client.print("<option value='auto'");
   if(modus == "auto") client.print(" selected");
-  client.print(">Auto</option>");
+  client.print(">Auto (kamer)</option>");
+  client.print("<option value='water'");
+  if(modus == "water") client.print(" selected");
+  client.print(">Water temperatuur</option>");
   client.print("<option value='handmatig'");
   if(modus == "handmatig") client.print(" selected");
   client.println(">Handmatig</option></select></div>");
+
+  client.print("<div>Water setpoint: <input type='number' name='water_setpoint' value='");
+  client.print(t_water_gewenst, 1);
+  client.println("' step='0.5' min='25' max='55'> °C <small>(water modus)</small></div>");
   
   client.println("<h3>PID Parameters</h3>");
   
@@ -909,7 +1031,11 @@ void update_lcd(){
       lcd.print(" R:");lcd.print(t_return,1);
       lcd.setCursor(0,1);
       lcd.print("DT:");lcd.print(delta_t,1);
-      lcd.print(" Set:");lcd.print(setpoint,0);
+      if(modus == "water"){
+        lcd.print(" W:");lcd.print(t_water_gewenst,0);
+      } else {
+        lcd.print(" Set:");lcd.print(setpoint,0);
+      }
       break;
       
     case 2:

@@ -23,7 +23,8 @@ Complete overzicht van alle MQTT topics en commando's.
 | `sensor/kromhout_wp_aanvoer` | float | °C | 10s | Aanvoer temperatuur |
 | `sensor/kromhout_wp_retour` | float | °C | 10s | Retour temperatuur |
 | `sensor/kromhout_wp_kamer` | float | °C | 10s | Kamer temperatuur (van Anna) |
-| `sensor/kromhout_wp_setpoint` | float | °C | 10s | Aanvoer setpoint |
+| `sensor/kromhout_wp_setpoint` | float | °C | 10s | Aanvoer setpoint (auto modus stooklijn) |
+| `chofu/water_setpoint` | float | °C | 10s | Gewenste aanvoertemperatuur (water modus) |
 | `sensor/kromhout_wp_buiten` | float | °C | 10s | Buiten temperatuur |
 | `sensor/kromhout_wp_delta_t` | float | °C | 10s | Delta T (aanvoer - retour) |
 
@@ -40,7 +41,7 @@ Payload: "35.2"
 | `sensor/kromhout_wp_stand` | int | 0-7 | 10s | Huidige compressor stand |
 | `sensor/kromhout_wp_vermogen` | int | W | 10s | Geschat vermogen |
 | `sensor/kromhout_wp_pid` | int | 0-100 | 10s | PID output (%) |
-| `sensor/kromhout_wp_modus` | string | auto/handmatig | 10s | Regelingsmodus |
+| `sensor/kromhout_wp_modus` | string | auto/handmatig/water | 10s | Regelingsmodus |
 | `kromhout_wp/aan` | string | 0/1 | 10s | Warmtepomp aan/uit |
 
 **Stand Mapping:**
@@ -96,12 +97,14 @@ switch:
 #### Modus
 ```
 Topic: kromhout_wp/cmd/modus
-Payload: "auto" = Automatische PID regeling
-Payload: "handmatig" = Handmatige controle
+Payload: "auto"      = Automatische PID regeling op kamertemperatuur
+Payload: "water"     = Directe aanvoertemperatuur regeling
+Payload: "handmatig" = Vaste stand (gebruik chofu/cmd/stand)
 
 Effect:
-- auto: PID neemt controle over
-- handmatig: Gebruik stand commando's
+- auto:      PID regelt op basis van kamerfout + aanvoerfout
+- water:     PID regelt puur op aanvoertemperatuur (t_water_gewenst)
+- handmatig: Vaste stand, geen PID actief
 ```
 
 **Home Assistant Select:**
@@ -113,12 +116,99 @@ select:
     state_topic: "sensor/kromhout_wp_modus"
     options:
       - "auto"
+      - "water"
       - "handmatig"
 ```
 
+### Water Modus
+
+#### Water Setpoint
+```
+Topic: chofu/cmd/water_setpoint
+Payload: "25.0" - "55.0" (float in °C)
+
+Effect:
+- Stelt de gewenste aanvoertemperatuur in voor water modus
+- PID regelt de stand (0-7) om deze temperatuur te bereiken
+- Tolerantie: ±1°C (AAN bij >1°C te koud, UIT bij >1°C te warm)
+- Niet opgeslagen in EEPROM (reset naar 40°C na herstart)
+
+Schakel eerst naar water modus:
+  chofu/cmd/modus = "water"
+  chofu/cmd/water_setpoint = "45.0"
+```
+
+**Regelgedrag water modus (voorbeeld setpoint 40°C):**
+```
+41.0°C ════════ UIT trigger (setpoint + 1°C) ✋
+40.5°C          Binnen tolerantie - huidige staat handhaven
+40.0°C ──────── DOEL ✅
+39.5°C          Binnen tolerantie - huidige staat handhaven
+39.0°C ════════ AAN trigger (setpoint - 1°C) 🔥
+```
+
+**Home Assistant Number:**
+```yaml
+number:
+  - platform: mqtt
+    name: "WP Water Setpoint"
+    command_topic: "chofu/cmd/water_setpoint"
+    state_topic: "chofu/water_setpoint"
+    min: 25
+    max: 55
+    step: 0.5
+    unit_of_measurement: "°C"
+```
+
+---
+
+### Handmatige Stand
+
+#### Stand (0-7)
+```
+Topic: chofu/cmd/stand
+Payload: "0" - "7" (integer)
+
+Effect:
+- Schakelt automatisch naar handmatige modus
+- Zet de compressor op de opgegeven stand
+- PID regeling gepauzeerd
+- Stand 0 = UIT
+
+Stand Mapping:
+  0 = UIT       (0W)
+  1 = Minimum   (240W)
+  2 = Laag      (420W)
+  3 = Medium-   (640W)
+  4 = Medium    (850W)
+  5 = Medium+   (1050W)
+  6 = Hoog      (1250W)
+  7 = Maximum   (1450W)
+```
+
+**Home Assistant Number:**
+```yaml
+number:
+  - platform: mqtt
+    name: "WP Handmatig Stand"
+    command_topic: "chofu/cmd/stand"
+    state_topic: "chofu/stand"
+    min: 0
+    max: 7
+    step: 1
+```
+
+**Verschil met `chofu/cmd/power`:**
+```
+chofu/cmd/power  → Alleen aan (stand 1) of uit (stand 0)
+chofu/cmd/stand  → Specifieke stand 0-7 instelbaar
+```
+
+---
+
 ### PID Parameters
 
-#### Setpoint (Aanvoer Temperatuur)
+#### Setpoint (Aanvoer Temperatuur, auto modus)
 ```
 Topic: kromhout_wp/cmd/setpoint
 Payload: "20.0" - "45.0" (float in °C)
@@ -409,10 +499,13 @@ automation:
 │   ├── aan                        (1)
 │   ├── defrost                    (0)
 │   ├── lcd                        (1)
+│   ├── water_setpoint             (40.0)
 │   ├── cmd/
 │   │   ├── power
 │   │   ├── modus
 │   │   ├── setpoint
+│   │   ├── water_setpoint
+│   │   ├── stand
 │   │   ├── kp
 │   │   ├── ki
 │   │   ├── kd
@@ -436,7 +529,7 @@ automation:
 ### Publish (Versturen)
 
 ```bash
-# Setpoint wijzigen
+# Setpoint wijzigen (auto modus stooklijn)
 mosquitto_pub -h 192.168.1.x -t "kromhout_wp/cmd/setpoint" -m "42.0"
 
 # Warmtepomp aan
@@ -444,6 +537,14 @@ mosquitto_pub -h 192.168.1.x -t "kromhout_wp/cmd/power" -m "1"
 
 # Modus naar auto
 mosquitto_pub -h 192.168.1.x -t "kromhout_wp/cmd/modus" -m "auto"
+
+# Water modus: schakel en stel gewenste aanvoertemperatuur in
+mosquitto_pub -h 192.168.1.x -t "chofu/cmd/modus" -m "water"
+mosquitto_pub -h 192.168.1.x -t "chofu/cmd/water_setpoint" -m "45.0"
+
+# Handmatige stand instellen (schakel automatisch naar handmatig)
+mosquitto_pub -h 192.168.1.x -t "chofu/cmd/stand" -m "4"   # stand 4 (850W)
+mosquitto_pub -h 192.168.1.x -t "chofu/cmd/stand" -m "0"   # uit
 
 # Force start
 mosquitto_pub -h 192.168.1.x -t "kromhout_wp/cmd/force_start" -m "1"

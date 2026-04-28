@@ -33,6 +33,8 @@ Dit project is het resultaat van **ontelbare uren reverse engineering, testen en
 - **Stooklijn Compensatie** - Hogere temperaturen bij vorst
 - **Delta T Monitoring** - Optimale warmte overdracht (5°C doel)
 - **Dynamische Maximum** - Anna setpoint + 0.5°C (instelbaar tot 25°C)
+- **Water Modus** - Directe aanvoertemperatuur regeling via MQTT (±1°C tolerantie)
+- **Handmatige Stand** - Stel compressor stand 0-7 direct in via MQTT
 
 ### Smart Home Integratie
 - **MQTT Auto-Discovery** - Automatische Home Assistant configuratie
@@ -195,8 +197,10 @@ kromhout_wp/aan                    - Aan/Uit status
 ### Command Topics (HA → Arduino)
 ```
 kromhout_wp/cmd/power              - 0/1 (handmatig aan/uit)
-kromhout_wp/cmd/setpoint           - 20-45 (aanvoer temp)
-kromhout_wp/cmd/modus              - auto/handmatig
+kromhout_wp/cmd/setpoint           - 20-45 (aanvoer temp, auto modus)
+kromhout_wp/cmd/modus              - auto / water / handmatig
+chofu/cmd/water_setpoint           - 25-55 (gewenste aanvoertemp, water modus)
+chofu/cmd/stand                    - 0-7 (directe stand, schakelt naar handmatig)
 kromhout_wp/cmd/force_start        - 1 (skip hysteresis)
 kromhout_wp/cmd/reset_setup        - 1 (terug naar setup)
 ```
