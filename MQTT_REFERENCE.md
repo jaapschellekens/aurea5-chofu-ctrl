@@ -166,6 +166,45 @@ number:
     unit_of_measurement: "°C"
 ```
 
+#### Koeling
+```
+Topic: chofu/cmd/koeling
+Payload: "1" = Koelen
+Payload: "0" = Verwarmen (default)
+
+Effect:
+- Alleen actief in water modus
+- Zet protocol byte 19-2,3 op 2 (koeling) i.p.v. 1 (verwarming)
+- PID logica wordt omgekeerd: te warm water = meer vermogen
+- PID integraal wordt gereset bij wisselen
+- Niet opgeslagen in EEPROM (reset naar verwarmen na herstart)
+
+Gebruik altijd samen met water modus:
+  chofu/cmd/modus = "water"
+  chofu/cmd/water_setpoint = "18.0"   (koelwater setpoint)
+  chofu/cmd/koeling = "1"
+```
+
+**Regelgedrag koeling (voorbeeld setpoint 18°C):**
+```
+19.0°C ════════ AAN trigger (setpoint + 1°C) 🧊
+18.5°C          Binnen tolerantie
+18.0°C ──────── DOEL ✅
+17.5°C          Binnen tolerantie
+17.0°C ════════ UIT trigger (setpoint - 1°C) ✋
+```
+
+**Home Assistant Switch:**
+```yaml
+switch:
+  - platform: mqtt
+    name: "WP Koeling"
+    command_topic: "chofu/cmd/koeling"
+    state_topic: "chofu/koeling"
+    payload_on: "1"
+    payload_off: "0"
+```
+
 ---
 
 ### Handmatige Stand
@@ -312,6 +351,36 @@ number:
 ```
 
 ### Stooklijn Parameters
+
+#### Vorstgrens
+```
+Topic: chofu/cmd/t_vorst
+Payload: "-10.0" - "10.0" (float in °C)
+
+Effect:
+- Stelt de buitentemperatuur in waarbij vorstbeveiliging actief wordt
+- Onder deze grens: warmtepomp blijft minimaal op stand 1 (nooit uit)
+- Opgeslagen in EEPROM (blijft na herstart)
+
+Default: 4.0°C
+
+Voorbeeld:
+T_VORST = 2.0 → beveiliging activeert bij buiten < 2°C
+T_VORST = -5.0 → beveiliging pas bij strenge vorst
+```
+
+**Home Assistant Number:**
+```yaml
+number:
+  - platform: mqtt
+    name: "WP Vorstgrens"
+    command_topic: "chofu/cmd/t_vorst"
+    state_topic: "chofu/t_vorst"
+    min: -10
+    max: 10
+    step: 0.5
+    unit_of_measurement: "°C"
+```
 
 #### Stooklijn Grens
 ```

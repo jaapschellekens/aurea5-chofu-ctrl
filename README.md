@@ -34,7 +34,8 @@ Dit project is het resultaat van **ontelbare uren reverse engineering, testen en
 - **Delta T Monitoring** - Optimale warmte overdracht (5°C doel)
 - **Dynamische Maximum** - Anna setpoint + 0.5°C (instelbaar tot 25°C)
 - **Water Modus** - Directe aanvoertemperatuur regeling via MQTT (±1°C tolerantie)
-- **Handmatige Stand** - Stel compressor stand 0-7 direct in via MQTT
+- **Koeling** - Koelmodus via water modus (protocol byte 19-2,3 = 2), PID loopt automatisch omgekeerd
+- **Handmatige Stand** - Stel compressor stand 0-12 direct in via MQTT (stands 9-12 alleen handmatig)
 
 ### Smart Home Integratie
 - **MQTT Auto-Discovery** - Automatische Home Assistant configuratie
@@ -130,8 +131,10 @@ switch.kromhout_wp_power
 
 ## 📊 Regelgedrag
 
-### Hysteresis Instellingen
-Bij Anna setpoint 20.5°C:
+### Drie Regelingsmodi
+
+#### Auto Modus (kamertemperatuur)
+PID regelt de aanvoertemperatuur op basis van de kamerfout (Anna thermostaat). Hysteresis bij Anna setpoint 20.5°C:
 ```
 21.0°C ════════ Dynamische max (Anna + 0.5°C) ⛔
 20.7°C ════════ UIT trigger (0.2°C boven) ✋
@@ -140,7 +143,44 @@ Bij Anna setpoint 20.5°C:
 20.4°C ════════ AAN trigger (0.1°C onder) 🔥
 ```
 
-### Verwacht Gedrag
+#### Water Modus (directe aanvoertemperatuur)
+PID regelt puur op aanvoertemperatuur — geen kamercorrectie. Instelbaar via MQTT (`chofu/cmd/water_setpoint`, 25–55°C).
+```
+Setpoint + 1°C ══ UIT trigger ✋
+Setpoint        ── DOEL ✅
+Setpoint - 1°C ══ AAN trigger 🔥
+```
+Afbouw verloopt geleidelijk: elke 5 minuten één stand lager. Dit voorkomt abrupte stops en is beter voor de compressor.
+
+#### Koeling (water modus + koeling aan)
+Activeer via `chofu/cmd/koeling = "1"` in combinatie met water modus. Het protocol byte `19-2,3` wordt op `2` gezet (i.p.v. `1` voor verwarmen). De PID logica draait automatisch om:
+```
+Setpoint + 1°C ══ AAN trigger 🧊  (water te warm → meer vermogen)
+Setpoint        ── DOEL ✅
+Setpoint - 1°C ══ UIT trigger ✋  (water koud genoeg)
+```
+Na herstart staat de modus altijd op verwarmen — koeling moet bewust worden ingeschakeld.
+
+#### Handmatige Modus (vaste stand)
+Zet de compressor direct op een vaste stand (0–12) via MQTT (`chofu/cmd/stand`). PID is niet actief.
+```
+Stand 0  =   0W  (uit)
+Stand 1  = 240W
+Stand 2  = 420W
+Stand 3  = 640W
+Stand 4  = 850W
+Stand 5  = 1050W
+Stand 6  = 1250W
+Stand 7  = 1450W
+Stand 8  = 1550W  ← max in auto/water modus
+─────────────────── alleen handmatig ───────
+Stand 9  = 1650W
+Stand 10 = 1700W
+Stand 11 = 1750W
+Stand 12 = 1800W
+```
+
+### Verwacht Gedrag Auto Modus
 ```
 Typische nacht (Anna 20.5°C):
 22:00 - 20.4°C → WP START (Stand 2)
@@ -188,19 +228,25 @@ Zie **[ESP32_DISPLAY_README.md](docs/ESP32_DISPLAY_README.md)** voor details.
 sensor/kromhout_wp_aanvoer         - Aanvoer temperatuur
 sensor/kromhout_wp_retour          - Retour temperatuur
 sensor/kromhout_wp_kamer           - Kamer temperatuur
-sensor/kromhout_wp_stand           - Huidige stand (0-7)
+sensor/kromhout_wp_stand           - Huidige stand (0-12)
 sensor/kromhout_wp_vermogen        - Vermogen (W)
 sensor/kromhout_wp_buiten          - Buiten temperatuur
+sensor/kromhout_wp_modus           - Huidige modus (auto/water/handmatig)
+chofu/water_setpoint               - Gewenste aanvoertemp (water modus)
+chofu/koeling                      - Koeling aan/uit status (0/1)
+chofu/t_vorst                      - Vorstbeveiligingsgrens (°C)
 kromhout_wp/aan                    - Aan/Uit status
 ```
 
 ### Command Topics (HA → Arduino)
 ```
-kromhout_wp/cmd/power              - 0/1 (handmatig aan/uit)
-kromhout_wp/cmd/setpoint           - 20-45 (aanvoer temp, auto modus)
 kromhout_wp/cmd/modus              - auto / water / handmatig
-chofu/cmd/water_setpoint           - 25-55 (gewenste aanvoertemp, water modus)
-chofu/cmd/stand                    - 0-7 (directe stand, schakelt naar handmatig)
+kromhout_wp/cmd/power              - 0/1 (handmatig aan/uit)
+chofu/cmd/stand                    - 0-12 (vaste stand, schakelt naar handmatig)
+chofu/cmd/water_setpoint           - 25-55°C (gewenste aanvoertemp, water modus)
+chofu/cmd/koeling                  - 0/1 (koeling aan/uit, alleen water modus)
+kromhout_wp/cmd/setpoint           - 20-45°C (aanvoer setpoint, auto modus stooklijn)
+chofu/cmd/t_vorst                  - -10 tot 10°C (vorstbeveiligingsgrens)
 kromhout_wp/cmd/force_start        - 1 (skip hysteresis)
 kromhout_wp/cmd/reset_setup        - 1 (terug naar setup)
 ```
@@ -221,10 +267,11 @@ kromhout_wp/log/ERROR             - Fouten
 http://[arduino-ip]
 
 Wijzig:
+- Modus (Auto / Water / Handmatig)
+- Water setpoint (25-55°C, water modus)
+- Setpoint (20-45°C, auto modus stooklijn)
 - PID parameters (Kp, Ki, Kd)
-- Setpoint (20-45°C)
 - Stooklijn parameters
-- Modus (Auto/Handmatig)
 ```
 
 ### Via MQTT

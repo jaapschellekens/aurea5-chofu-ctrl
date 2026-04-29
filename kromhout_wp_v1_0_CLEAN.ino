@@ -84,6 +84,7 @@ long HYST_DOWN_MS = 300000;  // 5 minuten (standverlaging water modus)
 // Stooklijn parameters
 float STOOKLIJN_GRENS = 5.0;   // Onder 5°C buiten
 float STOOKLIJN_FACTOR = 0.5;  // +0.5°C setpoint per graad onder grens
+float T_VORST = 4.0;           // Vorstbeveiliging bij 4°C buiten (can be adjusted)
 
 // Vermogen per stand (Watt) — stands 9-12 alleen in handmatige modus
 const int VERMOGEN[] = {0, 240, 420, 640, 850, 1050, 1250, 1450, 1550, 1650, 1700, 1750, 1800};
@@ -112,6 +113,7 @@ float t_kamer_gewenst = 21.5;
 
 // Watertemperatuur setpoint (water modus)
 float t_water_gewenst = 40.0;  // Gewenste aanvoertemperatuur, instelbaar via MQTT
+bool koeling_modus = false;    // false = verwarmen, true = koelen (alleen water modus)
 
 // Regelparameters
 float setpoint = 40.0;  // Doel aanvoertemperatuur (auto modus stooklijn)
@@ -178,6 +180,7 @@ void mqtt_log(String message, String level = "INFO"){
 #define ADDR_KD 13
 #define ADDR_STOOKLIJN_GRENS 17
 #define ADDR_STOOKLIJN_FACTOR 21
+#define ADDR_T_VORST 25
 
 // ═══════════════════════════════════════════════════════════════
 //  EEPROM FUNCTIES
@@ -201,6 +204,7 @@ void eeprom_save(){
   EEPROM.put(ADDR_KD, Kd);
   EEPROM.put(ADDR_STOOKLIJN_GRENS, STOOKLIJN_GRENS);
   EEPROM.put(ADDR_STOOKLIJN_FACTOR, STOOKLIJN_FACTOR);
+  EEPROM.put(ADDR_T_VORST, T_VORST);
   Serial.println("EEPROM: Settings opgeslagen");
 }
 
@@ -211,6 +215,8 @@ void eeprom_load(){
   EEPROM.get(ADDR_KD, Kd);
   EEPROM.get(ADDR_STOOKLIJN_GRENS, STOOKLIJN_GRENS);
   EEPROM.get(ADDR_STOOKLIJN_FACTOR, STOOKLIJN_FACTOR);
+  EEPROM.get(ADDR_T_VORST, T_VORST);
+  if(T_VORST < -10 || T_VORST > 10) T_VORST = 4.0;  // Sanity check bij oude EEPROM
   Serial.print("EEPROM: Geladen - Setpoint:");
   Serial.print(setpoint,1);
   Serial.print(" PID:");
@@ -233,8 +239,10 @@ void stuur_stand_telegram(){
   // Stuur 0x19 telegram naar warmtepomp
   uint8_t telegram[25] = {0};
   telegram[0] = 0x19;  // Header: controlbox -> warmtepomp
-  telegram[1] = stand; // Stand 0-7
+  telegram[1] = stand; // Stand 0-12
   telegram[2] = 0x00;  // Reserve
+  // 19-2,3: 0=uit, 1=verwarmen, 2=koelen
+  telegram[3] = (stand == 0) ? 0 : (koeling_modus ? 2 : 1);
   
   // Voeg checksum toe
   telegram[23] = bereken_checksum(telegram, 23);
@@ -357,10 +365,12 @@ void pas_pid_aan(){
   // WATER MODUS - Directe aanvoertemperatuur regeling (±1°C)
   // ═══════════════════════════════════════════════════════════
   if(modus == "water"){
-    float water_fout = t_water_gewenst - t_supply;
+    // Bij koeling is de fout omgekeerd: te warm water = positieve fout (meer vermogen)
+    float water_fout = koeling_modus ? (t_supply - t_water_gewenst)
+                                     : (t_water_gewenst - t_supply);
 
     // Vorstbeveiliging
-    if(t_outside < 5.0 && stand == 0){
+    if(t_outside < T_VORST && stand == 0){
       stand = 1;
       wp_aan = true;
       vorige_stand_wijz_ms = nu;
@@ -372,7 +382,7 @@ void pas_pid_aan(){
       wp_aan = true;
     } else if(water_fout < -1.0){
       // Meer dan 1°C te warm: uit
-      if(t_outside >= 5.0){
+      if(t_outside >= T_VORST){
         wp_aan = false;
         stand = 0;
         pid_integraal = 0;
@@ -407,7 +417,7 @@ void pas_pid_aan(){
       else                      nieuwe_stand = 8;
       // Stands 9-12 zijn voorbehouden aan handmatige modus
 
-      if(t_outside < 5.0 && nieuwe_stand == 0) nieuwe_stand = 1;
+      if(t_outside < T_VORST && nieuwe_stand == 0) nieuwe_stand = 1;
 
       // Kortere hysteresis bij standverlaging: afbouwen is minder belastend dan opstarten
       long hyst;
@@ -435,7 +445,7 @@ void pas_pid_aan(){
   // ═══════════════════════════════════════════════════════════
   // VORSTBEVEILIGING - ALTIJD EERST CHECKEN!
   // ═══════════════════════════════════════════════════════════
-  if(t_outside < 5.0){
+  if(t_outside < T_VORST){
     if(stand == 0){
       stand = 1;
       wp_aan = true;
@@ -535,7 +545,7 @@ void pas_pid_aan(){
     // Stands 9-12 zijn voorbehouden aan handmatige modus
 
     // VORSTBEVEILIGING: minimaal stand 1 bij vorst
-    if(t_outside < 5.0 && nieuwe_stand == 0){
+    if(t_outside < T_VORST && nieuwe_stand == 0){
       nieuwe_stand = 1;
     }
     
@@ -563,7 +573,7 @@ void pas_pid_aan(){
   } else if(kamer_fout < -0.2){  // UIT bij 20.7°C (was -0.3 → 20.8°C)
     // KAMER TE WARM - Gebalanceerde hysteresis (0.3°C band totaal)
     // Maar bij vorst NOOIT onder stand 1!
-    if(t_outside < 5.0){
+    if(t_outside < T_VORST ){
       if(stand > 1){
         wp_aan = true;
         stand = 1;  // Minimum bij vorst
@@ -633,6 +643,19 @@ void mqtt_ontvang(int len){
       modus = payload;
       if(modus != "handmatig") pid_integraal = 0;
     }
+  }
+  else if(topic == "chofu/cmd/t_vorst"){
+    float val = payload.toFloat();
+    if(val >= -10 && val <= 10){
+      T_VORST = val;
+      eeprom_save();
+      mqtt_log("Vorstgrens: " + String(T_VORST,1) + "°C", "INFO");
+    }
+  }
+  else if(topic == "chofu/cmd/koeling"){
+    koeling_modus = (payload == "1");
+    pid_integraal = 0;  // Reset PID bij wisselen van richting
+    mqtt_log(koeling_modus ? "Koeling ingeschakeld" : "Verwarming ingeschakeld", "INFO");
   }
   else if(topic == "chofu/cmd/water_setpoint"){
     float val = payload.toFloat();
@@ -718,6 +741,11 @@ void discovery_fase2(){
   mqttClient.endMessage();
   delay(2000);
 
+  mqttClient.beginMessage("homeassistant/number/chofu_hp/t_vorst/config");
+  mqttClient.print("{\"name\":\"Chofu Vorstgrens\",\"uniq_id\":\"chofu_hp_t_vorst\",\"cmd_t\":\"chofu/cmd/t_vorst\",\"stat_t\":\"chofu/t_vorst\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":-10,\"max\":10,\"step\":0.5," + dev + "}");
+  mqttClient.endMessage();
+  delay(2000);
+
   mqttClient.beginMessage("homeassistant/number/chofu_hp/water_setpoint/config");
   mqttClient.print("{\"name\":\"Chofu Water Setpoint\",\"uniq_id\":\"chofu_hp_water_setpoint\",\"cmd_t\":\"chofu/cmd/water_setpoint\",\"stat_t\":\"chofu/water_setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":25,\"max\":55,\"step\":0.5," + dev + "}");
   mqttClient.endMessage();
@@ -764,6 +792,11 @@ void discovery_fase3(){
   mqttClient.endMessage();
   delay(2000);
 
+  mqttClient.beginMessage("homeassistant/switch/chofu_hp/koeling/config");
+  mqttClient.print("{\"name\":\"Chofu Koeling\",\"uniq_id\":\"chofu_hp_koeling\",\"cmd_t\":\"chofu/cmd/koeling\",\"stat_t\":\"chofu/koeling\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + dev + "}");
+  mqttClient.endMessage();
+  delay(2000);
+
   mqttClient.beginMessage("homeassistant/select/chofu_hp/modus_sel/config");
   mqttClient.print("{\"name\":\"Chofu Modus Select\",\"uniq_id\":\"chofu_hp_modus_sel\",\"cmd_t\":\"chofu/cmd/modus\",\"stat_t\":\"chofu/modus\",\"options\":[\"auto\",\"handmatig\",\"water\"]," + dev + "}");
   mqttClient.endMessage();
@@ -786,6 +819,8 @@ void stuur_data(){
   mqttClient.beginMessage("chofu/kamer_gewenst");mqttClient.print(t_kamer_gewenst,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/setpoint");mqttClient.print(setpoint,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/water_setpoint");mqttClient.print(t_water_gewenst,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/koeling");mqttClient.print(koeling_modus?"1":"0");mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/t_vorst");mqttClient.print(T_VORST,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/modus");mqttClient.print(modus);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/lcd");mqttClient.print(lcd_enabled?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage("chofu/defrost");mqttClient.print(defrost?"1":"0");mqttClient.endMessage();
