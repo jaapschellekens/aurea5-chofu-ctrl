@@ -1,0 +1,32 @@
+{
+  "_comment": "Geoptimaliseerde PID-parameters via scipy differential_evolution, periode 2026-02-10 t/m 2026-02-20",
+  "_model": "HouseModel UA_house=120 C_th=5e6 UA_emitter=200 C_water=200e3 COP_eta=0.40",
+  "_periode": "2026-02-10 t/m 2026-02-20 (10 dagen)",
+
+  "auto": {
+    "Kp": 18.957,
+    "Ki": 0.16968,
+    "Kd": 0.01153,
+    "RMSE_vs_historisch": 1.099,
+    "fout_gem": 0.08,
+    "fout_std": 0.32,
+    "stand_wijzigingen": 540,
+    "notitie": "Hoge Kp (agressief P), lage Kd (geen derivative-kick), sterke integrator"
+  },
+
+  "water": {
+    "Kp": 4.654,
+    "Ki": 0.28608,
+    "Kd": 0.0,
+    "RMSE_vs_historisch": 2.496,
+    "fout_gem": -4.06,
+    "fout_std": 1.35,
+    "stand_wijzigingen": 834,
+    "notitie": "Pure PI (Kd=0), Ki hoog voor snelle integratie; fout_gem -4°C t.o.v. stooklijn door stooklijn-mismatch in model"
+  },
+
+  "ff_controller_referentie": {
+    "auto":  { "fout_gem": 0.35, "fout_std": 0.28, "stand_wijzigingen": 309 },
+    "water": { "fout_gem": -0.25, "fout_std": 1.56, "stand_wijzigingen": 197 }
+  }
+}

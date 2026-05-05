@@ -1,0 +1,7 @@
+Resultaat (water):
+  Kp = 15.5608
+  Ki = 0.07702
+  Kd = 0.0093
+  RMSE = 7.286°C  (400 evaluaties)
+
+

@@ -1,3 +1,5 @@
+
+
 /*
  * ╔═══════════════════════════════════════════════════════════════╗
  * ║  Kromhout WP Controller v1.0 FINAL                          ║
@@ -59,9 +61,9 @@
 // ═══════════════════════════════════════════════════════════════
 
 // WiFi & MQTT
-const char* SSID = "";
-const char* PASS = "";
-const char* MQTT_BROKER = "";
+const char* SSID = "YOUR_SSID";
+const char* PASS = "YOUR_WIFI_PASSWORD";
+const char* MQTT_BROKER = "192.168.1.8";
 const int MQTT_PORT = 1883;
 const char* MQTT_USER = "";
 const char* MQTT_PASS = "";
@@ -80,11 +82,19 @@ float Kd = 0.3;   // Derivative gain
 long HYST_SLOW_MS = 600000;  // 10 minuten (conservatief)
 long HYST_FAST_MS = 120000;  // 2 minuten (agressief bij grote fout)
 long HYST_DOWN_MS = 300000;  // 5 minuten (standverlaging water modus)
+// PID interval — NIET in EEPROM: reboot herstelt altijd echte waarden
+long pid_interval_ms = 5000;  // 5 seconden (instelbaar via MQTT voor simulatie)
 
 // Stooklijn parameters
-float STOOKLIJN_GRENS = 5.0;   // Onder 5°C buiten
-float STOOKLIJN_FACTOR = 0.5;  // +0.5°C setpoint per graad onder grens
-float T_VORST = 4.0;           // Vorstbeveiliging bij 4°C buiten (can be adjusted)
+float STOOKLIJN_GRENS = 15.0;  // Curve actief onder 15°C buiten (28°C @ 15°C, 45°C @ -10°C)
+float STOOKLIJN_FACTOR = 0.68; // +0.68°C per graad onder grens
+float T_VORST = 4.0;           // Vorstbeveiliging bij 4°C buiten
+
+// Safeguard parameters
+float SUPPLY_MAX = 60.0;           // Noodstop: aanvoer boven deze temp → stand 0
+float KOELING_MIN_BUITEN = 18.0;   // Koeling geblokkeerd onder deze buitentemp
+float STOOKLIJN_UIT_GRENS = 15.0;  // Auto modus: verwarming uit boven deze buitentemp
+long  MQTT_WATCHDOG_MS = 7200000;  // 120 min zonder MQTT → veilige modus
 
 // Vermogen per stand (Watt) — stands 9-12 alleen in handmatige modus
 const int VERMOGEN[] = {0, 240, 420, 640, 850, 1050, 1250, 1450, 1550, 1650, 1700, 1750, 1800};
@@ -116,7 +126,8 @@ float t_water_gewenst = 40.0;  // Gewenste aanvoertemperatuur, instelbaar via MQ
 bool koeling_modus = false;    // false = verwarmen, true = koelen (alleen water modus)
 
 // Regelparameters
-float setpoint = 40.0;  // Doel aanvoertemperatuur (auto modus stooklijn)
+float setpoint = 28.0;      // Basis setpoint (EEPROM, stooklijn startpunt @ 15°C buiten)
+float doel_setpoint = 40.0; // Werkelijk PID-doel inclusief stooklijn-correctie
 float delta_t = 5.0;
 uint8_t stand = 0;  // 0-12 (9-12 alleen handmatig)
 bool wp_aan = false;
@@ -134,8 +145,23 @@ uint8_t telegram_buffer[25];
 uint8_t buffer_index = 0;
 bool telegram_compleet = false;
 
+// Spike filter: vorige sensorwaarden
+float prev_t_supply  = 25.0;
+float prev_t_return  = 20.0;
+float prev_t_outside =  5.0;
+
+// Simulatie: NAN = niet ingesteld (echte sensorwaarden worden gebruikt)
+float sim_t_supply        = NAN;
+float sim_t_return        = NAN;
+float sim_t_outside       = NAN;
+float sim_t_water_gewenst = NAN;
+float sim_t_kamer         = NAN;  // Overschrijft anna/temperatuur in sim
+float sim_t_kamer_gewenst = NAN;  // Overschrijft anna/setpoint in sim
+
+bool sim_actief(){ return !isnan(sim_t_supply) || !isnan(sim_t_return) || !isnan(sim_t_outside) || !isnan(sim_t_water_gewenst) || !isnan(sim_t_kamer); }
+
 // Timers
-uint8_t discovery_fase = 0;
+uint8_t  discovery_fase = 0;
 uint32_t vorige_discovery_ms = 0;
 uint32_t vorige_data_ms = 0;
 uint32_t vorige_lcd_ms = 0;
@@ -143,6 +169,7 @@ uint32_t vorige_pid_ms = 0;
 uint32_t vorige_stand_wijz_ms = 0;
 uint32_t vorige_telegram_ms = 0;
 uint32_t vorige_web_check_ms = 0;
+uint32_t vorige_mqtt_rx_ms = 0;   // Watchdog: laatste MQTT ontvangst
 
 // ═══════════════════════════════════════════════════════════════
 // MQTT LOGGING (v1.0) - Remote Serial Monitor
@@ -171,8 +198,23 @@ void mqtt_log(String message, String level = "INFO"){
   }
 }
 
+void stuur_alert(String msg){
+  Serial.println("ALERT: " + msg);
+  if(mqttClient.connected()){
+    // chofu/log/WARNING voor bestaande monitoring
+    String topic = "chofu/log/WARNING";
+    mqttClient.beginMessage(topic, (unsigned long)msg.length());
+    mqttClient.print(msg);
+    mqttClient.endMessage();
+    // chofu/alert retained: HA sensor toont altijd het laatste bericht
+    mqttClient.beginMessage("chofu/alert", (unsigned long)msg.length(), true);
+    mqttClient.print(msg);
+    mqttClient.endMessage();
+  }
+}
+
 // EEPROM adressen
-#define EEPROM_MAGIC 0xAB
+#define EEPROM_MAGIC 0xAC
 #define ADDR_MAGIC 0
 #define ADDR_SETPOINT 1
 #define ADDR_KP 5
@@ -181,6 +223,9 @@ void mqtt_log(String message, String level = "INFO"){
 #define ADDR_STOOKLIJN_GRENS 17
 #define ADDR_STOOKLIJN_FACTOR 21
 #define ADDR_T_VORST 25
+#define ADDR_SUPPLY_MAX 29
+#define ADDR_KOELING_MIN_BUITEN 33
+#define ADDR_STOOKLIJN_UIT 37
 
 // ═══════════════════════════════════════════════════════════════
 //  EEPROM FUNCTIES
@@ -205,6 +250,9 @@ void eeprom_save(){
   EEPROM.put(ADDR_STOOKLIJN_GRENS, STOOKLIJN_GRENS);
   EEPROM.put(ADDR_STOOKLIJN_FACTOR, STOOKLIJN_FACTOR);
   EEPROM.put(ADDR_T_VORST, T_VORST);
+  EEPROM.put(ADDR_SUPPLY_MAX, SUPPLY_MAX);
+  EEPROM.put(ADDR_KOELING_MIN_BUITEN, KOELING_MIN_BUITEN);
+  EEPROM.put(ADDR_STOOKLIJN_UIT, STOOKLIJN_UIT_GRENS);
   Serial.println("EEPROM: Settings opgeslagen");
 }
 
@@ -216,7 +264,13 @@ void eeprom_load(){
   EEPROM.get(ADDR_STOOKLIJN_GRENS, STOOKLIJN_GRENS);
   EEPROM.get(ADDR_STOOKLIJN_FACTOR, STOOKLIJN_FACTOR);
   EEPROM.get(ADDR_T_VORST, T_VORST);
-  if(T_VORST < -10 || T_VORST > 10) T_VORST = 4.0;  // Sanity check bij oude EEPROM
+  if(T_VORST < -10 || T_VORST > 10) T_VORST = 4.0;
+  EEPROM.get(ADDR_SUPPLY_MAX, SUPPLY_MAX);
+  if(SUPPLY_MAX < 40 || SUPPLY_MAX > 80) SUPPLY_MAX = 60.0;
+  EEPROM.get(ADDR_KOELING_MIN_BUITEN, KOELING_MIN_BUITEN);
+  if(KOELING_MIN_BUITEN < 0 || KOELING_MIN_BUITEN > 30) KOELING_MIN_BUITEN = 18.0;
+  EEPROM.get(ADDR_STOOKLIJN_UIT, STOOKLIJN_UIT_GRENS);
+  if(STOOKLIJN_UIT_GRENS < 5 || STOOKLIJN_UIT_GRENS > 30) STOOKLIJN_UIT_GRENS = 15.0;
   Serial.print("EEPROM: Geladen - Setpoint:");
   Serial.print(setpoint,1);
   Serial.print(" PID:");
@@ -269,18 +323,38 @@ void verwerk_telegram_0x91(){
     return;
   }
   
-  // Parse warmtepomp data
-  // Byte 3-4: Aanvoer temperatuur (signed 16-bit, /10)
+  // Parse warmtepomp data met spike filter
+  // Byte 3-4: Aanvoer temperatuur
   int16_t temp_raw = (telegram_buffer[3] << 8) | telegram_buffer[4];
-  t_supply = temp_raw / 10.0;
-  
+  float new_supply = temp_raw / 10.0;
+  if(abs(new_supply - prev_t_supply) > 10.0){
+    stuur_alert("Spike aanvoer: " + String(new_supply,1) + "C verworpen (was " + String(prev_t_supply,1) + "C)");
+  } else {
+    t_supply = new_supply;
+    prev_t_supply = new_supply;
+  }
+
   // Byte 5-6: Retour temperatuur
   temp_raw = (telegram_buffer[5] << 8) | telegram_buffer[6];
-  t_return = temp_raw / 10.0;
-  
+  float new_return = temp_raw / 10.0;
+  if(abs(new_return - prev_t_return) > 10.0){
+    stuur_alert("Spike retour: " + String(new_return,1) + "C verworpen (was " + String(prev_t_return,1) + "C)");
+  } else {
+    t_return = new_return;
+    prev_t_return = new_return;
+  }
+
   // Byte 7-8: Buiten temperatuur
   temp_raw = (telegram_buffer[7] << 8) | telegram_buffer[8];
-  t_outside = temp_raw / 10.0;
+  float new_outside = temp_raw / 10.0;
+  if(new_outside < -30.0 || new_outside > 50.0){
+    stuur_alert("Ongeldige buitentemp: " + String(new_outside,1) + "C verworpen");
+  } else if(abs(new_outside - prev_t_outside) > 5.0){
+    stuur_alert("Spike buiten: " + String(new_outside,1) + "C verworpen (was " + String(prev_t_outside,1) + "C)");
+  } else {
+    t_outside = new_outside;
+    prev_t_outside = new_outside;
+  }
   
   // Byte 9: Compressor Hz (0-120)
   comp_hz = telegram_buffer[9];
@@ -346,11 +420,40 @@ void lees_warmtepomp_data(){
   }
 }
 
+void pas_sim_toe(){
+  // Overschrijf echte sensorwaarden met simulatiewaarden indien ingesteld
+  if(!isnan(sim_t_supply))        { t_supply        = sim_t_supply;        prev_t_supply  = sim_t_supply; }
+  if(!isnan(sim_t_return))        { t_return        = sim_t_return;        prev_t_return  = sim_t_return; }
+  if(!isnan(sim_t_outside))       { t_outside       = sim_t_outside;       prev_t_outside = sim_t_outside; }
+  if(!isnan(sim_t_water_gewenst)) { t_water_gewenst = sim_t_water_gewenst; }
+  // Kamer: voorkomt dat echte Zigbee-sensor de simulatie overschrijft
+  if(!isnan(sim_t_kamer))         { t_kamer         = sim_t_kamer; }
+  if(!isnan(sim_t_kamer_gewenst)) { t_kamer_gewenst = sim_t_kamer_gewenst; }
+  if(sim_actief()) delta_t = t_supply - t_return;
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  PID REGELING
 // ═══════════════════════════════════════════════════════════════
 
 void pas_pid_aan(){
+  // ═══════════════════════════════════════════════════════════════
+  // SAFEGUARDS - Altijd controleren, ongeacht modus
+  // ═══════════════════════════════════════════════════════════════
+
+  // Noodstop: aanvoer te heet
+  if(t_supply > SUPPLY_MAX){
+    stand = 0; wp_aan = false; pid_integraal = 0;
+    stuur_alert("NOODSTOP aanvoer: " + String(t_supply,1) + "C > max " + String(SUPPLY_MAX,1) + "C");
+    return;
+  }
+
+  // Koeling blokkeren bij te lage buitentemperatuur
+  if(koeling_modus && t_outside < KOELING_MIN_BUITEN){
+    koeling_modus = false; pid_integraal = 0;
+    stuur_alert("Koeling geblokkeerd: buiten " + String(t_outside,1) + "C < min " + String(KOELING_MIN_BUITEN,1) + "C");
+  }
+
   if(modus == "handmatig"){
     stand = handmatig_stand;
     wp_aan = (stand > 0);
@@ -358,7 +461,7 @@ void pas_pid_aan(){
   }
 
   uint32_t nu = millis();
-  if(nu - vorige_pid_ms < 5000) return;  // Elke 5 sec
+  if(nu - vorige_pid_ms < (uint32_t)pid_interval_ms) return;
   vorige_pid_ms = nu;
 
   // ═══════════════════════════════════════════════════════════
@@ -440,8 +543,24 @@ void pas_pid_aan(){
     return;
   }
   
+  // Stooklijn uit: boven STOOKLIJN_UIT_GRENS geen verwarming in auto modus
+  if(t_outside > STOOKLIJN_UIT_GRENS){
+    if(wp_aan){
+      wp_aan = false; stand = 0; pid_integraal = 0;
+      stuur_alert("Verwarming gestopt: buiten " + String(t_outside,1) + "C > " + String(STOOKLIJN_UIT_GRENS,1) + "C");
+    }
+    return;
+  }
+
   float kamer_fout = t_kamer_gewenst - t_kamer;
-  
+
+  // Stooklijn altijd berekenen zodat chofu/doel_setpoint altijd actueel is
+  doel_setpoint = setpoint;
+  if(t_outside < STOOKLIJN_GRENS){
+    doel_setpoint += (STOOKLIJN_GRENS - t_outside) * STOOKLIJN_FACTOR;
+    if(doel_setpoint > 45.0) doel_setpoint = 45.0;
+  }
+
   // ═══════════════════════════════════════════════════════════
   // VORSTBEVEILIGING - ALTIJD EERST CHECKEN!
   // ═══════════════════════════════════════════════════════════
@@ -479,13 +598,6 @@ void pas_pid_aan(){
   if(kamer_fout > 0.1){  // AAN bij 20.4°C (was 0.2 → 20.3°C)
     // KAMER TE KOUD
     wp_aan = true;
-    
-    // Bereken doel setpoint met stooklijn
-    float doel_setpoint = setpoint;
-    if(t_outside < STOOKLIJN_GRENS){
-      doel_setpoint += (STOOKLIJN_GRENS - t_outside) * STOOKLIJN_FACTOR;
-      if(doel_setpoint > 45.0) doel_setpoint = 45.0;
-    }
     
     float aanvoer_fout = doel_setpoint - t_supply;
     
@@ -549,13 +661,12 @@ void pas_pid_aan(){
       nieuwe_stand = 1;
     }
     
-    // Hysteresis - BIJ GROTE FOUT ZEER KORT!
+    // Hysteresis - BIJ GROTE FOUT SNEL (instelbaar via MQTT voor simulatie)
     long hyst = HYST_SLOW_MS;  // 10 minuten default
-    if(kamer_fout > 1.5){  // Was 2.0
-      hyst = 30000;  // 30 seconden bij grote fout!
-      Serial.println("Versnelde hysteresis: 30 sec");
+    if(kamer_fout > 1.5){
+      hyst = HYST_FAST_MS;  // 2 min productie, via MQTT verkleind in simulatie
     } else if(kamer_fout > 1.0){
-      hyst = HYST_FAST_MS;  // 2 minuten
+      hyst = HYST_FAST_MS;
     }
     
     if(nieuwe_stand != stand && (nu - vorige_stand_wijz_ms >= hyst)){
@@ -594,7 +705,25 @@ void pas_pid_aan(){
 //  MQTT FUNCTIES
 // ═══════════════════════════════════════════════════════════════
 
+void check_mqtt_watchdog(){
+  if(vorige_mqtt_rx_ms == 0) return;  // Nog geen bericht ontvangen sinds boot
+  uint32_t nu = millis();
+  if(nu - vorige_mqtt_rx_ms < (uint32_t)MQTT_WATCHDOG_MS) return;
+
+  // Watchdog getriggerd
+  vorige_mqtt_rx_ms = nu;  // Reset zodat alert niet elke loop herhaalt
+  if(modus == "water" || modus == "handmatig"){
+    modus = "auto";
+    pid_integraal = 0;
+    stuur_alert("MQTT watchdog: geen contact > " + String(MQTT_WATCHDOG_MS/60000) + " min, terug naar auto");
+  } else {
+    stuur_alert("MQTT watchdog: geen contact > " + String(MQTT_WATCHDOG_MS/60000) + " min (auto modus blijft actief)");
+  }
+}
+
 void mqtt_ontvang(int len){
+  vorige_mqtt_rx_ms = millis();  // Watchdog reset bij elk ontvangen bericht
+
   String topic = mqttClient.messageTopic();
   String payload = "";
   while(mqttClient.available()){
@@ -652,6 +781,22 @@ void mqtt_ontvang(int len){
       mqtt_log("Vorstgrens: " + String(T_VORST,1) + "°C", "INFO");
     }
   }
+  else if(topic == "chofu/cmd/stooklijn_grens"){
+    float val = payload.toFloat();
+    if(val >= 0 && val <= 25){
+      STOOKLIJN_GRENS = val;
+      eeprom_save();
+      mqtt_log("Stooklijn grens: " + String(STOOKLIJN_GRENS,1) + "°C", "INFO");
+    }
+  }
+  else if(topic == "chofu/cmd/stooklijn_factor"){
+    float val = payload.toFloat();
+    if(val >= 0.1 && val <= 5.0){
+      STOOKLIJN_FACTOR = val;
+      eeprom_save();
+      mqtt_log("Stooklijn factor: " + String(STOOKLIJN_FACTOR,2), "INFO");
+    }
+  }
   else if(topic == "chofu/cmd/koeling"){
     koeling_modus = (payload == "1");
     pid_integraal = 0;  // Reset PID bij wisselen van richting
@@ -664,6 +809,18 @@ void mqtt_ontvang(int len){
       mqtt_log("Water setpoint: " + String(t_water_gewenst,1) + "°C", "INFO");
     }
   }
+  else if(topic == "chofu/cmd/supply_max"){
+    float val = payload.toFloat();
+    if(val >= 40 && val <= 80){ SUPPLY_MAX = val; eeprom_save(); }
+  }
+  else if(topic == "chofu/cmd/koeling_min_buiten"){
+    float val = payload.toFloat();
+    if(val >= 0 && val <= 30){ KOELING_MIN_BUITEN = val; eeprom_save(); }
+  }
+  else if(topic == "chofu/cmd/stooklijn_uit"){
+    float val = payload.toFloat();
+    if(val >= 5 && val <= 30){ STOOKLIJN_UIT_GRENS = val; eeprom_save(); }
+  }
   else if(topic == "anna/setpoint"){
     float val = payload.toFloat();
     if(val >= 14 && val <= 30) t_kamer_gewenst = val;
@@ -673,134 +830,198 @@ void mqtt_ontvang(int len){
     if(val >= 5 && val <= 35) t_kamer = val;
   }
   else if(topic == "chofu/cmd/force_start"){
-    // Reset hysteresis timer = forceer immediate start
     vorige_stand_wijz_ms = 0;
     Serial.println("⚡ FORCE START - Hysteresis timer gereset");
   }
-  
-  stuur_data();
+  else if(topic == "chofu/sim/supply"){
+    if(payload.length() == 0 || payload == "reset") sim_t_supply = NAN;
+    else { float v = payload.toFloat(); if(v >= -10 && v <= 80) sim_t_supply = v; }
+    mqtt_log("Sim aanvoer: " + (isnan(sim_t_supply) ? "uit" : String(sim_t_supply,1) + "C"), "INFO");
+  }
+  else if(topic == "chofu/sim/return"){
+    if(payload.length() == 0 || payload == "reset") sim_t_return = NAN;
+    else { float v = payload.toFloat(); if(v >= -10 && v <= 80) sim_t_return = v; }
+    mqtt_log("Sim retour: " + (isnan(sim_t_return) ? "uit" : String(sim_t_return,1) + "C"), "INFO");
+  }
+  else if(topic == "chofu/sim/outside"){
+    if(payload.length() == 0 || payload == "reset") sim_t_outside = NAN;
+    else { float v = payload.toFloat(); if(v >= -30 && v <= 50) sim_t_outside = v; }
+    mqtt_log("Sim buiten: " + (isnan(sim_t_outside) ? "uit" : String(sim_t_outside,1) + "C"), "INFO");
+  }
+  else if(topic == "chofu/sim/water_setpoint"){
+    if(payload.length() == 0 || payload == "reset") sim_t_water_gewenst = NAN;
+    else { float v = payload.toFloat(); if(v >= 25 && v <= 55) sim_t_water_gewenst = v; }
+    mqtt_log("Sim water setpoint: " + (isnan(sim_t_water_gewenst) ? "uit" : String(sim_t_water_gewenst,1) + "C"), "INFO");
+  }
+  else if(topic == "chofu/sim/kamer"){
+    if(payload.length() == 0 || payload == "reset") sim_t_kamer = NAN;
+    else { float v = payload.toFloat(); if(v >= 5 && v <= 40) sim_t_kamer = v; }
+  }
+  else if(topic == "chofu/sim/kamer_gewenst"){
+    if(payload.length() == 0 || payload == "reset") sim_t_kamer_gewenst = NAN;
+    else { float v = payload.toFloat(); if(v >= 14 && v <= 30) sim_t_kamer_gewenst = v; }
+  }
+  else if(topic == "chofu/sim/reset"){
+    sim_t_supply = NAN; sim_t_return = NAN; sim_t_outside = NAN;
+    sim_t_water_gewenst = NAN; sim_t_kamer = NAN; sim_t_kamer_gewenst = NAN;
+    mqtt_log("Simulatie gereset - echte sensorwaarden actief", "INFO");
+  }
+  // Simulatie timing — NIET opgeslagen in EEPROM, reboot herstelt productiewaarden
+  else if(topic == "chofu/cmd/hyst_slow"){
+    long val = payload.toInt();
+    if(val >= 100 && val <= 3600000){ HYST_SLOW_MS = val; mqtt_log("hyst_slow: " + String(val) + "ms", "INFO"); }
+  }
+  else if(topic == "chofu/cmd/hyst_fast"){
+    long val = payload.toInt();
+    if(val >= 100 && val <= 3600000){ HYST_FAST_MS = val; mqtt_log("hyst_fast: " + String(val) + "ms", "INFO"); }
+  }
+  else if(topic == "chofu/cmd/hyst_down"){
+    long val = payload.toInt();
+    if(val >= 100 && val <= 3600000){ HYST_DOWN_MS = val; mqtt_log("hyst_down: " + String(val) + "ms", "INFO"); }
+  }
+  else if(topic == "chofu/cmd/pid_interval"){
+    long val = payload.toInt();
+    if(val >= 100 && val <= 60000){ pid_interval_ms = val; mqtt_log("pid_interval: " + String(val) + "ms", "INFO"); }
+  }
+
+  // Sim-topics komen in hoge frequentie binnen tijdens simulatie.
+  // stuur_data() op elk sim-bericht blokkeert de Arduino volledig (30+ publishes
+  // per ontvangen bericht → loop staat stil, LCD bevriest, PID draait niet).
+  // De 10-seconden timer in loop() is voldoende voor monitoring tijdens simulatie.
+  if (!topic.startsWith("chofu/sim/")) {
+    stuur_data();
+  }
+}
+
+void disco_pub(const char* topic, String& pl){
+  mqttClient.poll();
+  mqttClient.beginMessage(topic, (unsigned long)pl.length(), true);
+  mqttClient.print(pl);
+  mqttClient.endMessage();
+  delay(100);
 }
 
 void discovery_fase1(){
   Serial.println("Discovery F1");
-  String dev = "\"device\":{\"identifiers\":[\"chofu_hp\"],\"name\":\"Chofu Warmtepomp\",\"manufacturer\":\"Chofu\",\"model\":\"AEYC\",\"sw_version\":\"3.9\"}";
-  
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/supply/config");
-  mqttClient.print("{\"name\":\"Chofu Aanvoer\",\"uniq_id\":\"chofu_hp_supply\",\"stat_t\":\"chofu/supply\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/return/config");
-  mqttClient.print("{\"name\":\"Chofu Retour\",\"uniq_id\":\"chofu_hp_return\",\"stat_t\":\"chofu/return\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/power/config");
-  mqttClient.print("{\"name\":\"Chofu Vermogen\",\"uniq_id\":\"chofu_hp_power\",\"stat_t\":\"chofu/vermogen\",\"unit_of_meas\":\"W\",\"dev_cla\":\"power\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/stage/config");
-  mqttClient.print("{\"name\":\"Chofu Stand\",\"uniq_id\":\"chofu_hp_stage\",\"stat_t\":\"chofu/stand\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/outside/config");
-  mqttClient.print("{\"name\":\"Chofu Buiten\",\"uniq_id\":\"chofu_hp_outside\",\"stat_t\":\"chofu/outside\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/switch/chofu_hp/power/config");
-  mqttClient.print("{\"name\":\"Chofu Power\",\"uniq_id\":\"chofu_hp_sw\",\"cmd_t\":\"chofu/cmd/power\",\"stat_t\":\"chofu/aan\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + dev + "}");
-  mqttClient.endMessage();
-  
+  String dev = "\"dev\":{\"ids\":[\"chofu_hp\"],\"name\":\"Chofu WP\",\"mf\":\"Chofu\",\"mdl\":\"AEYC\",\"sw\":\"3.9\"}";
+  String avty = "\"avty_t\":\"chofu/status\",\"pl_avail\":\"online\",\"pl_not_avail\":\"offline\"";
+  String pl;
+
+  pl = "{\"name\":\"Chofu Aanvoer\",\"uniq_id\":\"chofu_hp_supply\",\"stat_t\":\"chofu/supply\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/supply/config", pl);
+
+  pl = "{\"name\":\"Chofu Retour\",\"uniq_id\":\"chofu_hp_return\",\"stat_t\":\"chofu/return\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/return/config", pl);
+
+  pl = "{\"name\":\"Chofu Vermogen\",\"uniq_id\":\"chofu_hp_power\",\"stat_t\":\"chofu/vermogen\",\"unit_of_meas\":\"W\",\"dev_cla\":\"power\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/power/config", pl);
+
+  pl = "{\"name\":\"Chofu Stand\",\"uniq_id\":\"chofu_hp_stage\",\"stat_t\":\"chofu/stand\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/stage/config", pl);
+
+  pl = "{\"name\":\"Chofu Buiten\",\"uniq_id\":\"chofu_hp_outside\",\"stat_t\":\"chofu/outside\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/outside/config", pl);
+
+  pl = "{\"name\":\"Chofu Power\",\"uniq_id\":\"chofu_hp_sw\",\"cmd_t\":\"chofu/cmd/power\",\"stat_t\":\"chofu/aan\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/switch/chofu_hp/power/config", pl);
+
   stuur_data();
 }
 
 void discovery_fase2(){
   Serial.println("Discovery F2");
-  String dev = "\"device\":{\"identifiers\":[\"chofu_hp\"],\"name\":\"Chofu Warmtepomp\",\"manufacturer\":\"Chofu\",\"model\":\"AEYC\",\"sw_version\":\"3.9\"}";
-  
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/delta_t/config");
-  mqttClient.print("{\"name\":\"Chofu Delta T\",\"uniq_id\":\"chofu_hp_delta_t\",\"stat_t\":\"chofu/delta_t\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/kamer/config");
-  mqttClient.print("{\"name\":\"Chofu Kamer\",\"uniq_id\":\"chofu_hp_kamer\",\"stat_t\":\"chofu/kamer\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/kamer_gewenst/config");
-  mqttClient.print("{\"name\":\"Chofu Kamer Gewenst\",\"uniq_id\":\"chofu_hp_kamer_gewenst\",\"stat_t\":\"chofu/kamer_gewenst\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/setpoint/config");
-  mqttClient.print("{\"name\":\"Chofu Setpoint\",\"uniq_id\":\"chofu_hp_setpoint\",\"stat_t\":\"chofu/setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
+  String dev = "\"dev\":{\"ids\":[\"chofu_hp\"],\"name\":\"Chofu WP\",\"mf\":\"Chofu\",\"mdl\":\"AEYC\",\"sw\":\"3.9\"}";
+  String avty = "\"avty_t\":\"chofu/status\",\"pl_avail\":\"online\",\"pl_not_avail\":\"offline\"";
+  String pl;
 
-  mqttClient.beginMessage("homeassistant/number/chofu_hp/t_vorst/config");
-  mqttClient.print("{\"name\":\"Chofu Vorstgrens\",\"uniq_id\":\"chofu_hp_t_vorst\",\"cmd_t\":\"chofu/cmd/t_vorst\",\"stat_t\":\"chofu/t_vorst\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":-10,\"max\":10,\"step\":0.5," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
+  pl = "{\"name\":\"Chofu Delta T\",\"uniq_id\":\"chofu_hp_delta_t\",\"stat_t\":\"chofu/delta_t\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/delta_t/config", pl);
 
-  mqttClient.beginMessage("homeassistant/number/chofu_hp/water_setpoint/config");
-  mqttClient.print("{\"name\":\"Chofu Water Setpoint\",\"uniq_id\":\"chofu_hp_water_setpoint\",\"cmd_t\":\"chofu/cmd/water_setpoint\",\"stat_t\":\"chofu/water_setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":25,\"max\":55,\"step\":0.5," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
+  pl = "{\"name\":\"Chofu Kamer\",\"uniq_id\":\"chofu_hp_kamer\",\"stat_t\":\"chofu/kamer\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/kamer/config", pl);
 
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/modus/config");
-  mqttClient.print("{\"name\":\"Chofu Modus\",\"uniq_id\":\"chofu_hp_modus\",\"stat_t\":\"chofu/modus\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/switch/chofu_hp/lcd/config");
-  mqttClient.print("{\"name\":\"Chofu LCD\",\"uniq_id\":\"chofu_hp_lcd\",\"cmd_t\":\"chofu/cmd/lcd\",\"stat_t\":\"chofu/lcd\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + dev + "}");
-  mqttClient.endMessage();
-  
+  pl = "{\"name\":\"Chofu Kamer Gewenst\",\"uniq_id\":\"chofu_hp_kamer_gewenst\",\"stat_t\":\"chofu/kamer_gewenst\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/kamer_gewenst/config", pl);
+
+  pl = "{\"name\":\"Chofu Setpoint\",\"uniq_id\":\"chofu_hp_setpoint\",\"stat_t\":\"chofu/setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/setpoint/config", pl);
+
+  pl = "{\"name\":\"Chofu Vorstgrens\",\"uniq_id\":\"chofu_hp_t_vorst\",\"cmd_t\":\"chofu/cmd/t_vorst\",\"stat_t\":\"chofu/t_vorst\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":-10,\"max\":10,\"step\":0.5," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/t_vorst/config", pl);
+
+  pl = "{\"name\":\"Chofu Water SP\",\"uniq_id\":\"chofu_hp_water_setpoint\",\"cmd_t\":\"chofu/cmd/water_setpoint\",\"stat_t\":\"chofu/water_setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":25,\"max\":55,\"step\":0.5," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/water_setpoint/config", pl);
+
+  pl = "{\"name\":\"Chofu Stooklijn Grens\",\"uniq_id\":\"chofu_hp_stooklijn_grens\",\"cmd_t\":\"chofu/cmd/stooklijn_grens\",\"stat_t\":\"chofu/stooklijn_grens\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":0,\"max\":25,\"step\":0.5," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/stooklijn_grens/config", pl);
+
+  pl = "{\"name\":\"Chofu Stooklijn Factor\",\"uniq_id\":\"chofu_hp_stooklijn_factor\",\"cmd_t\":\"chofu/cmd/stooklijn_factor\",\"stat_t\":\"chofu/stooklijn_factor\",\"min\":0.1,\"max\":5.0,\"step\":0.1," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/stooklijn_factor/config", pl);
+
+  pl = "{\"name\":\"Chofu Modus\",\"uniq_id\":\"chofu_hp_modus\",\"stat_t\":\"chofu/modus\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/modus/config", pl);
+
+  pl = "{\"name\":\"Chofu LCD\",\"uniq_id\":\"chofu_hp_lcd\",\"cmd_t\":\"chofu/cmd/lcd\",\"stat_t\":\"chofu/lcd\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/switch/chofu_hp/lcd/config", pl);
+
   stuur_data();
 }
 
 void discovery_fase3(){
   Serial.println("Discovery F3");
-  String dev = "\"device\":{\"identifiers\":[\"chofu_hp\"],\"name\":\"Chofu Warmtepomp\",\"manufacturer\":\"Chofu\",\"model\":\"AEYC\",\"sw_version\":\"3.9\"}";
-  
-  mqttClient.beginMessage("homeassistant/binary_sensor/chofu_hp/defrost/config");
-  mqttClient.print("{\"name\":\"Chofu Defrost\",\"uniq_id\":\"chofu_hp_defrost\",\"stat_t\":\"chofu/defrost\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/pid/config");
-  mqttClient.print("{\"name\":\"Chofu PID\",\"uniq_id\":\"chofu_hp_pid\",\"stat_t\":\"chofu/pid\",\"unit_of_meas\":\"%\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/pomp/config");
-  mqttClient.print("{\"name\":\"Chofu Pomp\",\"uniq_id\":\"chofu_hp_pomp\",\"stat_t\":\"chofu/pomp\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/sensor/chofu_hp/comp_hz/config");
-  mqttClient.print("{\"name\":\"Chofu Compressor Hz\",\"uniq_id\":\"chofu_hp_comp_hz\",\"stat_t\":\"chofu/comp_hz\",\"unit_of_meas\":\"Hz\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
-  
-  mqttClient.beginMessage("homeassistant/number/chofu_hp/stand_cmd/config");
-  mqttClient.print("{\"name\":\"Chofu Handmatig Stand\",\"uniq_id\":\"chofu_hp_stand_cmd\",\"cmd_t\":\"chofu/cmd/stand\",\"stat_t\":\"chofu/stand\",\"min\":0,\"max\":12,\"step\":1," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
+  String dev = "\"dev\":{\"ids\":[\"chofu_hp\"],\"name\":\"Chofu WP\",\"mf\":\"Chofu\",\"mdl\":\"AEYC\",\"sw\":\"3.9\"}";
+  String avty = "\"avty_t\":\"chofu/status\",\"pl_avail\":\"online\",\"pl_not_avail\":\"offline\"";
+  String pl;
 
-  mqttClient.beginMessage("homeassistant/switch/chofu_hp/koeling/config");
-  mqttClient.print("{\"name\":\"Chofu Koeling\",\"uniq_id\":\"chofu_hp_koeling\",\"cmd_t\":\"chofu/cmd/koeling\",\"stat_t\":\"chofu/koeling\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + dev + "}");
-  mqttClient.endMessage();
-  delay(2000);
+  pl = "{\"name\":\"Chofu Defrost\",\"uniq_id\":\"chofu_hp_defrost\",\"stat_t\":\"chofu/defrost\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/binary_sensor/chofu_hp/defrost/config", pl);
 
-  mqttClient.beginMessage("homeassistant/select/chofu_hp/modus_sel/config");
-  mqttClient.print("{\"name\":\"Chofu Modus Select\",\"uniq_id\":\"chofu_hp_modus_sel\",\"cmd_t\":\"chofu/cmd/modus\",\"stat_t\":\"chofu/modus\",\"options\":[\"auto\",\"handmatig\",\"water\"]," + dev + "}");
-  mqttClient.endMessage();
-  
+  pl = "{\"name\":\"Chofu PID\",\"uniq_id\":\"chofu_hp_pid\",\"stat_t\":\"chofu/pid\",\"unit_of_meas\":\"%\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/pid/config", pl);
+
+  pl = "{\"name\":\"Chofu Pomp\",\"uniq_id\":\"chofu_hp_pomp\",\"stat_t\":\"chofu/pomp\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/pomp/config", pl);
+
+  pl = "{\"name\":\"Chofu Comp Hz\",\"uniq_id\":\"chofu_hp_comp_hz\",\"stat_t\":\"chofu/comp_hz\",\"unit_of_meas\":\"Hz\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/comp_hz/config", pl);
+
+  pl = "{\"name\":\"Chofu Stand\",\"uniq_id\":\"chofu_hp_stand_cmd\",\"cmd_t\":\"chofu/cmd/stand\",\"stat_t\":\"chofu/stand\",\"min\":0,\"max\":12,\"step\":1," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/stand_cmd/config", pl);
+
+  pl = "{\"name\":\"Chofu Koeling\",\"uniq_id\":\"chofu_hp_koeling\",\"cmd_t\":\"chofu/cmd/koeling\",\"stat_t\":\"chofu/koeling\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/switch/chofu_hp/koeling/config", pl);
+
+  pl = "{\"name\":\"Chofu Modus\",\"uniq_id\":\"chofu_hp_modus_sel\",\"cmd_t\":\"chofu/cmd/modus\",\"stat_t\":\"chofu/modus\",\"options\":[\"auto\",\"handmatig\",\"water\"]," + avty + "," + dev + "}";
+  disco_pub("homeassistant/select/chofu_hp/modus_sel/config", pl);
+
+  pl = "{\"name\":\"Chofu Alert\",\"uniq_id\":\"chofu_hp_alert\",\"stat_t\":\"chofu/alert\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/alert/config", pl);
+
+  pl = "{\"name\":\"Chofu Simulatie\",\"uniq_id\":\"chofu_hp_sim\",\"stat_t\":\"chofu/sim_actief\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/binary_sensor/chofu_hp/sim_actief/config", pl);
+
+  pl = "{\"name\":\"Chofu Aanvoer Max\",\"uniq_id\":\"chofu_hp_supply_max\",\"cmd_t\":\"chofu/cmd/supply_max\",\"stat_t\":\"chofu/supply_max\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":40,\"max\":80,\"step\":1," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/supply_max/config", pl);
+
+  pl = "{\"name\":\"Chofu Koeling Min Buiten\",\"uniq_id\":\"chofu_hp_koeling_min\",\"cmd_t\":\"chofu/cmd/koeling_min_buiten\",\"stat_t\":\"chofu/koeling_min_buiten\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":0,\"max\":30,\"step\":0.5," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/koeling_min_buiten/config", pl);
+
+  pl = "{\"name\":\"Chofu Stooklijn Uit\",\"uniq_id\":\"chofu_hp_stooklijn_uit\",\"cmd_t\":\"chofu/cmd/stooklijn_uit\",\"stat_t\":\"chofu/stooklijn_uit\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":5,\"max\":30,\"step\":0.5," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/stooklijn_uit/config", pl);
+
+  // Simulatie timing (in ms — niet opgeslagen in EEPROM)
+  pl = "{\"name\":\"Chofu Hyst Slow ms\",\"uniq_id\":\"chofu_hp_hyst_slow\",\"cmd_t\":\"chofu/cmd/hyst_slow\",\"stat_t\":\"chofu/hyst_slow\",\"unit_of_meas\":\"ms\",\"min\":100,\"max\":3600000,\"step\":1000," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/hyst_slow/config", pl);
+
+  pl = "{\"name\":\"Chofu Hyst Fast ms\",\"uniq_id\":\"chofu_hp_hyst_fast\",\"cmd_t\":\"chofu/cmd/hyst_fast\",\"stat_t\":\"chofu/hyst_fast\",\"unit_of_meas\":\"ms\",\"min\":100,\"max\":3600000,\"step\":1000," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/hyst_fast/config", pl);
+
+  pl = "{\"name\":\"Chofu Hyst Down ms\",\"uniq_id\":\"chofu_hp_hyst_down\",\"cmd_t\":\"chofu/cmd/hyst_down\",\"stat_t\":\"chofu/hyst_down\",\"unit_of_meas\":\"ms\",\"min\":100,\"max\":3600000,\"step\":1000," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/hyst_down/config", pl);
+
+  pl = "{\"name\":\"Chofu PID Interval ms\",\"uniq_id\":\"chofu_hp_pid_interval\",\"cmd_t\":\"chofu/cmd/pid_interval\",\"stat_t\":\"chofu/pid_interval\",\"unit_of_meas\":\"ms\",\"min\":100,\"max\":60000,\"step\":100," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/pid_interval/config", pl);
+
   stuur_data();
 }
 
@@ -818,6 +1039,9 @@ void stuur_data(){
   mqttClient.beginMessage("chofu/kamer");mqttClient.print(t_kamer,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/kamer_gewenst");mqttClient.print(t_kamer_gewenst,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/setpoint");mqttClient.print(setpoint,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/doel_setpoint");mqttClient.print(doel_setpoint,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/stooklijn_grens");mqttClient.print(STOOKLIJN_GRENS,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/stooklijn_factor");mqttClient.print(STOOKLIJN_FACTOR,2);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/water_setpoint");mqttClient.print(t_water_gewenst,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/koeling");mqttClient.print(koeling_modus?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage("chofu/t_vorst");mqttClient.print(T_VORST,1);mqttClient.endMessage();
@@ -827,7 +1051,15 @@ void stuur_data(){
   mqttClient.beginMessage("chofu/pid");mqttClient.print(pid_output,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/pomp");mqttClient.print(pomp_snelheid_wp);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/comp_hz");mqttClient.print(comp_hz);mqttClient.endMessage();
-  
+  mqttClient.beginMessage("chofu/sim_actief");mqttClient.print(sim_actief()?"1":"0");mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/supply_max");mqttClient.print(SUPPLY_MAX,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/koeling_min_buiten");mqttClient.print(KOELING_MIN_BUITEN,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/stooklijn_uit");mqttClient.print(STOOKLIJN_UIT_GRENS,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/hyst_slow");mqttClient.print(HYST_SLOW_MS);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/hyst_fast");mqttClient.print(HYST_FAST_MS);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/hyst_down");mqttClient.print(HYST_DOWN_MS);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/pid_interval");mqttClient.print(pid_interval_ms);mqttClient.endMessage();
+
   vorige_data_ms = millis();
 }
 
@@ -1061,7 +1293,7 @@ void update_lcd(){
       lcd.print(" ");lcd.print(verm);lcd.print("W");
       lcd.print(wp_aan?" ON":" OFF");
       lcd.setCursor(0,1);
-      lcd.print(modus=="auto"?"AUTO":"HAND");
+      lcd.print(modus=="auto"?"AUTO":(modus=="water"?"WATR":"HAND"));
       lcd.print(" Hz:");lcd.print(comp_hz);
       break;
       
@@ -1073,12 +1305,13 @@ void update_lcd(){
       if(modus == "water"){
         lcd.print(" W:");lcd.print(t_water_gewenst,0);
       } else {
-        lcd.print(" Set:");lcd.print(setpoint,0);
+        lcd.print(" D:");lcd.print(doel_setpoint,0);
       }
       break;
       
     case 2:
-      lcd.print("Kamer:");lcd.print(t_kamer,1);lcd.print("C");
+      lcd.print("Kamer:");lcd.print(t_kamer,1);
+      lcd.print(koeling_modus?" KOEL":" WARM");
       lcd.setCursor(0,1);
       lcd.print("Doel:");lcd.print(t_kamer_gewenst,1);
       lcd.print(" B:");lcd.print(t_outside,1);
@@ -1116,6 +1349,7 @@ void setup(){
   
   // LCD
   if(USE_LCD){
+    lcd.init();
     lcd.init();
     lcd.backlight();
     lcd.setCursor(0,0);
@@ -1161,19 +1395,23 @@ void setup(){
   lcd.print("MQTT...");
   mqttClient.setUsernamePassword(MQTT_USER, MQTT_PASS);
   mqttClient.onMessage(mqtt_ontvang);
-  
+  mqttClient.beginWill("chofu/status", true, 1);  // LWT: retained offline bij disconnect
+  mqttClient.print("offline");
+  mqttClient.endWill();
+
   if(mqttClient.connect(MQTT_BROKER, MQTT_PORT)){
     Serial.println("MQTT OK!");
     lcd.setCursor(0,1);
     lcd.print("OK!");
     delay(1000);
-    
+
     mqttClient.subscribe("chofu/cmd/#");
+    mqttClient.subscribe("chofu/sim/#");
     mqttClient.subscribe("anna/setpoint");
     mqttClient.subscribe("anna/temperatuur");
     Serial.println("MQTT subscribed");
-    
-    mqttClient.beginMessage("chofu/status");
+
+    mqttClient.beginMessage("chofu/status", true, 1);  // retained online
     mqttClient.print("online");
     mqttClient.endMessage();
     
@@ -1199,13 +1437,52 @@ void setup(){
 //  MAIN LOOP
 // ═══════════════════════════════════════════════════════════════
 
+void mqtt_herverbind(){
+  if(mqttClient.connected()) return;
+  Serial.println("MQTT: verbinding weg, herverbinden...");
+
+  mqttClient.beginWill("chofu/status", true, 1);
+  mqttClient.print("offline");
+  mqttClient.endWill();
+
+  if(mqttClient.connect(MQTT_BROKER, MQTT_PORT)){
+    Serial.println("MQTT: herverbonden");
+    mqttClient.subscribe("chofu/cmd/#");
+    mqttClient.subscribe("chofu/sim/#");
+    mqttClient.subscribe("anna/setpoint");
+    mqttClient.subscribe("anna/temperatuur");
+
+    mqttClient.beginMessage("chofu/status", true, 1);
+    mqttClient.print("online");
+    mqttClient.endMessage();
+
+    // Herstart discovery zodat HA de entities opnieuw aanmaakt
+    discovery_fase = 0;
+    discovery_fase1();
+    vorige_discovery_ms = millis();
+    discovery_fase = 1;
+  } else {
+    Serial.println("MQTT: herverbinden mislukt");
+    delay(5000);
+  }
+}
+
 void loop(){
+  // MQTT verbinding bewaken
+  mqtt_herverbind();
+
   // MQTT poll
   mqttClient.poll();
-  
+
+  // Safeguard: MQTT watchdog
+  check_mqtt_watchdog();
+
   // Lees warmtepomp data (0x91 telegrams)
   lees_warmtepomp_data();
-  
+
+  // Simulatiewaarden toepassen (overschrijft echte sensorwaarden)
+  pas_sim_toe();
+
   // PID regeling (elke 5 sec)
   pas_pid_aan();
   

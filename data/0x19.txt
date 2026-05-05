@@ -1,4 +1,4 @@
-k heb meer tijd geinvesteerd om het protocol van de Chofu unit (warmtepomp) naar de conrtolbox verder te snappen. Hervoor heb ik data tijdens een defrost, met de buitentemperatuursensor in warm water, en tusen twee bevroren loempia's (moest toch wat om de temperatuur negatief te krijgen...). Hierdoor ben ik aardig opgeschoten. Eerst even een samenvatting van de basis:
+Ik heb meer tijd geinvesteerd om het protocol van de Chofu unit (warmtepomp) naar de conrtolbox verder te snappen. Hervoor heb ik data tijdens een defrost, met de buitentemperatuursensor in warm water, en tusen twee bevroren loempia's (moest toch wat om de temperatuur negatief te krijgen...). Hierdoor ben ik aardig opgeschoten. Eerst even een samenvatting van de basis:
 
 De Chofu en control box communiceren via een Universal Asynchronous Receiver/Transmitter-protocol dat op enkele tientallen volts loopt. Hoeveel weet ik niet precies.
 In de control box wordt dit naar 0~5 V omgezet. Dat heb ik afgetapt.

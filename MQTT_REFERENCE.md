@@ -1,746 +1,654 @@
-# 📡 MQTT Referentie - Kromhout Warmtepomp Controller
+# MQTT Referentie - Kromhout Warmtepomp Controller
 
-Complete overzicht van alle MQTT topics en commando's.
+Complete overzicht van alle MQTT topics, commando's en HA discovery entiteiten.
 
----
-
-## 📋 Topic Structuur
-
-**Prefix:** Instelbaar via setup (default: `kromhout_wp`)
-
-**State Topics:** `sensor/[prefix]_[naam]`  
-**Command Topics:** `[prefix]/cmd/[commando]`  
-**Log Topics:** `[prefix]/log/[level]`
+MQTT Broker: `192.168.1.8:1883`  
+Alle topics gebruiken het prefix `chofu/`
 
 ---
 
-## 📊 State Topics (Arduino → Home Assistant)
+## State Topics (Arduino → Home Assistant)
+
+Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt automatisch voor de entiteiten.
 
 ### Temperaturen
 
-| Topic | Type | Unit | Update | Beschrijving |
-|-------|------|------|--------|--------------|
-| `sensor/kromhout_wp_aanvoer` | float | °C | 10s | Aanvoer temperatuur |
-| `sensor/kromhout_wp_retour` | float | °C | 10s | Retour temperatuur |
-| `sensor/kromhout_wp_kamer` | float | °C | 10s | Kamer temperatuur (van Anna) |
-| `sensor/kromhout_wp_setpoint` | float | °C | 10s | Aanvoer setpoint (auto modus stooklijn) |
-| `chofu/water_setpoint` | float | °C | 10s | Gewenste aanvoertemperatuur (water modus) |
-| `sensor/kromhout_wp_buiten` | float | °C | 10s | Buiten temperatuur |
-| `sensor/kromhout_wp_delta_t` | float | °C | 10s | Delta T (aanvoer - retour) |
+| Topic | Type | Unit | Beschrijving |
+|-------|------|------|--------------|
+| `chofu/supply` | float | °C | Aanvoer temperatuur |
+| `chofu/return` | float | °C | Retour temperatuur |
+| `chofu/outside` | float | °C | Buiten temperatuur |
+| `chofu/delta_t` | float | °C | Delta T (aanvoer − retour) |
+| `chofu/kamer` | float | °C | Kamer temperatuur (van Anna) |
+| `chofu/kamer_gewenst` | float | °C | Gewenste kamer temperatuur (van Anna) |
+| `chofu/setpoint` | float | °C | Aanvoer setpoint (auto modus stooklijn) |
+| `chofu/water_setpoint` | float | °C | Gewenste aanvoertemperatuur (water modus) |
+| `chofu/t_vorst` | float | °C | Actieve vorstgrens |
 
-**Voorbeeld:**
-```json
-Topic: sensor/kromhout_wp_aanvoer
-Payload: "35.2"
-```
+### Status
 
-### Status & Controle
+| Topic | Type | Values | Beschrijving |
+|-------|------|--------|--------------|
+| `chofu/stand` | int | 0–12 | Huidige compressor stand |
+| `chofu/vermogen` | int | W | Geschat vermogen |
+| `chofu/aan` | string | 0/1 | Warmtepomp aan/uit |
+| `chofu/modus` | string | auto/water/handmatig | Regelingsmodus |
+| `chofu/koeling` | string | 0/1 | Koelstand actief |
+| `chofu/pid` | float | % | PID output |
+| `chofu/defrost` | string | 0/1 | Defrost actief |
+| `chofu/pomp` | int | 0–100 | Pompsnelheid (%) |
+| `chofu/comp_hz` | int | Hz | Compressor frequentie |
+| `chofu/lcd` | string | 0/1 | LCD backlight status |
 
-| Topic | Type | Values | Update | Beschrijving |
-|-------|------|--------|--------|--------------|
-| `sensor/kromhout_wp_stand` | int | 0-8 | 10s | Huidige compressor stand |
-| `sensor/kromhout_wp_vermogen` | int | W | 10s | Geschat vermogen |
-| `sensor/kromhout_wp_pid` | int | 0-100 | 10s | PID output (%) |
-| `sensor/kromhout_wp_modus` | string | auto/handmatig/water | 10s | Regelingsmodus |
-| `kromhout_wp/aan` | string | 0/1 | 10s | Warmtepomp aan/uit |
+### Safeguard Grenzen (instelbaar)
 
-**Stand Mapping:**
-```
-0  = UIT            (0W)
-1  = Minimum        (240W)
-2  = Laag           (420W)
-3  = Medium-        (640W)
-4  = Medium         (850W)
-5  = Medium+        (1050W)
-6  = Hoog           (1250W)
-7  = Hoog+          (1450W)
-8  = Max auto       (1550W)  ← hoogste stand in auto/water modus
-─────────────────────────────── alleen handmatige modus ───
-9  = Uitgebreid-    (1650W)
-10 = Uitgebreid     (1700W)
-11 = Uitgebreid+    (1750W)
-12 = Maximum        (1800W)
-```
+| Topic | Type | Unit | Default | Beschrijving |
+|-------|------|------|---------|--------------|
+| `chofu/supply_max` | float | °C | 60.0 | Noodstop aanvoer temperatuur |
+| `chofu/koeling_min_buiten` | float | °C | 18.0 | Minimale buitentemp voor koeling |
+| `chofu/stooklijn_uit` | float | °C | 15.0 | Boven deze buitentemp: verwarming uit (auto) |
 
-### Hardware Info
+### Systeem
 
-| Topic | Type | Values | Update | Beschrijving |
-|-------|------|--------|--------|--------------|
-| `sensor/kromhout_wp_compressor_hz` | int | 0-120 | 10s | Compressor frequentie |
-| `sensor/kromhout_wp_pomp` | int | 0-100 | 10s | Pomp snelheid (%) |
-| `kromhout_wp/defrost` | string | 0/1 | 10s | Defrost actief |
-| `kromhout_wp/lcd` | string | 0/1 | 10s | LCD backlight status |
+| Topic | Type | Retained | Beschrijving |
+|-------|------|----------|--------------|
+| `chofu/status` | string | ✅ | `online` / `offline` (LWT) |
+| `chofu/alert` | string | ✅ | Laatste waarschuwing of foutmelding |
+| `chofu/log/INFO` | string | ❌ | Normale events |
+| `chofu/log/WARNING` | string | ❌ | Waarschuwingen (ook via alert) |
+| `chofu/log/ERROR` | string | ❌ | Fouten |
+
+> `chofu/alert` is retained: HA toont altijd het laatste bericht, ook na herstart.
 
 ---
 
-## 🎮 Command Topics (Home Assistant → Arduino)
+## Command Topics (Home Assistant → Arduino)
 
-### Basis Controle
+### Modus
 
-#### Power (Handmatig Aan/Uit)
 ```
-Topic: kromhout_wp/cmd/power
-Payload: "1" = AAN (handmatige stand 1)
-Payload: "0" = UIT (handmatige stand 0)
-
-Effect:
-- Schakelt naar handmatige modus
-- Forceert warmtepomp aan of uit
-- PID regeling gepauzeerd
+Topic:   chofu/cmd/modus
+Payload: "auto"      → PID regeling op kamertemperatuur (Anna)
+         "water"     → PID regeling op aanvoertemperatuur
+         "handmatig" → Vaste stand via chofu/cmd/stand
 ```
 
-**Home Assistant Switch:**
-```yaml
-switch:
-  - platform: mqtt
-    name: "Warmtepomp Power"
-    command_topic: "kromhout_wp/cmd/power"
-    state_topic: "kromhout_wp/aan"
-    payload_on: "1"
-    payload_off: "0"
+### Power
+
+```
+Topic:   chofu/cmd/power
+Payload: "1" → AAN (schakelt naar handmatig stand 1)
+         "0" → UIT (handmatig stand 0)
 ```
 
-#### Modus
-```
-Topic: kromhout_wp/cmd/modus
-Payload: "auto"      = Automatische PID regeling op kamertemperatuur
-Payload: "water"     = Directe aanvoertemperatuur regeling
-Payload: "handmatig" = Vaste stand (gebruik chofu/cmd/stand)
+### Handmatige Stand
 
-Effect:
-- auto:      PID regelt op basis van kamerfout + aanvoerfout
-- water:     PID regelt puur op aanvoertemperatuur (t_water_gewenst)
-- handmatig: Vaste stand, geen PID actief
 ```
+Topic:   chofu/cmd/stand
+Payload: "0" – "12"  (integer)
 
-**Home Assistant Select:**
-```yaml
-select:
-  - platform: mqtt
-    name: "WP Modus"
-    command_topic: "kromhout_wp/cmd/modus"
-    state_topic: "sensor/kromhout_wp_modus"
-    options:
-      - "auto"
-      - "water"
-      - "handmatig"
+Schakelt automatisch naar handmatige modus.
+Stands 9–12 zijn alleen beschikbaar in handmatige modus.
+
+Stand mapping:
+  0  = UIT           (   0 W)
+  1  = Minimum       ( 240 W)
+  2  = Laag          ( 420 W)
+  3  = Medium-       ( 640 W)
+  4  = Medium        ( 850 W)
+  5  = Medium+       (1050 W)
+  6  = Hoog          (1250 W)
+  7  = Hoog+         (1450 W)
+  8  = Max auto      (1550 W)  ← max in auto/water modus
+  9  = Uitgebreid-   (1650 W)  ← alleen handmatig
+ 10  = Uitgebreid    (1700 W)  ← alleen handmatig
+ 11  = Uitgebreid+   (1750 W)  ← alleen handmatig
+ 12  = Maximum       (1800 W)  ← alleen handmatig
 ```
 
 ### Water Modus
 
-#### Water Setpoint
 ```
-Topic: chofu/cmd/water_setpoint
-Payload: "25.0" - "55.0" (float in °C)
+Topic:   chofu/cmd/water_setpoint
+Payload: "25.0" – "55.0"  (float, °C)
 
-Effect:
-- Stelt de gewenste aanvoertemperatuur in voor water modus
-- PID regelt de stand (0-7) om deze temperatuur te bereiken
-- Tolerantie: ±1°C (AAN bij >1°C te koud, UIT bij >1°C te warm)
-- Niet opgeslagen in EEPROM (reset naar 40°C na herstart)
+Stel gewenste aanvoertemperatuur in (water modus).
+Tolerantie ±1°C:
+  setpoint + 1°C → UIT
+  setpoint − 1°C → AAN
 
-Schakel eerst naar water modus:
-  chofu/cmd/modus = "water"
-  chofu/cmd/water_setpoint = "45.0"
+Niet opgeslagen in EEPROM (reset naar 40°C na herstart).
 ```
 
 **Regelgedrag water modus (voorbeeld setpoint 40°C):**
 ```
-41.0°C ════════ UIT trigger (setpoint + 1°C) ✋
-40.5°C          Binnen tolerantie - huidige staat handhaven
-40.0°C ──────── DOEL ✅
-39.5°C          Binnen tolerantie - huidige staat handhaven
-39.0°C ════════ AAN trigger (setpoint - 1°C) 🔥
+41.0°C ════ UIT trigger ✋
+40.0°C ──── DOEL ✅
+39.0°C ════ AAN trigger 🔥
+
+Hysteresis bij standwijziging:
+  Omlaag:        5 min  (HYST_DOWN_MS)
+  Omhoog groot:  2 min  (HYST_FAST_MS, fout > 5°C)
+  Omhoog normaal:10 min (HYST_SLOW_MS)
 ```
 
-**Home Assistant Number:**
-```yaml
-number:
-  - platform: mqtt
-    name: "WP Water Setpoint"
-    command_topic: "chofu/cmd/water_setpoint"
-    state_topic: "chofu/water_setpoint"
-    min: 25
-    max: 55
-    step: 0.5
-    unit_of_measurement: "°C"
+### Koeling
+
 ```
+Topic:   chofu/cmd/koeling
+Payload: "1" → Koelen
+         "0" → Verwarmen (default)
 
-#### Koeling
-```
-Topic: chofu/cmd/koeling
-Payload: "1" = Koelen
-Payload: "0" = Verwarmen (default)
+Zet protocol byte 19-2,3 op 2 (koeling) i.p.v. 1 (verwarming).
+PID fout wordt omgekeerd: te warm water = meer vermogen.
+Wordt automatisch uitgeschakeld als buiten < KOELING_MIN_BUITEN.
+Niet opgeslagen in EEPROM.
 
-Effect:
-- Alleen actief in water modus
-- Zet protocol byte 19-2,3 op 2 (koeling) i.p.v. 1 (verwarming)
-- PID logica wordt omgekeerd: te warm water = meer vermogen
-- PID integraal wordt gereset bij wisselen
-- Niet opgeslagen in EEPROM (reset naar verwarmen na herstart)
-
-Gebruik altijd samen met water modus:
-  chofu/cmd/modus = "water"
-  chofu/cmd/water_setpoint = "18.0"   (koelwater setpoint)
-  chofu/cmd/koeling = "1"
+Typisch gebruik:
+  chofu/cmd/modus          = "water"
+  chofu/cmd/water_setpoint = "18.0"
+  chofu/cmd/koeling        = "1"
 ```
 
 **Regelgedrag koeling (voorbeeld setpoint 18°C):**
 ```
-19.0°C ════════ AAN trigger (setpoint + 1°C) 🧊
-18.5°C          Binnen tolerantie
-18.0°C ──────── DOEL ✅
-17.5°C          Binnen tolerantie
-17.0°C ════════ UIT trigger (setpoint - 1°C) ✋
-```
-
-**Home Assistant Switch:**
-```yaml
-switch:
-  - platform: mqtt
-    name: "WP Koeling"
-    command_topic: "chofu/cmd/koeling"
-    state_topic: "chofu/koeling"
-    payload_on: "1"
-    payload_off: "0"
-```
-
----
-
-### Handmatige Stand
-
-#### Stand (0-12)
-```
-Topic: chofu/cmd/stand
-Payload: "0" - "12" (integer)
-
-Effect:
-- Schakelt automatisch naar handmatige modus
-- Zet de compressor op de opgegeven stand
-- PID regeling gepauzeerd
-- Stand 0 = UIT
-- Stands 9-12 zijn alleen beschikbaar in handmatige modus;
-  auto en water modus gebruiken maximaal stand 8
-
-Stand Mapping:
-  0  = UIT         (0W)
-  1  = Minimum     (240W)
-  2  = Laag        (420W)
-  3  = Medium-     (640W)
-  4  = Medium      (850W)
-  5  = Medium+     (1050W)
-  6  = Hoog        (1250W)
-  7  = Hoog+       (1450W)
-  8  = Max auto    (1550W)  ← max in auto/water modus
-  9  = Uitgebr.-   (1650W)  ← alleen handmatig
-  10 = Uitgebr.    (1700W)  ← alleen handmatig
-  11 = Uitgebr.+   (1750W)  ← alleen handmatig
-  12 = Maximum     (1800W)  ← alleen handmatig
-```
-
-**Home Assistant Number:**
-```yaml
-number:
-  - platform: mqtt
-    name: "WP Handmatig Stand"
-    command_topic: "chofu/cmd/stand"
-    state_topic: "chofu/stand"
-    min: 0
-    max: 12
-    step: 1
-```
-
-**Verschil met `chofu/cmd/power`:**
-```
-chofu/cmd/power  → Alleen aan (stand 1) of uit (stand 0)
-chofu/cmd/stand  → Specifieke stand 0-12 instelbaar
-```
-
----
-
-### PID Parameters
-
-#### Setpoint (Aanvoer Temperatuur, auto modus)
-```
-Topic: kromhout_wp/cmd/setpoint
-Payload: "20.0" - "45.0" (float in °C)
-
-Effect:
-- Wijzigt doel aanvoer temperatuur
-- Opgeslagen in EEPROM (blijft na herstart)
-- PID regelt naar deze waarde
-
-Default: 40.0°C
-```
-
-**Home Assistant Number:**
-```yaml
-number:
-  - platform: mqtt
-    name: "WP Setpoint"
-    command_topic: "kromhout_wp/cmd/setpoint"
-    state_topic: "sensor/kromhout_wp_setpoint"
-    min: 20
-    max: 45
-    step: 0.5
-    unit_of_measurement: "°C"
-```
-
-#### Kp (Proportional)
-```
-Topic: kromhout_wp/cmd/kp
-Payload: "0.1" - "5.0" (float)
-
-Effect:
-- Wijzigt Proportional gain
-- Grotere waarde = snellere reactie
-- Te groot = overshoot
-
-Default: 0.6
-```
-
-#### Ki (Integral)
-```
-Topic: kromhout_wp/cmd/ki
-Payload: "0.001" - "0.1" (float)
-
-Effect:
-- Wijzigt Integral gain
-- Elimineert steady-state error
-- Te groot = oscillatie
-
-Default: 0.008
-```
-
-#### Kd (Derivative)
-```
-Topic: kromhout_wp/cmd/kd
-Payload: "0.0" - "2.0" (float)
-
-Effect:
-- Wijzigt Derivative gain
-- Dempt snelle veranderingen
-- Te groot = nerveus gedrag
-
-Default: 0.4
-```
-
-**Home Assistant PID Tuning:**
-```yaml
-number:
-  - platform: mqtt
-    name: "PID Kp"
-    command_topic: "kromhout_wp/cmd/kp"
-    min: 0.1
-    max: 5.0
-    step: 0.1
-    
-  - platform: mqtt
-    name: "PID Ki"
-    command_topic: "kromhout_wp/cmd/ki"
-    min: 0.001
-    max: 0.1
-    step: 0.001
-    
-  - platform: mqtt
-    name: "PID Kd"
-    command_topic: "kromhout_wp/cmd/kd"
-    min: 0.0
-    max: 2.0
-    step: 0.1
+19.0°C ════ AAN trigger 🧊
+18.0°C ──── DOEL ✅
+17.0°C ════ UIT trigger ✋
 ```
 
 ### Stooklijn Parameters
 
-#### Vorstgrens
 ```
-Topic: chofu/cmd/t_vorst
-Payload: "-10.0" - "10.0" (float in °C)
+Topic:   chofu/cmd/setpoint
+Payload: "20.0" – "45.0"  (float, °C)
+Opgeslagen in EEPROM. Default: 40.0°C
 
-Effect:
-- Stelt de buitentemperatuur in waarbij vorstbeveiliging actief wordt
-- Onder deze grens: warmtepomp blijft minimaal op stand 1 (nooit uit)
-- Opgeslagen in EEPROM (blijft na herstart)
+Topic:   chofu/cmd/t_vorst
+Payload: "-10.0" – "10.0"  (float, °C)
+Vorstgrens: WP blijft minimaal stand 1 bij buiten < T_VORST.
+Opgeslagen in EEPROM. Default: 4.0°C
 
-Default: 4.0°C
+Topic:   chofu/cmd/stooklijn_grens
+Payload: "0.0" – "15.0"  (float, °C)
+Onder deze buitentemp wordt het setpoint verhoogd. Default: 5.0°C
 
-Voorbeeld:
-T_VORST = 2.0 → beveiliging activeert bij buiten < 2°C
-T_VORST = -5.0 → beveiliging pas bij strenge vorst
-```
-
-**Home Assistant Number:**
-```yaml
-number:
-  - platform: mqtt
-    name: "WP Vorstgrens"
-    command_topic: "chofu/cmd/t_vorst"
-    state_topic: "chofu/t_vorst"
-    min: -10
-    max: 10
-    step: 0.5
-    unit_of_measurement: "°C"
+Topic:   chofu/cmd/stooklijn_factor
+Payload: "0.0" – "2.0"  (float)
+°C setpointverhoging per °C onder de grens. Default: 0.5
+Voorbeeld: buiten 0°C, grens 5°C, factor 0.5 → +2.5°C setpoint
 ```
 
-#### Stooklijn Grens
+### PID Parameters
+
 ```
-Topic: kromhout_wp/cmd/stooklijn_grens
-Payload: "0.0" - "15.0" (float in °C)
+Topic:   chofu/cmd/kp     Payload: float  Default: 0.8
+Topic:   chofu/cmd/ki     Payload: float  Default: 0.01
+Topic:   chofu/cmd/kd     Payload: float  Default: 0.3
 
-Effect:
-- Onder deze buiten temp wordt setpoint verhoogd
-- Compensatie voor kou
-
-Default: 5.0°C
+Alle PID parameters opgeslagen in EEPROM.
 ```
 
-#### Stooklijn Factor
+### Safeguard Grenzen
+
 ```
-Topic: kromhout_wp/cmd/stooklijn_factor
-Payload: "0.0" - "2.0" (float)
+Topic:   chofu/cmd/supply_max
+Payload: "40.0" – "80.0"  (float, °C)
+Noodstop: aanvoer boven deze temp → stand 0, ongeacht modus.
+Opgeslagen in EEPROM. Default: 60.0°C
 
-Effect:
-- °C setpoint verhoging per °C onder grens
-- Grotere waarde = meer compensatie
+Topic:   chofu/cmd/koeling_min_buiten
+Payload: "0.0" – "30.0"  (float, °C)
+Koeling geblokkeerd als buiten < deze grens.
+Opgeslagen in EEPROM. Default: 18.0°C
 
-Default: 0.5 (= +0.5°C per graad onder 5°C)
-
-Voorbeeld:
-Buiten = 0°C, Grens = 5°C, Factor = 0.5
-→ Setpoint += (5 - 0) × 0.5 = +2.5°C
+Topic:   chofu/cmd/stooklijn_uit
+Payload: "5.0" – "30.0"  (float, °C)
+Auto modus: verwarming stopt als buiten > deze grens.
+Opgeslagen in EEPROM. Default: 15.0°C
 ```
 
-### Advanced Controle
+### Overig
 
-#### Force Start
 ```
-Topic: kromhout_wp/cmd/force_start
+Topic:   chofu/cmd/lcd
+Payload: "1" → LCD backlight aan
+         "0" → LCD backlight uit
+
+Topic:   chofu/cmd/force_start
 Payload: "1"
-
-Effect:
-- Reset hysteresis timer
-- Warmtepomp start DIRECT (skip 10 min wachttijd)
-- Gebruik bij urgente warmtevraag
-
-Eenmalig: Geen blijvende status
-```
-
-**Home Assistant Button:**
-```yaml
-button:
-  - platform: mqtt
-    name: "WP Force Start"
-    command_topic: "kromhout_wp/cmd/force_start"
-    payload_press: "1"
-```
-
-#### LCD Backlight
-```
-Topic: kromhout_wp/cmd/lcd
-Payload: "1" = Backlight AAN
-Payload: "0" = Backlight UIT
-
-Effect:
-- Schakelt LCD verlichting
-- Spaart energie (klein beetje)
-```
-
-#### Reset Setup
-```
-Topic: kromhout_wp/cmd/reset_setup
-Payload: "1"
-
-Effect:
-- Wist WiFi/MQTT configuratie
-- Arduino herstart in setup mode
-- Gebruik voor herconfiguratie
-
-WAARSCHUWING: Verliest alle instellingen!
+Reset hysteresis timer → warmtepomp start direct.
 ```
 
 ---
 
-## 📝 Log Topics (Arduino → Home Assistant)
+## Safeguards
 
-### Levels
+Overzicht van alle ingebouwde beveiligingen:
 
-| Topic | Level | Gebruik |
-|-------|-------|---------|
-| `kromhout_wp/log/INFO` | Info | Normale events |
-| `kromhout_wp/log/WARNING` | Warning | Waarschuwingen |
-| `kromhout_wp/log/ERROR` | Error | Fouten |
-| `kromhout_wp/log/DEBUG` | Debug | Debug info |
+| Safeguard | Conditie | Actie | Instelbaar |
+|-----------|----------|-------|------------|
+| **Noodstop aanvoer** | `t_supply > SUPPLY_MAX` (60°C) | Stand 0, WP uit | `chofu/cmd/supply_max` |
+| **Vorstbeveiliging** | `t_outside < T_VORST` (4°C) | Minimaal stand 1 | `chofu/cmd/t_vorst` |
+| **Koeling blokkering** | `koeling=1` en `buiten < 18°C` | Koeling automatisch uit | `chofu/cmd/koeling_min_buiten` |
+| **Stooklijn uit** | `buiten > 15°C` in auto modus | Stand 0, WP uit | `chofu/cmd/stooklijn_uit` |
+| **Spike filter aanvoer/retour** | Sprong > 10°C per cyclus | Waarde verworpen, vorige behouden | — |
+| **Spike filter buiten** | Sprong > 5°C of buiten −30..+50°C | Waarde verworpen | — |
+| **MQTT watchdog** | Geen MQTT > 120 min | Water/handmatig → auto | — |
 
-### Event Voorbeelden
+Alle safeguard meldingen verschijnen op `chofu/alert` (retained) en `chofu/log/WARNING`.
 
-**INFO:**
+### Alert Voorbeelden
+
 ```
-"WP START - Kamer: 20.4°C → 20.5°C"
-"Kamer te warm (20.8°C) → WP UIT"
-```
-
-**WARNING:**
-```
-"❄️ VORSTBEVEILIGING! Buiten: 3.2°C → Stand 1 geforceerd"
-"⚠️ EQUILIBRIUM! Kamer hangt op 20.4°C Stand: 2→3"
-```
-
-**ERROR:**
-```
-"⛔ MAX! Kamer: 21.2°C (max: 21.0°C) GEFORCEERD UIT!"
-"❌ RX: Checksum fout in protocol telegram!"
+"NOODSTOP aanvoer: 63.2C > max 60.0C"
+"Koeling geblokkeerd: buiten 15.3C < min 18.0C"
+"Spike aanvoer: 72.1C verworpen (was 42.3C)"
+"Spike buiten: 88.5C verworpen"
+"Verwarming gestopt: buiten 16.2C > 15.0C"
+"MQTT watchdog: geen contact > 120 min, terug naar auto"
+"❄️ VORSTBEVEILIGING! Buiten: 3.2°C → Stand 1"
 ```
 
-**Home Assistant Automation:**
+---
+
+## Home Assistant Auto-Discovery
+
+De Arduino publiceert alle HA discovery configs automatisch bij opstart (retained). Handmatige YAML configuratie is **niet** nodig.
+
+**Entiteiten (26 totaal):**
+
+| Entiteit | Type | Topic |
+|----------|------|-------|
+| Chofu Aanvoer | sensor (°C) | `chofu/supply` |
+| Chofu Retour | sensor (°C) | `chofu/return` |
+| Chofu Buiten | sensor (°C) | `chofu/outside` |
+| Chofu Delta T | sensor (°C) | `chofu/delta_t` |
+| Chofu Kamer | sensor (°C) | `chofu/kamer` |
+| Chofu Kamer Gewenst | sensor (°C) | `chofu/kamer_gewenst` |
+| Chofu Setpoint | sensor (°C) | `chofu/setpoint` |
+| Chofu Stand | sensor | `chofu/stand` |
+| Chofu Vermogen | sensor (W) | `chofu/vermogen` |
+| Chofu Modus | sensor | `chofu/modus` |
+| Chofu PID | sensor (%) | `chofu/pid` |
+| Chofu Pomp | sensor | `chofu/pomp` |
+| Chofu Comp Hz | sensor (Hz) | `chofu/comp_hz` |
+| Chofu Defrost | binary_sensor | `chofu/defrost` |
+| Chofu Simulatie | binary_sensor | `chofu/sim_actief` |
+| Chofu Alert | sensor | `chofu/alert` |
+| Chofu Power | switch | `chofu/cmd/power` |
+| Chofu LCD | switch | `chofu/cmd/lcd` |
+| Chofu Koeling | switch | `chofu/cmd/koeling` |
+| Chofu Modus Select | select | `chofu/cmd/modus` |
+| Chofu Water SP | number (°C) | `chofu/cmd/water_setpoint` |
+| Chofu Vorstgrens | number (°C) | `chofu/cmd/t_vorst` |
+| Chofu Stand (handmatig) | number | `chofu/cmd/stand` |
+| Chofu Aanvoer Max | number (°C) | `chofu/cmd/supply_max` |
+| Chofu Koeling Min Buiten | number (°C) | `chofu/cmd/koeling_min_buiten` |
+| Chofu Stooklijn Uit | number (°C) | `chofu/cmd/stooklijn_uit` |
+
+**Availability:** Alle entiteiten zijn gekoppeld aan `chofu/status`. Bij verbindingsverlies (LWT) zet de broker automatisch `offline` en markeert HA alle entiteiten als niet beschikbaar.
+
+---
+
+## Simulatie Topics (Testen Zonder Hardware)
+
+Met deze topics kunnen sensorwaarden worden overschreven voor testen zonder hardware aansluiting. De simulatiewaarden worden elke loop-iteratie toegepast vóór de PID berekening en alle safeguards.
+
+**`chofu/sim_actief`** (state, retained) toont in HA of simulatie actief is.
+
+### Sensorwaarden injecteren
+
+```
+Topic:   chofu/sim/supply
+Payload: float °C  (bereik -10 tot 80)
+         leeg of "reset" → terug naar echte sensorwaarde
+
+Topic:   chofu/sim/return
+Payload: float °C  (bereik -10 tot 80)
+         leeg of "reset" → terug naar echte sensorwaarde
+
+Topic:   chofu/sim/outside
+Payload: float °C  (bereik -30 tot 50)
+         leeg of "reset" → terug naar echte sensorwaarde
+
+Topic:   chofu/sim/water_setpoint
+Payload: float °C  (bereik 25 tot 55)
+         leeg of "reset" → terug naar waarde van chofu/cmd/water_setpoint
+
+Topic:   chofu/sim/kamer
+Payload: float °C  (bereik 5 tot 40)
+         Overschrijft anna/temperatuur in de PID-regeling.
+         Gebruik dit in simulatie zodat de echte Zigbee-sensor
+         (die ook naar anna/temperatuur publiceert) niet interfereert.
+         leeg of "reset" → terug naar anna/temperatuur
+
+Topic:   chofu/sim/kamer_gewenst
+Payload: float °C  (bereik 14 tot 30)
+         Overschrijft anna/setpoint in de PID-regeling.
+         leeg of "reset" → terug naar anna/setpoint
+
+Topic:   chofu/sim/reset
+Payload: willekeurig
+Effect:  Wist alle simulatiewaarden tegelijk
+         (supply, return, outside, water_setpoint, kamer, kamer_gewenst)
+```
+
+### Testscenarios
+
+```bash
+BROKER="192.168.1.8"
+
+# Noodstop aanvoer (SUPPLY_MAX = 60°C)
+mosquitto_pub -h $BROKER -t "chofu/sim/supply" -m "65.0"
+# Verwacht: stand=0, alert op chofu/alert
+
+# Spike filter aanvoer (>10°C sprong)
+mosquitto_pub -h $BROKER -t "chofu/sim/supply" -m "99.0"
+# Verwacht: waarde verworpen, vorige waarde behouden, alert
+
+# Koeling blokkering (buiten < 18°C)
+mosquitto_pub -h $BROKER -t "chofu/cmd/koeling" -m "1"
+mosquitto_pub -h $BROKER -t "chofu/sim/outside" -m "10.0"
+# Verwacht: koeling=0, alert
+
+# Stooklijn uit (auto modus, buiten > 15°C)
+mosquitto_pub -h $BROKER -t "chofu/cmd/modus" -m "auto"
+mosquitto_pub -h $BROKER -t "chofu/sim/outside" -m "20.0"
+# Verwacht: stand=0, alert
+
+# Vorstbeveiliging (buiten < T_VORST = 4°C)
+mosquitto_pub -h $BROKER -t "chofu/sim/outside" -m "2.0"
+# Verwacht: stand minimaal 1
+
+# Water modus PID testen
+mosquitto_pub -h $BROKER -t "chofu/cmd/modus" -m "water"
+mosquitto_pub -h $BROKER -t "chofu/sim/water_setpoint" -m "40.0"
+mosquitto_pub -h $BROKER -t "chofu/sim/supply" -m "35.0"
+# Verwacht: PID verhoogt stand (5°C te koud → snelle hysteresis)
+mosquitto_pub -h $BROKER -t "chofu/sim/supply" -m "42.0"
+# Verwacht: PID verlaagt stand (te warm, maar binnen 1°C tolerantie)
+mosquitto_pub -h $BROKER -t "chofu/sim/supply" -m "41.5"
+# Verwacht: WP uit (>1°C boven setpoint)
+
+# Koeling testen met sim setpoint
+mosquitto_pub -h $BROKER -t "chofu/cmd/koeling" -m "1"
+mosquitto_pub -h $BROKER -t "chofu/sim/water_setpoint" -m "18.0"
+mosquitto_pub -h $BROKER -t "chofu/sim/supply" -m "20.0"
+# Verwacht: PID verhoogt stand (te warm water bij koeling)
+
+# Buiten sanity check
+mosquitto_pub -h $BROKER -t "chofu/sim/outside" -m "99.0"
+# Verwacht: waarde verworpen (buiten -30..+50 bereik), alert
+
+# Simulatie resetten
+mosquitto_pub -h $BROKER -t "chofu/sim/reset" -m "1"
+# Verwacht: alle sim waarden weg, echte sensorwaarden actief
+```
+
+### Monitoring tijdens testen
+
+```bash
+# Alles tegelijk volgen
+mosquitto_sub -h 192.168.1.8 -t "chofu/#" -v
+
+# Alleen alerts en logs
+mosquitto_sub -h 192.168.1.8 -t "chofu/alert" -v
+mosquitto_sub -h 192.168.1.8 -t "chofu/log/#" -v
+```
+
+> **Let op:** Simulatiewaarden overleven geen herstart van de Arduino. Na een reset zijn alle sim waarden NAN (niet ingesteld) en worden echte sensorwaarden gebruikt.
+
+---
+
+## Simulatie Timing (Sneller-dan-realtime replay)
+
+Voor het replay van historische tijdreeksen via een Python script kan de timing van de PID-regeling en hysteresis worden versneld via MQTT. Deze waarden worden **niet** in EEPROM opgeslagen — een herstart herstelt altijd de productiewaarden.
+
+| Topic | Standaard | Eenheid | Beschrijving |
+|-------|-----------|---------|--------------|
+| `chofu/cmd/hyst_slow` | 600000 | ms | Hysteresis bij standverhoging (normaal: 10 min) |
+| `chofu/cmd/hyst_fast` | 120000 | ms | Hysteresis bij grote fout >1°C (normaal: 2 min) |
+| `chofu/cmd/hyst_down` | 300000 | ms | Hysteresis bij standverlaging (normaal: 5 min) |
+| `chofu/cmd/pid_interval` | 5000 | ms | PID berekeninterval (normaal: 5 sec) |
+
+State topics (gepubliceerd elke 10 sec): `chofu/hyst_slow`, `chofu/hyst_fast`, `chofu/hyst_down`, `chofu/pid_interval`
+
+Validatiebereiken: hyst_* 100–3.600.000 ms, pid_interval 100–60.000 ms.
+
+### Python replay gebruik
+
+```bash
+# Versnelling instellen voor simulatie (bijv. 60x sneller: 1 min → 1 sec)
+BROKER=192.168.1.8
+mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_slow"    -m "10000"   # 10 sec
+mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_fast"    -m "2000"    # 2 sec
+mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_down"    -m "5000"    # 5 sec
+mosquitto_pub -h $BROKER -t "chofu/cmd/pid_interval" -m "83"      # ~1/60 van 5000ms
+
+# Na simulatie: herstellen (of gewoon Arduino herstarten)
+mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_slow"    -m "600000"
+mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_fast"    -m "120000"
+mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_down"    -m "300000"
+mosquitto_pub -h $BROKER -t "chofu/cmd/pid_interval" -m "5000"
+```
+
+> **Veiligheid:** Alle safeguards (SUPPLY_MAX, KOELING_MIN_BUITEN, vorstbeveiliging) blijven actief met versnelde timing. Alleen de schakelfrequentie neemt toe.
+
+---
+
+## Anna Thermostaat Topics
+
+| Topic | Richting | Beschrijving |
+|-------|----------|--------------|
+| `anna/setpoint` | Anna → Arduino | Gewenste kamertemperatuur (14–30°C) |
+| `anna/temperatuur` | Anna → Arduino | Werkelijke kamertemperatuur (5–35°C) |
+
+> **Simulatie:** Gebruik `chofu/sim/kamer` en `chofu/sim/kamer_gewenst` in plaats van
+> de Anna-topics. Zo overschrijft de echte Zigbee-sensor de simulatiewaarden niet.
+
+**Home Assistant Automatisering:**
 ```yaml
 automation:
-  - alias: "WP Error Notification"
+  - alias: "Anna Setpoint naar MQTT"
     trigger:
-      - platform: mqtt
-        topic: "kromhout_wp/log/ERROR"
+      platform: state
+      entity_id: climate.anna
     action:
-      - service: notify.mobile_app
-        data:
-          title: "Warmtepomp Error"
-          message: "{{ trigger.payload }}"
-```
+      service: mqtt.publish
+      data:
+        topic: "anna/setpoint"
+        payload: "{{ state_attr('climate.anna', 'temperature') }}"
 
----
-
-## 🔄 Anna Thermostaat Topics
-
-### Input (Anna → Arduino)
-
-#### Setpoint
-```
-Topic: anna/setpoint
-Payload: "14.0" - "30.0" (float in °C)
-
-Effect:
-- Stelt gewenste kamer temperatuur in
-- Arduino regelt om dit te bereiken
-- Basis voor PID beslissingen
-```
-
-#### Kamer Temperatuur
-```
-Topic: anna/temperatuur
-Payload: "15.0" - "30.0" (float in °C)
-
-Effect:
-- Werkelijke kamer temperatuur
-- Gebruikt voor fout berekening
-- Update elke 30-60 seconden (van Anna)
-```
-
-**Home Assistant Automation (Anna → MQTT):**
-```yaml
-automation:
-  - alias: "Anna Setpoint to MQTT"
+  - alias: "Anna Temperatuur naar MQTT"
     trigger:
-      - platform: state
-        entity_id: climate.anna
+      platform: state
+      entity_id: sensor.anna_temperature
     action:
-      - service: mqtt.publish
-        data:
-          topic: "anna/setpoint"
-          payload: "{{ state_attr('climate.anna', 'temperature') }}"
-          
-  - alias: "Anna Temperature to MQTT"
-    trigger:
-      - platform: state
-        entity_id: sensor.anna_temperature
-    action:
-      - service: mqtt.publish
-        data:
-          topic: "anna/temperatuur"
-          payload: "{{ states('sensor.anna_temperature') }}"
+      service: mqtt.publish
+      data:
+        topic: "anna/temperatuur"
+        payload: "{{ states('sensor.anna_temperature') }}"
 ```
 
 ---
 
-## 📊 MQTT Explorer Overzicht
+## MQTT Explorer Structuur
 
-**Structuur in MQTT Explorer:**
 ```
-├── sensor/
-│   ├── kromhout_wp_aanvoer        (35.2)
-│   ├── kromhout_wp_retour         (30.1)
-│   ├── kromhout_wp_kamer          (20.5)
-│   ├── kromhout_wp_setpoint       (40.0)
-│   ├── kromhout_wp_buiten         (8.5)
-│   ├── kromhout_wp_delta_t        (5.1)
-│   ├── kromhout_wp_stand          (2)
-│   ├── kromhout_wp_vermogen       (420)
-│   ├── kromhout_wp_pid            (45)
-│   ├── kromhout_wp_modus          (auto)
-│   ├── kromhout_wp_compressor_hz  (45)
-│   └── kromhout_wp_pomp           (60)
-│
-├── kromhout_wp/
-│   ├── aan                        (1)
-│   ├── defrost                    (0)
-│   ├── lcd                        (1)
-│   ├── water_setpoint             (40.0)
-│   ├── cmd/
-│   │   ├── power
-│   │   ├── modus
-│   │   ├── setpoint
-│   │   ├── water_setpoint
-│   │   ├── stand
-│   │   ├── kp
-│   │   ├── ki
-│   │   ├── kd
-│   │   ├── force_start
-│   │   └── reset_setup
-│   └── log/
-│       ├── INFO                   (laatste event)
-│       ├── WARNING                (laatste warning)
-│       ├── ERROR                  (laatste error)
-│       └── DEBUG                  (laatste debug)
-│
-└── anna/
-    ├── setpoint                   (20.5)
-    └── temperatuur                (20.3)
+chofu/
+├── supply                   35.2
+├── return                   30.1
+├── outside                   8.5
+├── delta_t                   5.1
+├── kamer                    20.5
+├── kamer_gewenst            21.0
+├── setpoint                 40.0
+├── water_setpoint           40.0
+├── t_vorst                   4.0
+├── stand                     3
+├── vermogen                640
+├── aan                       1
+├── modus                  auto
+├── koeling                   0
+├── pid                      45.0
+├── defrost                   0
+├── pomp                     60
+├── comp_hz                  45
+├── lcd                       1
+├── supply_max               60.0
+├── koeling_min_buiten       18.0
+├── stooklijn_uit            15.0
+├── sim_actief                0
+├── hyst_slow            600000   ← simulatie timing (niet EEPROM)
+├── hyst_fast            120000
+├── hyst_down            300000
+├── pid_interval           5000
+├── status                online   ← retained, LWT
+├── alert          Verwarming gestopt: buiten 16.2C   ← retained
+├── log/
+│   ├── INFO             laatste event
+│   └── WARNING          laatste waarschuwing
+├── sim/
+│   ├── supply              (schrijf alleen, geen state)
+│   ├── return              (schrijf alleen, geen state)
+│   ├── outside             (schrijf alleen, geen state)
+│   ├── water_setpoint      (schrijf alleen, geen state)
+│   ├── kamer               (schrijf alleen — overschrijft anna/temperatuur)
+│   ├── kamer_gewenst       (schrijf alleen — overschrijft anna/setpoint)
+│   └── reset               (schrijf alleen, geen state)
+└── cmd/
+    ├── modus
+    ├── power
+    ├── stand
+    ├── water_setpoint
+    ├── koeling
+    ├── setpoint
+    ├── t_vorst
+    ├── supply_max
+    ├── koeling_min_buiten
+    ├── stooklijn_uit
+    ├── kp / ki / kd
+    ├── lcd
+    ├── force_start
+    ├── hyst_slow           ← simulatie timing (niet EEPROM)
+    ├── hyst_fast
+    ├── hyst_down
+    └── pid_interval
+
+anna/
+├── setpoint                 21.0
+└── temperatuur              20.3
 ```
 
 ---
 
-## 🧪 Testing Met Mosquitto CLI
-
-### Publish (Versturen)
+## Testing Met Mosquitto CLI
 
 ```bash
-# Setpoint wijzigen (auto modus stooklijn)
-mosquitto_pub -h 192.168.1.x -t "kromhout_wp/cmd/setpoint" -m "42.0"
+BROKER="192.168.1.8"
 
-# Warmtepomp aan
-mosquitto_pub -h 192.168.1.x -t "kromhout_wp/cmd/power" -m "1"
+# Modus wisselen
+mosquitto_pub -h $BROKER -t "chofu/cmd/modus" -m "auto"
+mosquitto_pub -h $BROKER -t "chofu/cmd/modus" -m "water"
+mosquitto_pub -h $BROKER -t "chofu/cmd/modus" -m "handmatig"
 
-# Modus naar auto
-mosquitto_pub -h 192.168.1.x -t "kromhout_wp/cmd/modus" -m "auto"
+# Water modus instellen
+mosquitto_pub -h $BROKER -t "chofu/cmd/water_setpoint" -m "45.0"
 
-# Water modus: schakel en stel gewenste aanvoertemperatuur in
-mosquitto_pub -h 192.168.1.x -t "chofu/cmd/modus" -m "water"
-mosquitto_pub -h 192.168.1.x -t "chofu/cmd/water_setpoint" -m "45.0"
+# Koeling inschakelen (water modus vereist)
+mosquitto_pub -h $BROKER -t "chofu/cmd/modus" -m "water"
+mosquitto_pub -h $BROKER -t "chofu/cmd/water_setpoint" -m "18.0"
+mosquitto_pub -h $BROKER -t "chofu/cmd/koeling" -m "1"
 
-# Handmatige stand instellen (schakel automatisch naar handmatig)
-mosquitto_pub -h 192.168.1.x -t "chofu/cmd/stand" -m "4"   # stand 4 (850W)
-mosquitto_pub -h 192.168.1.x -t "chofu/cmd/stand" -m "0"   # uit
+# Handmatige stand
+mosquitto_pub -h $BROKER -t "chofu/cmd/stand" -m "4"   # 850W
+mosquitto_pub -h $BROKER -t "chofu/cmd/stand" -m "0"   # uit
 
-# Force start
-mosquitto_pub -h 192.168.1.x -t "kromhout_wp/cmd/force_start" -m "1"
+# Safeguard grenzen aanpassen
+mosquitto_pub -h $BROKER -t "chofu/cmd/supply_max" -m "55.0"
+mosquitto_pub -h $BROKER -t "chofu/cmd/koeling_min_buiten" -m "20.0"
+mosquitto_pub -h $BROKER -t "chofu/cmd/stooklijn_uit" -m "18.0"
 
-# PID parameters
-mosquitto_pub -h 192.168.1.x -t "kromhout_wp/cmd/kp" -m "0.8"
-mosquitto_pub -h 192.168.1.x -t "kromhout_wp/cmd/ki" -m "0.01"
-mosquitto_pub -h 192.168.1.x -t "kromhout_wp/cmd/kd" -m "0.5"
+# Vorstgrens
+mosquitto_pub -h $BROKER -t "chofu/cmd/t_vorst" -m "2.0"
 
-# Anna setpoint simuleren
-mosquitto_pub -h 192.168.1.x -t "anna/setpoint" -m "21.0"
-mosquitto_pub -h 192.168.1.x -t "anna/temperatuur" -m "20.5"
-```
+# PID tuning
+mosquitto_pub -h $BROKER -t "chofu/cmd/kp" -m "0.8"
+mosquitto_pub -h $BROKER -t "chofu/cmd/ki" -m "0.01"
+mosquitto_pub -h $BROKER -t "chofu/cmd/kd" -m "0.3"
 
-### Subscribe (Ontvangen)
+# Force start (reset hysteresis)
+mosquitto_pub -h $BROKER -t "chofu/cmd/force_start" -m "1"
 
-```bash
-# Alle topics
-mosquitto_sub -h 192.168.1.x -t "#" -v
+# Anna simuleren
+mosquitto_pub -h $BROKER -t "anna/setpoint" -m "21.0"
+mosquitto_pub -h $BROKER -t "anna/temperatuur" -m "20.3"
 
-# Alleen warmtepomp
-mosquitto_sub -h 192.168.1.x -t "sensor/kromhout_wp_#" -v
-mosquitto_sub -h 192.168.1.x -t "kromhout_wp/#" -v
-
-# Alleen logs
-mosquitto_sub -h 192.168.1.x -t "kromhout_wp/log/#" -v
-
-# Specifieke sensor
-mosquitto_sub -h 192.168.1.x -t "sensor/kromhout_wp_kamer" -v
-```
-
----
-
-## 🔐 Authenticatie
-
-**Met username/password:**
-```bash
-mosquitto_pub -h 192.168.1.x -u mqtt -P [wachtwoord] -t "kromhout_wp/cmd/power" -m "1"
-
-mosquitto_sub -h 192.168.1.x -u mqtt -P [wachtwoord] -t "#" -v
-```
-
-**Arduino configuratie:**
-```cpp
-// In WiFi Setup Portal ingevuld:
-MQTT User: mqtt
-MQTT Pass: [jouw-wachtwoord]
+# Monitoring
+mosquitto_sub -h $BROKER -t "chofu/#" -v
+mosquitto_sub -h $BROKER -t "chofu/log/#" -v
+mosquitto_sub -h $BROKER -t "chofu/alert" -v
 ```
 
 ---
 
-## 📈 Update Frequentie
+## Troubleshooting
 
-| Data Type | Interval | Reden |
-|-----------|----------|-------|
-| Temperaturen | 10s | Real-time monitoring |
-| Stand/Vermogen | 10s | Status tracking |
-| PID Output | 10s | Debug info |
-| Compressor Hz | 10s | Hardware monitoring |
-| Logs | Event-based | Bij gebeurtenis |
-| Anna Setpoint | 2-3 min | Anna update rate |
+### Entiteiten niet zichtbaar in HA
 
----
-
-## 🐛 Troubleshooting
-
-### Geen Data Ontvangen
-
-**Check:**
-```bash
-# Test MQTT broker
-mosquitto_sub -h 192.168.1.x -t "#" -v
-
-Als leeg:
-→ MQTT broker draait niet
-→ Firewall blokkeert poort 1883
-→ Verkeerd IP adres
+```
+1. Wacht 2 minuten na herstart Arduino (discovery in 3 fases)
+2. Check MQTT Explorer: zijn chofu/* topics aanwezig?
+3. Check homeassistant/sensor/chofu_hp/supply/config: is er JSON?
+4. HA → Settings → Devices & Services → MQTT → Reload
+5. Verwijder device in HA en wacht op herdetectie
 ```
 
-### Commando's Werken Niet
+### Entiteiten "niet beschikbaar"
 
-**Check:**
-```bash
-# Test versturen
-mosquitto_pub -h 192.168.1.x -t "kromhout_wp/cmd/power" -m "1"
-
-# Monitor Serial output Arduino
-# Moet zien: "MQTT: kromhout_wp/cmd/power=1"
-
-Als niks:
-→ Arduino niet verbonden met MQTT
-→ Topics niet gesubscribed
-→ Verkeerde topic prefix
+```
+Check chofu/status in MQTT Explorer:
+- "online"  → Arduino verbonden, probleem elders
+- "offline" → LWT getriggerd (Arduino weg of crash)
+- leeg      → Arduino heeft nog niet gepubliceerd
 ```
 
-### "Onbekend" in Home Assistant
+### Alert sensor toont oude melding
 
-**Oorzaken:**
-- Discovery nog niet compleet (wacht 3 min)
-- MQTT integratie niet actief
-- Topics komen niet aan
-
-**Oplossing:**
 ```
-1. Check MQTT Explorer: zie je topics?
-2. Developer Tools → MQTT: listen to sensor/#
-3. Reset Arduino (discovery opnieuw)
-4. Herstart Home Assistant
+chofu/alert is retained → bevat altijd laatste bericht.
+Wis handmatig via MQTT Explorer (leeg bericht sturen)
+of wacht op volgende alert.
+```
+
+### Commando's werken niet
+
+```
+1. mosquitto_pub -h 192.168.1.8 -t "chofu/cmd/modus" -m "auto"
+2. Check Serial monitor: toont "MQTT: chofu/cmd/modus=auto"
+3. Als niks: Arduino niet verbonden met broker
 ```
 
 ---
 
-## 📚 Zie Ook
+## EEPROM Opslag
 
-- [INSTALLATION.md](INSTALLATION.md) - Setup guide
-- [HOME_ASSISTANT.md](HOME_ASSISTANT.md) - HA configuratie
-- [PID_TUNING.md](PID_TUNING.md) - Parameter optimalisatie
+Volgende parameters blijven bewaard na herstart:
+
+| Parameter | Default | Commando |
+|-----------|---------|---------|
+| Setpoint (stooklijn) | 40.0°C | `chofu/cmd/setpoint` |
+| Kp | 0.8 | `chofu/cmd/kp` |
+| Ki | 0.01 | `chofu/cmd/ki` |
+| Kd | 0.3 | `chofu/cmd/kd` |
+| Stooklijn grens | 5.0°C | — |
+| Stooklijn factor | 0.5 | — |
+| T_VORST | 4.0°C | `chofu/cmd/t_vorst` |
+| SUPPLY_MAX | 60.0°C | `chofu/cmd/supply_max` |
+| KOELING_MIN_BUITEN | 18.0°C | `chofu/cmd/koeling_min_buiten` |
+| STOOKLIJN_UIT | 15.0°C | `chofu/cmd/stooklijn_uit` |
+
+---
+
+*Zie ook: [README.md](README.md) — Projectoverzicht en installatie*

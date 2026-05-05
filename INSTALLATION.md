@@ -1,10 +1,10 @@
-# 📦 Installatie Handleiding - Kromhout Warmtepomp Controller
+# Installatie Handleiding - Kromhout Warmtepomp Controller
 
 Complete stap-voor-stap guide van hardware tot werkend systeem.
 
 ---
 
-## 🎯 Overzicht
+## Overzicht
 
 **Geschatte tijd:** 2-3 uur  
 **Moeilijkheidsgraad:** Gemiddeld  
@@ -12,7 +12,7 @@ Complete stap-voor-stap guide van hardware tot werkend systeem.
 
 ---
 
-## 📋 Vereisten
+## Vereisten
 
 ### Hardware
 - ✅ Arduino UNO R4 WiFi (~€30)
@@ -33,7 +33,7 @@ Complete stap-voor-stap guide van hardware tot werkend systeem.
 
 ---
 
-## 🔧 FASE 1: Software Setup
+## FASE 1: Software Setup
 
 ### Stap 1: Arduino IDE Installeren
 
@@ -93,7 +93,7 @@ Moet zien staan:
 
 ---
 
-## 🔌 FASE 2: Hardware Aansluiten
+## FASE 2: Hardware Aansluiten
 
 ### Stap 1: LCD Display Verbinden
 
@@ -131,8 +131,8 @@ SCL      →   A5 (SCL)
 
 **Upload test sketch:**
 ```cpp
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
+# include <Wire.h>
+# include <LiquidCrystal_I2C.h>
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
@@ -163,7 +163,7 @@ void loop() {}
 
 ---
 
-## 📤 FASE 3: Code Uploaden
+## FASE 3: Code Uploaden
 
 ### Stap 1: Download Code
 
@@ -237,7 +237,7 @@ Error: "Access denied"
 
 ---
 
-## 🌐 FASE 4: WiFi Setup (EERSTE KEER)
+## FASE 4: WiFi Setup (EERSTE KEER)
 
 ### Stap 1: Setup Mode Activeren
 
@@ -331,7 +331,7 @@ Surf naar: http://192.168.4.1
 
 ---
 
-## 🔍 FASE 5: Verificatie
+## FASE 5: Verificatie
 
 ### Stap 1: Serial Monitor Check
 
@@ -418,7 +418,7 @@ Scherm 4 (5 sec):
 
 ---
 
-## 🏠 FASE 6: Home Assistant Integratie
+## FASE 6: Home Assistant Integratie
 
 ### Stap 1: MQTT Broker Check
 
@@ -491,9 +491,9 @@ Klik erop → Zie 16+ entities:
 
 ---
 
-## ⚡ FASE 7: Warmtepomp Protocol Verbinden
+## FASE 7: Warmtepomp Protocol Verbinden
 
-### ⚠️ BELANGRIJK - LEES DIT EERST!
+### BELANGRIJK - LEES DIT EERST!
 
 ```
 GEVAAR: Verkeerde aansluiting kan hardware beschadigen!
@@ -563,7 +563,7 @@ Check:
 
 ---
 
-## ✅ FASE 8: Finale Checks
+## FASE 8: Finale Checks
 
 ### Checklist
 
@@ -606,7 +606,7 @@ Check:
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Arduino Reboot Loop
 ```
@@ -657,7 +657,7 @@ Oplossing:
 
 ---
 
-## 📞 Hulp Nodig?
+## Hulp Nodig?
 
 1. **Check Serial Monitor** (115200 baud) - meeste info staat daar!
 2. **MQTT Explorer** - Zie je topics? Wat zijn de waarden?
@@ -666,7 +666,7 @@ Oplossing:
 
 ---
 
-## 🎉 Success!
+## Success!
 
 Als alles werkt zie je:
 - ✅ LCD met live data

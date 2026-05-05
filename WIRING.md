@@ -1,10 +1,10 @@
-# 🔌 Hardware Bekabeling - Kromhout Warmtepomp Controller
+# Hardware Bekabeling - Kromhout Warmtepomp Controller
 
 Complete bekabeling schemas en aansluitingen.
 
 ---
 
-## 📋 Overzicht
+## Overzicht
 
 **3 Hoofdonderdelen:**
 1. Arduino UNO R4 WiFi
@@ -13,7 +13,7 @@ Complete bekabeling schemas en aansluitingen.
 
 ---
 
-## 🖥️ LCD Display Aansluiting
+## LCD Display Aansluiting
 
 ### Schema
 
@@ -62,7 +62,7 @@ Complete bekabeling schemas en aansluitingen.
 
 **Check adres met test code:**
 ```cpp
-#include <Wire.h>
+# include <Wire.h>
 
 void setup() {
   Serial.begin(115200);
@@ -83,9 +83,9 @@ void loop() {}
 
 ---
 
-## 🔥 Warmtepomp Protocol Interface
+## Warmtepomp Protocol Interface
 
-### ⚠️ BELANGRIJKE VEILIGHEID
+### BELANGRIJKE VEILIGHEID
 
 ```
 LET OP:
@@ -98,7 +98,7 @@ LET OP:
 
 ---
 
-## 📡 Optie A: Directe Verbinding (Simpel)
+## Optie A: Directe Verbinding (Simpel)
 
 **Voor:** Snel te bouwen, weinig onderdelen  
 **Tegen:** Geen galvanische scheiding  
@@ -152,7 +152,7 @@ Controlbox GND →  Arduino GND         [Direct]
 
 ---
 
-## 📡 Optie B: Via Optocoupler (Veilig, aanbevolen)
+## Optie B: Via Optocoupler (Veilig, aanbevolen)
 
 **Voor:** Galvanische scheiding, bescherming  
 **Tegen:** Meer onderdelen, complexer  
@@ -230,7 +230,7 @@ Optocoupler #2 (TX richting - Arduino → Controlbox):
 
 ---
 
-## 📸 Foto Referenties
+## Foto Referenties
 
 ### Controlbox Terminals
 
@@ -258,7 +258,7 @@ Optocoupler #2 (TX richting - Arduino → Controlbox):
 
 ---
 
-## 🧪 Testing & Verificatie
+## Testing & Verificatie
 
 ### Stap 1: Continuïteit Check (Multimeter)
 
@@ -297,7 +297,7 @@ Meet ook op Arduino Pin 3 (moet zelfde zijn)
 
 **Upload test sketch:**
 ```cpp
-#include <SoftwareSerial.h>
+# include <SoftwareSerial.h>
 
 SoftwareSerial protocol(3, 2); // RX, TX
 
@@ -338,7 +338,7 @@ Check:
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Geen Data Ontvangen
 
@@ -386,7 +386,7 @@ Check:
 
 ---
 
-## 📐 PCB Design (Optioneel)
+## PCB Design (Optioneel)
 
 Voor permanente installatie kan je een custom PCB laten maken:
 
@@ -408,9 +408,9 @@ Voor permanente installatie kan je een custom PCB laten maken:
 
 ---
 
-## 🎯 Best Practices
+## Best Practices
 
-### DO's ✅
+### DO's 
 ```
 ✓ Test op breadboard eerst
 ✓ Gebruik verschillende kleuren per functie
@@ -421,7 +421,7 @@ Voor permanente installatie kan je een custom PCB laten maken:
 ✓ Verifieer met multimeter
 ```
 
-### DON'Ts ❌
+### DON'Ts 
 ```
 ✗ Direct solderen zonder test
 ✗ Te lange wires (EMI gevoelig)
@@ -434,7 +434,7 @@ Voor permanente installatie kan je een custom PCB laten maken:
 
 ---
 
-## 📦 Complete BOM (Bill of Materials)
+## Complete BOM (Bill of Materials)
 
 | Item | Aantal | Prijs | Optioneel |
 |------|--------|-------|-----------|
@@ -453,7 +453,7 @@ Voor permanente installatie kan je een custom PCB laten maken:
 
 ---
 
-## 🆘 Hulp Nodig?
+## Hulp Nodig?
 
 **Check:**
 1. INSTALLATION.md - Stap-voor-stap guide
