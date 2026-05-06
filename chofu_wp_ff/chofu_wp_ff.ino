@@ -191,7 +191,7 @@ void stuur_alert(String msg){
 //  EEPROM
 // ═══════════════════════════════════════════════════════════════
 
-#define EEPROM_MAGIC            0xAC
+#define EEPROM_MAGIC            0xAD  // v2.0: verhoogd na toevoegen FF params
 #define ADDR_MAGIC              0
 #define ADDR_SETPOINT           1
 #define ADDR_KP                 5
@@ -249,9 +249,9 @@ void eeprom_load(){
   EEPROM.get(ADDR_STOOKLIJN_UIT, STOOKLIJN_UIT_GRENS);
   if(STOOKLIJN_UIT_GRENS < 5 || STOOKLIJN_UIT_GRENS > 30) STOOKLIJN_UIT_GRENS = 15.0;
   EEPROM.get(ADDR_FF_UA_HOUSE, ff_UA_house);
-  if(ff_UA_house < 50 || ff_UA_house > 500) ff_UA_house = 272.5;
+  if(isnan(ff_UA_house) || ff_UA_house < 50 || ff_UA_house > 500) ff_UA_house = 272.5;
   EEPROM.get(ADDR_FF_UA_EMITTER, ff_UA_emitter);
-  if(ff_UA_emitter < 50 || ff_UA_emitter > 500) ff_UA_emitter = 267.5;
+  if(isnan(ff_UA_emitter) || ff_UA_emitter < 50 || ff_UA_emitter > 500) ff_UA_emitter = 267.5;
   Serial.print("EEPROM: geladen - SP:");Serial.print(setpoint,1);
   Serial.print(" PID:");Serial.print(Kp,2);Serial.print("/");Serial.print(Ki,3);Serial.print("/");Serial.println(Kd,2);
   Serial.print("  FF UA huis:");Serial.print(ff_UA_house,0);
@@ -478,8 +478,11 @@ void pas_ff_aan(){
   // Debug: altijd printen zodat we kunnen zien waarom stand niet verandert
   Serial.print("FF dbg: kgew="); Serial.print(t_kamer_gewenst,1);
   Serial.print(" kamer="); Serial.print(t_kamer,1);
+  Serial.print(" buiten="); Serial.print(t_outside,1);
   Serial.print(" fout="); Serial.print(regel_fout,2);
-  Serial.print(" ff="); Serial.print(stand_ff);
+  Serial.print(" UA="); Serial.print(ff_UA_house,0);
+  Serial.print(" Pnodig="); Serial.print((int)(ff_UA_house * max(0.0f, t_kamer_gewenst - t_outside)));
+  Serial.print("W ff="); Serial.print(stand_ff);
   Serial.print(" maxstap="); Serial.print(max_stap);
   Serial.print(" nieuw="); Serial.print(nieuwe_stand);
   Serial.print(" hyst="); Serial.print(hyst/1000);

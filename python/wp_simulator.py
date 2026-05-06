@@ -107,7 +107,7 @@ class Simulator:
         client.subscribe("anna/setpoint")
         print("Subscribed: chofu/stand, chofu/modus, anna/setpoint")
         if self.args.modus:
-            client.publish("chofu/cmd/modus", self.args.modus)
+            client.publish("chofu/cmd/modus", self.args.modus, retain=True)
             print(f"Modus ingesteld: {self.args.modus}")
         self._publish_all()  # stuur direct begintoestand
 
@@ -148,14 +148,14 @@ class Simulator:
 
     def _publish_all(self):
         t_water_sp = self._water_setpoint()
-        self._pub("anna/temperatuur",        self.model.t_kamer)
-        self._pub("anna/setpoint",           self.kamer_sp,  retain=True)
-        self._pub("chofu/sim/supply",        self.model.t_supply)
-        self._pub("chofu/sim/return",        self.model.t_supply - 3.0)
-        self._pub("chofu/sim/outside",       self.t_outside)
-        self._pub("chofu/sim/kamer",         self.model.t_kamer)
-        self._pub("chofu/sim/kamer_gewenst", self.kamer_sp)
-        self._pub("chofu/sim/water_setpoint", t_water_sp)
+        self._pub("anna/temperatuur",        self.model.t_kamer,   retain=True)
+        self._pub("anna/setpoint",           self.kamer_sp,        retain=True)
+        self._pub("chofu/sim/supply",        self.model.t_supply,  retain=True)
+        self._pub("chofu/sim/return",        self.model.t_supply - 3.0, retain=True)
+        self._pub("chofu/sim/outside",       self.t_outside,       retain=True)
+        self._pub("chofu/sim/kamer",         self.model.t_kamer,   retain=True)
+        self._pub("chofu/sim/kamer_gewenst", self.kamer_sp,        retain=True)
+        self._pub("chofu/sim/water_setpoint", t_water_sp,          retain=True)
 
     def run(self):
         self.client.connect(self.args.host, self.args.port, keepalive=60)
@@ -191,13 +191,13 @@ class Simulator:
 
                 t_water_sp = self._water_setpoint()
 
-                # Publiceer naar Arduino
-                self._pub("anna/temperatuur",         t_k)
-                self._pub("chofu/sim/supply",         t_s)
-                self._pub("chofu/sim/return",         t_r)
-                self._pub("chofu/sim/outside",        self.t_outside)
-                self._pub("chofu/sim/kamer",          t_k)
-                self._pub("chofu/sim/water_setpoint", t_water_sp)
+                # Publiceer naar Arduino (retain=True zodat waarden na reconnect bewaard blijven)
+                self._pub("anna/temperatuur",         t_k,              retain=True)
+                self._pub("chofu/sim/supply",         t_s,              retain=True)
+                self._pub("chofu/sim/return",         t_r,              retain=True)
+                self._pub("chofu/sim/outside",        self.t_outside,   retain=True)
+                self._pub("chofu/sim/kamer",          t_k,              retain=True)
+                self._pub("chofu/sim/water_setpoint", t_water_sp,       retain=True)
 
                 # Console
                 uren = int(t_sim_s) // 3600
