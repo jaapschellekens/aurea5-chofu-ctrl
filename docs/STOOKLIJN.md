@@ -1,0 +1,161 @@
+# Stooklijn
+
+De stooklijn verhoogt automatisch de aanvoerwatertemperatuur naarmate het buiten kouder wordt. Dit compenseert het hogere warmteverlies van het huis bij vorst, zonder handmatige aanpassingen.
+
+---
+
+## Hoe het werkt
+
+De controller berekent een **doel-aanvoertemperatuur** (`doel_setpoint`) op basis van de buitentemperatuur:
+
+```
+doel_setpoint = setpoint + (STOOKLIJN_GRENS − t_buiten) × STOOKLIJN_FACTOR
+                                ↑ alleen toegepast als t_buiten < STOOKLIJN_GRENS
+```
+
+Het resultaat wordt begrensd op **45°C**.
+
+### Voorbeeld met standaardinstellingen
+
+| Parameter | Standaardwaarde |
+|-----------|----------------|
+| `setpoint` (basis aanvoertemperatuur) | 28°C |
+| `STOOKLIJN_GRENS` (startpunt verhoging) | 15°C |
+| `STOOKLIJN_FACTOR` (hellingshoek) | 0.68 °C/°C |
+
+| Buitentemperatuur | Doel-aanvoertemperatuur |
+|---|---|
+| 20°C | 28.0°C — geen verhoging, verwarming uit (boven `STOOKLIJN_UIT_GRENS`) |
+| 15°C | 28.0°C — vlak (precies op drempel) |
+| 10°C | 31.4°C |
+|  5°C | 34.8°C |
+|  0°C | 38.2°C |
+| −5°C | 41.6°C |
+| −7°C | 43.2°C |
+| −10°C | 45.0°C — begrensd |
+
+---
+
+## Stookkransen: wanneer loopt de WP?
+
+### `STOOKLIJN_UIT_GRENS` — Uitschakelgrens (standaard: 15°C)
+
+Als de buitentemperatuur **boven** deze waarde stijgt, wordt de warmtepomp volledig uitgeschakeld. Het stookseizoen is voorbij. Geldt voor `AUTO` en `FF_AUTO`.
+
+### `T_VORST` — Vorstbeveiliging (standaard: 4°C)
+
+Als de buitentemperatuur **onder** deze waarde daalt, wordt de warmtepomp gedwongen ingeschakeld op minimumstand (stand 1), ook als de kamer al op temperatuur is. Voorkomt bevriezing van de leidingen. Geldt voor `AUTO` en `FF_AUTO`.
+
+---
+
+## Gebruik per regelingsmodus
+
+### `AUTO` — Kamer-PID
+
+De stooklijn levert het **PID-setpoint**. De PID-regelaar vergelijkt de berekende `doel_setpoint` met de werkelijke aanvoertemperatuur en stuurt de compressorstand bij.
+
+```
+doel_setpoint = stooklijn-resultaat
+aanvoer_fout  = doel_setpoint − t_aanvoer   ← PID-fout
+```
+
+Zonder stooklijn zou de PID bij iedere buitentemperatuur dezelfde aanvoertemperatuur nastreven, wat bij vorst onvoldoende zou zijn.
+
+---
+
+### `FF_AUTO` — Feedforward op kamertemperatuur
+
+De stooklijn wordt berekend en gebruikt als **actief setpoint** (`wsp = stooklijn`). De feedforward-regelaar stuurt de compressorstand vervolgens bij op basis van het warmtebalansmodel van het huis:
+
+```
+P_nodig = UA_house × (t_kamer_gewenst − t_buiten)
+COP     = 0.40 × (T_aanvoer_K / (T_aanvoer_K − T_buiten_K))
+stand   = laagste stand waarbij VERMOGEN[stand] ≥ P_nodig / COP
+```
+
+De `UA_house`-waarde wordt online bijgeleerd, waardoor deze modus zichzelf calibreert. De stooklijn bepaalt hier de *doeltemperatuur* voor het afschakelbesluit (te warm = uit); de feedforwardfysica stuurt de werkelijke stand.
+
+> **Tip:** In `FF_AUTO` is het effectiever om `ff_UA_house` bij te sturen dan de stooklijnparameters.
+
+---
+
+### `WATER` — Aanvoer-PID op vast setpoint
+
+De stooklijn wordt **niet gebruikt**. De PID regelt de aanvoertemperatuur op een vaste waarde (`t_water_gewenst`, standaard 32°C), ongeacht de buitentemperatuur.
+
+---
+
+### `FF_WATER` — Feedforward op aanvoertemperatuur (Adam-setpoint)
+
+De stooklijn wordt **niet gebruikt**. In plaats daarvan volgt de controller het **extern opgelegde watertemperatuursetpoint van de Plugwise Adam** (`t_water_gewenst`). De feedforward berekent het benodigde compressorvermogen op basis van het emittermodel:
+
+```
+P_nodig = UA_emitter × (t_water_gewenst − t_kamer)
+COP     = ff_cop(t_water_gewenst, t_buiten)
+stand   = laagste stand waarbij VERMOGEN[stand] ≥ P_nodig / COP
+```
+
+De `UA_emitter`-waarde wordt online bijgeleerd. Het setpoint komt volledig van de Adam — de controller volgt de stooklijn van het Adam-systeem in plaats van een eigen.
+
+---
+
+### `HANDMATIG` — Vaste stand
+
+Niet van toepassing. De compressor draait op een vaste stand ingesteld via `chofu/cmd/stand`.
+
+---
+
+## Overzichtstabel
+
+| Modus | Stooklijn gebruikt? | Rol |
+|-------|---------------------|-----|
+| `AUTO` | ✅ Ja | PID-setpoint (doel-aanvoertemperatuur) |
+| `FF_AUTO` | ✅ Ja | Afschakelbesluit + doeltemperatuur voor FF |
+| `WATER` | ❌ Nee | Vast `t_water_gewenst` |
+| `FF_WATER` | ❌ Nee | Extern Adam-setpoint (`t_water_gewenst`) |
+| `HANDMATIG` | ❌ Nee | — |
+
+---
+
+## Stooklijn instellen
+
+Alle parameters worden **direct in EEPROM opgeslagen** na een wijziging — ze overleven een herstart. Stuur de waarde als getal (bijv. `0.85`) naar het MQTT-commandotopic.
+
+| MQTT-commandotopic | Parameter | Standaard | Bereik | Wat het bepaalt |
+|--------------------|-----------|-----------|--------|-----------------|
+| `chofu/cmd/setpoint` | `setpoint` | 28°C | — | Basis-aanvoertemperatuur (vlak deel van de curve, bij en boven `STOOKLIJN_GRENS`) |
+| `chofu/cmd/stooklijn_grens` | `STOOKLIJN_GRENS` | 15°C | 0–25°C | Buitentemperatuur waaronder de verhoging begint |
+| `chofu/cmd/stooklijn_factor` | `STOOKLIJN_FACTOR` | 0.68 | 0.1–5.0 | °C aanvoerverhoging per °C onder de drempel |
+| `chofu/cmd/stooklijn_uit` | `STOOKLIJN_UIT_GRENS` | 15°C | 5–30°C | Buitentemperatuur waarboven de verwarming stopt |
+| `chofu/cmd/water_setpoint` | `t_water_gewenst` | 32°C | 25–55°C | Vast aanvoersetpoint voor `WATER`-modus; in `FF_WATER` overgenomen van de Adam |
+
+Actuele waarden worden gepubliceerd (zonder retain) op:
+`chofu/doel_setpoint`, `chofu/stooklijn_grens`, `chofu/stooklijn_factor`, `chofu/stooklijn_uit`, `chofu/water_setpoint`
+
+Dezelfde parameters zijn ook instelbaar via de ingebouwde **webinterface** (poort 80 op het IP-adres van de Arduino).
+
+### Home Assistant
+
+De stooklijnparameters verschijnen automatisch als *number*-entiteiten in Home Assistant na MQTT auto-discovery. Zoek naar **Chofu Stooklijn Grens**, **Chofu Stooklijn Factor** en **Chofu Stooklijn Uit** in het Chofu-apparaat.
+
+---
+
+## Afsteltips
+
+**Huis te koud bij lage buitentemperaturen:**
+→ Verhoog `STOOKLIJN_FACTOR` (bijv. 0.68 → 0.85). De curve wordt steiler.
+
+**Huis schiet door op matige dagen (bijv. 8–12°C buiten):**
+→ Verlaag `STOOKLIJN_GRENS` (bijv. 15 → 10°C) zodat de verhoging alleen bij echte vorst actief is.
+
+**WP loopt onnodig in voor- en najaar:**
+→ Verlaag `STOOKLIJN_UIT_GRENS` (bijv. 15 → 12°C).
+
+**Vlak deel van de curve te hoog of te laag:**
+→ Pas `setpoint` aan (basis-aanvoertemperatuur).
+
+**`FF_AUTO` en kamertemperatuur wijkt structureel af:**
+→ Stuur `ff_UA_house` bij via `chofu/cmd/ff_ua_house` — het feedforwardmodel is directer en leert zichzelf bij.
+
+**`FF_WATER` volgt een verkeerde watertemperatuur:**
+→ Controleer het setpoint dat de Plugwise Adam publiceert op `chofu/water_setpoint`. De controller neemt dit setpoint volledig over.
