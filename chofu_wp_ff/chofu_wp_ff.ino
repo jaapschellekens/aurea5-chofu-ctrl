@@ -436,16 +436,15 @@ void pas_ff_aan(){
   bool is_water = (modus == Modus::FF_WATER);
   uint32_t nu = millis();
 
-  // ── Stooklijn berekenen ────────────────────────────────────────
+  // ── Stooklijn berekenen (ff_auto) / doel-aanvoer (ff_water) ──
   float stooklijn = setpoint;
   if(t_outside < STOOKLIJN_GRENS)
     stooklijn = min(45.0f, setpoint + (STOOKLIJN_GRENS - t_outside) * STOOKLIJN_FACTOR);
-  doel_setpoint = stooklijn;
+  // ff_water: extern opgelegd setpoint (Adam); ff_auto: stooklijn
+  float wsp = is_water ? t_water_gewenst : stooklijn;
+  doel_setpoint = wsp;
 
-  // In ff_water: eigen stooklijn als actief water setpoint
-  float wsp = is_water ? stooklijn : t_water_gewenst;
-
-  // ── Buiten seizoen: WP uit ────────────────────────────────────
+  // ── Buiten seizoen: WP uit (alleen ff_auto) ───────────────────
   if(!is_water && t_outside > STOOKLIJN_UIT_GRENS){
     if(ctrl.wp_aan){ ctrl.zet_uit(); }
     return;
@@ -465,16 +464,16 @@ void pas_ff_aan(){
     return;
   }
 
-  // ── Feedforward: warmtebehoefte huis ──────────────────────────
-  float P_nodig = max(0.0f, ff_UA_house * (t_kamer_gewenst - t_outside));
-
-  // COP correctie: water modus gebruikt benodigde aanvoertemperatuur
-  // zodat de COP-schatting bij de juiste werktemperatuur past.
+  // ── Feedforward: benodigde warmte ─────────────────────────────
+  // ff_water: emitter-model — hoeveel thermisch vermogen nodig om t_water_gewenst te halen
+  // ff_auto:  huis-model   — hoeveel warmte het huis vraagt op basis van kamertemp
+  float P_nodig;
   float cop;
-  if(is_water && P_nodig > 0.0f){
-    float T_supply_nodig = t_kamer + P_nodig / ff_UA_emitter;
-    cop = ff_cop(T_supply_nodig, t_outside);
+  if(is_water){
+    P_nodig = max(0.0f, ff_UA_emitter * (t_water_gewenst - t_kamer));
+    cop = ff_cop(max(t_water_gewenst, t_kamer + 1.0f), t_outside);
   } else {
+    P_nodig = max(0.0f, ff_UA_house * (t_kamer_gewenst - t_outside));
     cop = ff_cop(t_supply, t_outside);
   }
 
@@ -1121,9 +1120,9 @@ void handle_web_client(){
   client.print("<div>Setpoint: <input type='number' name='setpoint' value='"); client.print(setpoint,1); client.println("' step='0.5' min='20' max='45'> °C</div>");
   client.print("<div>Modus: <select name='modus'>");
   for(const char* m : {"auto","water","ff_auto","ff_water","handmatig"}){
-    client.print("<option value='"); client.print(m);
-    if(strcmp(modus_naar_str(modus), m) == 0) client.print("' selected");
-    client.print("'>"); client.print(m); client.println("</option>");
+    client.print("<option value='"); client.print(m); client.print("'");
+    if(strcmp(modus_naar_str(modus), m) == 0) client.print(" selected");
+    client.print(">"); client.print(m); client.println("</option>");
   }
   client.println("</select></div>");
   client.print("<div>Water setpoint: <input type='number' name='water_setpoint' value='"); client.print(t_water_gewenst,1); client.println("' step='0.5' min='25' max='55'> °C</div>");

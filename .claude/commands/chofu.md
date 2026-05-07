@@ -1,8 +1,9 @@
 # Chofu Warmtepomp Controller — Projectkennis
 
-## Taalvoorkeur
+## Voorkeuren
 
-Alle documentatie (docs/) wordt in het **Nederlands** geschreven.
+- Alle documentatie (docs/) wordt in het **Nederlands** geschreven.
+- **Geen automatische git commits** — de gebruiker doet commits zelf.
 
 Je werkt aan een Arduino UNO R4 WiFi (of ESP32) controller voor een Chofu/Atlantic Aurea 5 hybride warmtepomp met Home Assistant MQTT integratie.
 
