@@ -90,7 +90,7 @@ void loop() {}
 ```
 LET OP:
 ✓ Protocol is 5V (veilig voor Arduino)
-✓ Gebruik ALTIJD weerstand op TX pin (Pin 2)
+✓ Gebruik ALTIJD weerstand op TX pin (D1)
 ✓ Test eerst op breadboard
 ✓ Maak foto's voor je begint
 ✓ Bij twijfel: vraag hulp!
@@ -104,15 +104,17 @@ LET OP:
 **Tegen:** Geen galvanische scheiding  
 **Aanbevolen voor:** Test setup, tijdelijk gebruik
 
+> **Let op:** De firmware gebruikt de hardware UART (`Serial1`, pins D0/D1), **niet** SoftwareSerial op pin 2/3. Sluit de controlbox daarom aan op D0 en D1.
+
 ### Schema
 
 ```
 Controlbox                    Arduino UNO R4
 ┌─────────────┐              ┌──────────────┐
 │             │              │              │
-│    TX   ●───┼──────────────┼──● Pin 3 RX  │
+│    TX   ●───┼──────────────┼──● D0 (RX1)  │
 │         │   │              │              │
-│    RX   ●───┼────[1kΩ]─────┼──● Pin 2 TX  │
+│    RX   ●───┼────[1kΩ]─────┼──● D1 (TX1)  │
 │         │   │   weerstand  │              │
 │   GND   ●───┼──────────────┼──● GND       │
 │             │              │              │
@@ -131,15 +133,15 @@ Op controlbox PCB zoek:
 
 2. **Soldeer Weerstand:**
 ```
-1kΩ weerstand in serie met Arduino Pin 2
+1kΩ weerstand in serie met Arduino D1 (TX1)
 Dit beschermt controlbox tegen overbelasting
 ```
 
 3. **Aansluitingen:**
 ```
-Controlbox TX  →  Arduino Pin 3 (RX)  [Direct]
-Controlbox RX  →  Arduino Pin 2 (TX)  [Via 1kΩ weerstand!]
-Controlbox GND →  Arduino GND         [Direct]
+Controlbox TX  →  Arduino D0 (RX1)  [Direct]
+Controlbox RX  →  Arduino D1 (TX1)  [Via 1kΩ weerstand!]
+Controlbox GND →  Arduino GND       [Direct]
 ```
 
 ### Bill of Materials (BOM)
@@ -164,16 +166,16 @@ Controlbox GND →  Arduino GND         [Direct]
 Controlbox              Optocoupler              Arduino
 ┌──────────┐            ┌──────────┐            ┌─────────┐
 │          │            │ PC817 #1 │            │         │
-│   TX  ●──┼──[220Ω]────┼─1    4───┼─[1kΩ]─────┼─● Pin 3 │
-│       │  │            │          │       5V   │   (RX)  │
+│   TX  ●──┼──[220Ω]────┼─1    4───┼─[1kΩ]─────┼─● D0    │
+│       │  │            │          │       5V   │   (RX1) │
 │   GND ●──┼────────────┼─2    3───┼────────────┼─● GND   │
 │          │            └──────────┘            │         │
 │          │            ┌──────────┐            │         │
 │          │            │ PC817 #2 │            │         │
 │   RX  ●──┼────────────┼─4    1───┼─[220Ω]────┼─● 5V    │
 │       │  │       GND  │          │            │         │
-│   GND ●──┼────────────┼─3    2───┼─[1kΩ]─────┼─● Pin 2 │
-│          │            └──────────┘            │   (TX)  │
+│   GND ●──┼────────────┼─3    2───┼─[1kΩ]─────┼─● D1    │
+│          │            └──────────┘            │   (TX1) │
 └──────────┘                                    └─────────┘
 ```
 
@@ -202,13 +204,13 @@ Optocoupler #1 (RX richting - Controlbox → Arduino):
 │     ↓                            │
 │  [220Ω] → PC817 Pin 1            │
 │           PC817 Pin 2 → GND      │
-│           PC817 Pin 4 → [1kΩ] → Arduino Pin 3
+│           PC817 Pin 4 → [1kΩ] → Arduino D0 (RX1)
 │           PC817 Pin 3 → GND      │
 └─────────────────────────────────┘
 
 Optocoupler #2 (TX richting - Arduino → Controlbox):
 ┌─────────────────────────────────┐
-│ Arduino Pin 2                    │
+│ Arduino D1 (TX1)                 │
 │     ↓                            │
 │  [1kΩ] → PC817 Pin 2             │
 │          PC817 Pin 3 → GND       │
@@ -267,7 +269,7 @@ Optocoupler #2 (TX richting - Arduino → Controlbox):
 1. Zet multimeter op continuïteit (♪)
 2. Check elke verbinding:
    - Touch probe op controlbox TX
-   - Touch probe op Arduino Pin 3
+   - Touch probe op Arduino D0 (RX1)
    - Moet piepen (verbinding OK)
 3. Herhaal voor alle verbindingen
 ```
@@ -290,31 +292,29 @@ Expected: 0V
 Tussen controlbox TX en GND:
 Expected: 0-5V (idle state)
 
-Meet ook op Arduino Pin 3 (moet zelfde zijn)
+Meet ook op Arduino D0 (RX1) (moet zelfde zijn)
 ```
 
 ### Stap 3: Data Verificatie (Serial Monitor)
 
 **Upload test sketch:**
 ```cpp
-# include <SoftwareSerial.h>
-
-SoftwareSerial protocol(3, 2); // RX, TX
-
 void setup() {
   Serial.begin(115200);
-  protocol.begin(9600);
+  Serial1.begin(9600);   // hardware UART op D0/D1
   Serial.println("Protocol Test");
 }
 
 void loop() {
-  if(protocol.available()) {
-    byte b = protocol.read();
+  if(Serial1.available()) {
+    byte b = Serial1.read();
     Serial.print("RX: 0x");
     Serial.println(b, HEX);
   }
 }
 ```
+
+> **ESP32:** gebruik `Serial1.begin(9600, SERIAL_8N1, 16, 17)` en pas pinnen aan voor jouw board.
 
 **Verwacht:**
 ```
@@ -348,12 +348,12 @@ Check:
 
 **Oplossingen:**
 ```
-1. Check bekabeling (vooral TX → Pin 3)
+1. Check bekabeling (controlbox TX → Arduino D0)
 2. Verify controlbox heeft stroom
 3. Check GND verbonden (gemeenschappelijke ground!)
-4. Test met multimeter: spanning op TX pin?
+4. Test met multimeter: spanning op TX pin van controlbox?
 5. Wissel RX/TX (verkeerd om aangesloten?)
-6. Check SoftwareSerial pins: (RX=3, TX=2)
+6. Check dat je D0/D1 gebruikt (hardware UART), niet pin 2/3
 ```
 
 ### Garbage Data

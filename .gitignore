@@ -1,0 +1,25 @@
+# Credentials — nooit committen
+config.h
+
+# Arduino build output
+build/
+*.elf
+*.hex
+*.bin
+*.map
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+sim_output/
+
+# macOS
+.DS_Store
+
+# Logs and data files
+*.csv
+*.log
+log.csv
+python/log.txt
+python/log_ff.txt

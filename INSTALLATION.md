@@ -15,7 +15,7 @@ Complete stap-voor-stap guide van hardware tot werkend systeem.
 ## Vereisten
 
 ### Hardware
-- ✅ Arduino UNO R4 WiFi (~€30)
+- ✅ Arduino UNO R4 WiFi (~€30) **of** ESP32 board (~€5)
 - ✅ LCD 16x2 I2C Display (~€5)
 - ✅ 4x Jumper wires (female-female)
 - ✅ USB-A naar USB-C kabel
@@ -60,14 +60,22 @@ sudo apt install arduino
 # Of download van arduino.cc voor nieuwste versie
 ```
 
-### Stap 2: Arduino UNO R4 WiFi Board Installeren
+### Stap 2: Board Installeren
 
+**Arduino UNO R4 WiFi:**
 ```
 1. Arduino IDE → Tools → Board → Boards Manager
 2. Zoek: "Arduino UNO R4"
 3. Installeer: "Arduino UNO R4 Boards" by Arduino
-4. Wacht tot installatie compleet
-5. Tools → Board → Arduino UNO R4 Boards → Arduino UNO R4 WiFi
+4. Tools → Board → Arduino UNO R4 Boards → Arduino UNO R4 WiFi
+```
+
+**ESP32 (alternatief):**
+```
+1. Arduino IDE → File → Preferences
+2. Extra boards URL: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+3. Tools → Board → Boards Manager → zoek "esp32" → Installeer
+4. Tools → Board → ESP32 Arduino → selecteer jouw model
 ```
 
 ### Stap 3: Bibliotheken Installeren
@@ -76,20 +84,11 @@ sudo apt install arduino
 Sketch → Include Library → Manage Libraries
 
 Installeer (zoek en klik Install):
-✓ WiFiS3 (by Arduino) - Voor WiFi
 ✓ ArduinoMqttClient (by Arduino) - Voor MQTT
 ✓ LiquidCrystal I2C (by Frank de Brabander) - Voor LCD
-✓ SoftwareSerial (ingebouwd) - Voor protocol
 ```
 
-**Verificatie:**
-```
-Sketch → Include Library → 
-Moet zien staan:
-- WiFiS3
-- ArduinoMqttClient  
-- LiquidCrystal_I2C
-```
+> WiFi is ingebouwd: `WiFiS3` op UNO R4, `WiFi` op ESP32. SoftwareSerial is **niet** nodig — de firmware gebruikt de hardware UART.
 
 ---
 
@@ -163,22 +162,39 @@ void loop() {}
 
 ---
 
-## FASE 3: Code Uploaden
+## FASE 3: Configuratie en Code Uploaden
 
-### Stap 1: Download Code
-
-```
-1. Ga naar GitHub repository
-2. Download kromhout_wp_v1_0_CLEAN.ino
-3. Save in een eigen folder (bijv. Documents/Arduino/WarmtepompController/)
-```
-
-### Stap 2: Code Openen
+### Stap 1: Repository Klonen of Downloaden
 
 ```
-1. Dubbelklik kromhout_wp_v1_0_CLEAN.ino
-2. Arduino IDE opent automatisch
-3. Check dat bestand naam zichtbaar is bovenaan
+1. Download of clone de repository
+2. Ga naar de map chofu_wp_ff/
+```
+
+### Stap 2: Configuratiebestand Aanmaken
+
+```bash
+cp chofu_wp_ff/config.h.example chofu_wp_ff/config.h
+```
+
+Bewerk `chofu_wp_ff/config.h`:
+```cpp
+const char* SSID        = "jouw-netwerk";
+const char* PASS        = "jouw-wachtwoord";
+const char* MQTT_BROKER = "192.168.1.x";
+const int   MQTT_PORT   = 1883;
+const char* MQTT_USER   = "";   // leeg als geen auth
+const char* MQTT_PASS   = "";
+```
+
+> `config.h` staat in `.gitignore` en wordt nooit gecommit.
+
+### Stap 3: Firmware Openen
+
+```
+1. Dubbelklik chofu_wp_ff/chofu_wp_ff.ino
+2. Arduino IDE opent automatisch (inclusief config.h tab)
+3. Controleer dat board en port correct zijn ingesteld
 ```
 
 ### Stap 3: Arduino Verbinden
@@ -203,13 +219,14 @@ void loop() {}
 **Als compilatie fouten:**
 ```
 Foutmelding: "WiFiS3.h: No such file"
-→ Oplossing: Installeer WiFiS3 library (zie Fase 1 Stap 3)
+→ Controleer: is Arduino UNO R4 WiFi geselecteerd als board?
+  Op ESP32 is dit geen probleem (die gebruikt WiFi.h automatisch)
 
-Foutmelding: "Board not found"  
-→ Oplossing: Installeer UNO R4 boards (zie Fase 1 Stap 2)
+Foutmelding: "config.h: No such file or directory"
+→ Maak config.h aan: cp config.h.example config.h
 
-Foutmelding: "SoftwareSerial.h: No such file"
-→ Oplossing: Update Arduino IDE naar nieuwste versie
+Foutmelding: "Board not found"
+→ Installeer het juiste board package (zie Fase 1 Stap 2)
 ```
 
 ### Stap 5: Uploaden
@@ -237,97 +254,11 @@ Error: "Access denied"
 
 ---
 
-## FASE 4: WiFi Setup (EERSTE KEER)
+## FASE 4: WiFi en MQTT Instellingen
 
-### Stap 1: Setup Mode Activeren
+WiFi- en MQTT-credentials worden ingesteld via `config.h` — **niet** via een captive portal. Zie Fase 3 Stap 2 voor de instructies. Upload daarna de firmware opnieuw.
 
-```
-1. Arduino reset (knop op board of herstart na upload)
-2. Wacht 10 seconden
-3. Arduino maakt WiFi netwerk: "WarmtePomp-Setup"
-```
-
-**LCD toont:**
-```
-╔════════════════╗
-║Setup Mode      ║
-║Connect to WiFi ║
-╚════════════════╝
-```
-
-### Stap 2: Verbind met Setup Netwerk
-
-**Smartphone/Laptop:**
-```
-1. WiFi settings
-2. Zoek netwerk: "WarmtePomp-Setup"
-3. Wachtwoord: "warmtepomp123"
-4. Verbind
-```
-
-### Stap 3: Configuratie Pagina
-
-**Automatisch:**
-```
-Browser opent automatisch setup pagina
-(iOS/Android "captive portal" detectie)
-```
-
-**Handmatig:**
-```
-Als browser niet opent:
-Surf naar: http://192.168.4.1
-```
-
-### Stap 4: Instellingen Invullen
-
-```
-╔══════════════════════════════════════╗
-║   🔥 Warmtepomp Setup               ║
-╠══════════════════════════════════════╣
-║  Warmtepomp Naam                    ║
-║  [Kromhout WP            ]          ║
-║                                     ║
-║  WiFi Netwerk Naam (SSID)           ║
-║  [Kromhou                ]          ║
-║                                     ║
-║  WiFi Wachtwoord                    ║
-║  [••••••••••••           ]          ║
-║                                     ║
-║  MQTT Server IP                     ║
-║  [192.168.1.00           ]          ║
-║                                     ║
-║  MQTT Poort                         ║
-║  [1883                   ]          ║
-║                                     ║
-║  MQTT Gebruiker                     ║
-║  [mqtt                   ]          ║
-║                                     ║
-║  MQTT Wachtwoord                    ║
-║  [••••••••••••           ]          ║
-║                                     ║
-║  [💾 Opslaan en Herstarten]         ║
-╚══════════════════════════════════════╝
-```
-
-**Vul in:**
-- **Warmtepomp Naam:** Wat je wilt (bijv. "Kromhout WP")
-- **WiFi SSID:** Jouw WiFi netwerk naam
-- **WiFi Pass:** Jouw WiFi wachtwoord (hoofdlettergevoelig!)
-- **MQTT Server:** IP van je MQTT broker (meestal HA IP)
-- **MQTT Port:** 1883 (standaard)
-- **MQTT User:** MQTT gebruikersnaam
-- **MQTT Pass:** MQTT wachtwoord
-
-### Stap 5: Opslaan
-
-```
-1. Klik "Opslaan en Herstarten"
-2. Wacht 5 seconden
-3. Arduino herstart automatisch
-4. Verbindt met jouw WiFi
-5. Klaar! ✓
-```
+Na een succesvolle upload verbindt de Arduino direct met jouw WiFi en MQTT broker. Er is geen extra configuratiestap nodig.
 
 ---
 
@@ -340,24 +271,17 @@ Surf naar: http://192.168.4.1
 2. Baud rate: 115200 (onderaan rechts)
 3. Moet zien:
 
-╔═══════════════════════════════════════════════╗
-║  Kromhout WP v1.0 FINAL                      ║
-╚═══════════════════════════════════════════════╝
+Kromhout WP v2.0 — FF modus
+EEPROM: lees opgeslagen settings
+  FF UA huis:272 emitter:267
 
-Instellingen geladen:
-Naam: Kromhout WP
-WiFi: KromhoutWiFi
-MQTT: 192.168.1.XX:1883
+WiFi OK! IP: 192.168.1.XXX
 
-WiFi verbinden...
-WiFi verbonden!
-IP: 192.168.1.XXX
-
-MQTT verbinden...
-MQTT verbonden!
-
-Discovery fase 1 gestart...
-✓ MQTT data verstuurd
+MQTT OK!
+Discovery F1
+Discovery F2
+Discovery F3
+Systeem operationeel
 ```
 
 **Als WiFi niet verbindt:**

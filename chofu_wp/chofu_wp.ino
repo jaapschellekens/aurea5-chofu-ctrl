@@ -60,13 +60,8 @@
 //  CONFIGURATIE - PAS HIER AAN
 // ═══════════════════════════════════════════════════════════════
 
-// WiFi & MQTT
-const char* SSID = "YOUR_SSID";
-const char* PASS = "YOUR_WIFI_PASSWORD";
-const char* MQTT_BROKER = "192.168.1.8";
-const int MQTT_PORT = 1883;
-const char* MQTT_USER = "";
-const char* MQTT_PASS = "";
+// WiFi & MQTT — credentials staan in config.h (niet in git)
+#include "config.h"
 
 // Hardware pins
 #define CHOFU_TX_PIN 2  // Naar warmtepomp (via T2 transistor)

@@ -9,3 +9,12 @@ const char* MQTT_BROKER = "192.168.1.x";
 const int   MQTT_PORT   = 1883;
 const char* MQTT_USER   = "";   // leeg als geen auth
 const char* MQTT_PASS   = "";
+
+// ── ESP32 specifiek ─────────────────────────────────────────────
+// Standaard CHOFU_RX_PIN=16, CHOFU_TX_PIN=17 (zie chofu_wp_ff.ino).
+// Overschrijf hier als jouw board andere pinnen gebruikt:
+// #define CHOFU_RX_PIN 16
+// #define CHOFU_TX_PIN 17
+//
+// LCD I2C: op ESP32 zijn SDA=21, SCL=22 de standaard Wire-pinnen.
+// Afwijkend board: voeg Wire.begin(SDA, SCL) toe in setup() vóór lcd.init().

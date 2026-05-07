@@ -32,13 +32,17 @@ Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt a
 | `chofu/stand` | int | 0–12 | Huidige compressor stand |
 | `chofu/vermogen` | int | W | Geschat vermogen |
 | `chofu/aan` | string | 0/1 | Warmtepomp aan/uit |
-| `chofu/modus` | string | auto/water/handmatig | Regelingsmodus |
+| `chofu/modus` | string | auto/ff_auto/water/ff_water/handmatig | Regelingsmodus |
+| `chofu/doel_setpoint` | float | °C | Actief doel-setpoint (stooklijn) |
 | `chofu/koeling` | string | 0/1 | Koelstand actief |
-| `chofu/pid` | float | % | PID output |
+| `chofu/pid` | float | % | PID/FF output |
+| `chofu/ff_ua_house` | float | W/K | Geleerde UA huis (FF auto) |
+| `chofu/ff_ua_emitter` | float | W/K | Geleerde UA emitter (FF water) |
 | `chofu/defrost` | string | 0/1 | Defrost actief |
 | `chofu/pomp` | int | 0–100 | Pompsnelheid (%) |
 | `chofu/comp_hz` | int | Hz | Compressor frequentie |
 | `chofu/lcd` | string | 0/1 | LCD backlight status |
+| `chofu/sim_actief` | string | 0/1 | Simulatiemodus actief |
 
 ### Safeguard Grenzen (instelbaar)
 
@@ -69,7 +73,9 @@ Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt a
 ```
 Topic:   chofu/cmd/modus
 Payload: "auto"      → PID regeling op kamertemperatuur (Anna)
+         "ff_auto"   → Feedforward op kamertemperatuur (leert UA_house)
          "water"     → PID regeling op aanvoertemperatuur
+         "ff_water"  → Feedforward op aanvoertemperatuur (leert UA_emitter)
          "handmatig" → Vaste stand via chofu/cmd/stand
 ```
 
@@ -162,7 +168,7 @@ Typisch gebruik:
 ```
 Topic:   chofu/cmd/setpoint
 Payload: "20.0" – "45.0"  (float, °C)
-Opgeslagen in EEPROM. Default: 40.0°C
+Opgeslagen in EEPROM. Default: 28.0°C
 
 Topic:   chofu/cmd/t_vorst
 Payload: "-10.0" – "10.0"  (float, °C)
@@ -170,23 +176,41 @@ Vorstgrens: WP blijft minimaal stand 1 bij buiten < T_VORST.
 Opgeslagen in EEPROM. Default: 4.0°C
 
 Topic:   chofu/cmd/stooklijn_grens
-Payload: "0.0" – "15.0"  (float, °C)
-Onder deze buitentemp wordt het setpoint verhoogd. Default: 5.0°C
+Payload: "0.0" – "25.0"  (float, °C)
+Onder deze buitentemp wordt het setpoint verhoogd. Default: 15.0°C
 
 Topic:   chofu/cmd/stooklijn_factor
-Payload: "0.0" – "2.0"  (float)
-°C setpointverhoging per °C onder de grens. Default: 0.5
-Voorbeeld: buiten 0°C, grens 5°C, factor 0.5 → +2.5°C setpoint
+Payload: "0.1" – "5.0"  (float)
+°C setpointverhoging per °C onder de grens. Default: 0.68
+Voorbeeld: buiten 5°C, grens 15°C, factor 0.68 → +6.8°C setpoint
 ```
 
 ### PID Parameters
 
 ```
-Topic:   chofu/cmd/kp     Payload: float  Default: 0.8
-Topic:   chofu/cmd/ki     Payload: float  Default: 0.01
-Topic:   chofu/cmd/kd     Payload: float  Default: 0.3
+Topic:   chofu/cmd/kp     Payload: float  Default: 19.9
+Topic:   chofu/cmd/ki     Payload: float  Default: 0.084
+Topic:   chofu/cmd/kd     Payload: float  Default: 0.036
 
 Alle PID parameters opgeslagen in EEPROM.
+```
+
+### Feedforward Parameters
+
+```
+Topic:   chofu/cmd/ff_ua_house
+Payload: "50" – "500"  (float, W/K)
+UA_house overschrijven. Wordt ook online bijgeleerd.
+Opgeslagen in EEPROM. Default: 272.5 W/K
+
+Topic:   chofu/cmd/ff_ua_emitter
+Payload: "50" – "500"  (float, W/K)
+UA_emitter overschrijven. Wordt ook online bijgeleerd.
+Opgeslagen in EEPROM. Default: 267.5 W/K
+
+Topic:   chofu/cmd/ff_save
+Payload: "1"
+Sla de huidige geleerde UA-waarden op in EEPROM.
 ```
 
 ### Safeguard Grenzen
@@ -483,15 +507,18 @@ chofu/
 ├── delta_t                   5.1
 ├── kamer                    20.5
 ├── kamer_gewenst            21.0
-├── setpoint                 40.0
-├── water_setpoint           40.0
+├── setpoint                 28.0
+├── doel_setpoint            34.8
+├── water_setpoint           32.0
 ├── t_vorst                   4.0
 ├── stand                     3
 ├── vermogen                640
 ├── aan                       1
-├── modus                  auto
+├── modus                ff_auto
 ├── koeling                   0
-├── pid                      45.0
+├── pid                      37.5
+├── ff_ua_house             272.5
+├── ff_ua_emitter           267.5
 ├── defrost                   0
 ├── pomp                     60
 ├── comp_hz                  45
@@ -522,13 +549,19 @@ chofu/
     ├── power
     ├── stand
     ├── water_setpoint
+    ├── kamer_setpoint
     ├── koeling
     ├── setpoint
     ├── t_vorst
     ├── supply_max
     ├── koeling_min_buiten
     ├── stooklijn_uit
+    ├── stooklijn_grens
+    ├── stooklijn_factor
     ├── kp / ki / kd
+    ├── ff_ua_house         ← FF leerwaarden
+    ├── ff_ua_emitter
+    ├── ff_save
     ├── lcd
     ├── force_start
     ├── hyst_slow           ← simulatie timing (niet EEPROM)
@@ -638,16 +671,18 @@ Volgende parameters blijven bewaard na herstart:
 
 | Parameter | Default | Commando |
 |-----------|---------|---------|
-| Setpoint (stooklijn) | 40.0°C | `chofu/cmd/setpoint` |
-| Kp | 0.8 | `chofu/cmd/kp` |
-| Ki | 0.01 | `chofu/cmd/ki` |
-| Kd | 0.3 | `chofu/cmd/kd` |
-| Stooklijn grens | 5.0°C | — |
-| Stooklijn factor | 0.5 | — |
+| Setpoint (stooklijn) | 28.0°C | `chofu/cmd/setpoint` |
+| Kp | 19.9 | `chofu/cmd/kp` |
+| Ki | 0.084 | `chofu/cmd/ki` |
+| Kd | 0.036 | `chofu/cmd/kd` |
+| Stooklijn grens | 15.0°C | `chofu/cmd/stooklijn_grens` |
+| Stooklijn factor | 0.68 | `chofu/cmd/stooklijn_factor` |
 | T_VORST | 4.0°C | `chofu/cmd/t_vorst` |
 | SUPPLY_MAX | 60.0°C | `chofu/cmd/supply_max` |
 | KOELING_MIN_BUITEN | 18.0°C | `chofu/cmd/koeling_min_buiten` |
 | STOOKLIJN_UIT | 15.0°C | `chofu/cmd/stooklijn_uit` |
+| FF UA_house | 272.5 W/K | `chofu/cmd/ff_ua_house` |
+| FF UA_emitter | 267.5 W/K | `chofu/cmd/ff_ua_emitter` |
 
 ---
 

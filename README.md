@@ -145,13 +145,13 @@ Setpoint - 1°C ══ UIT trigger
 ## Hardware
 
 ### Vereist
-- **Arduino UNO R4 WiFi** — hoofdcontroller
+- **Arduino UNO R4 WiFi** — hoofdcontroller (of ESP32 als alternatief)
 - **LCD 16×2 I2C Display** (optioneel) — statusscherm
 
 ### Benodigde Arduino bibliotheken
-- `WiFiS3` (ingebouwd bij UNO R4)
 - `ArduinoMqttClient`
 - `LiquidCrystal_I2C`
+- WiFi is ingebouwd: `WiFiS3` op UNO R4 WiFi, `WiFi` op ESP32
 
 ---
 
@@ -185,8 +185,12 @@ Arduino IDE → Sketch → Bibliotheek beheren:
 - `ArduinoMqttClient` 
 - `LiquidCrystal_I2C` 
 
-### 2. Configuratie in code aanpassen
-Pas de WiFi en MQTT gegevens aan bovenin `chofu_wp_ff/chofu_wp_ff.ino`:
+### 2. Configuratie aanmaken
+Kopieer het voorbeeldbestand en vul je eigen gegevens in:
+```bash
+cp chofu_wp_ff/config.h.example chofu_wp_ff/config.h
+```
+Bewerk `chofu_wp_ff/config.h`:
 ```cpp
 const char* SSID        = "jouw-netwerk";
 const char* PASS        = "jouw-wachtwoord";
@@ -195,6 +199,7 @@ const int   MQTT_PORT   = 1883;
 const char* MQTT_USER   = "";   // leeg als geen auth
 const char* MQTT_PASS   = "";
 ```
+`config.h` staat in `.gitignore` en wordt nooit gecommit.
 
 ### 3. Firmware uploaden
 Open `chofu_wp_ff/chofu_wp_ff.ino` en upload naar Arduino UNO R4 WiFi.
