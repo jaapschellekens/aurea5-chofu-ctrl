@@ -2,7 +2,7 @@
 
 Complete overzicht van alle MQTT topics, commando's en HA discovery entiteiten.
 
-MQTT Broker: `192.168.1.8:1883`  
+MQTT Broker: `<YOUR_MQTT_BROKER_IP>:1883`  
 Alle topics gebruiken het prefix `chofu/`
 
 ---
@@ -361,7 +361,7 @@ Effect:  Wist alle simulatiewaarden tegelijk
 ### Testscenarios
 
 ```bash
-BROKER="192.168.1.8"
+BROKER="<YOUR_MQTT_BROKER_IP>"
 
 # Noodstop aanvoer (SUPPLY_MAX = 60°C)
 mosquitto_pub -h $BROKER -t "chofu/sim/supply" -m "65.0"
@@ -414,11 +414,11 @@ mosquitto_pub -h $BROKER -t "chofu/sim/reset" -m "1"
 
 ```bash
 # Alles tegelijk volgen
-mosquitto_sub -h 192.168.1.8 -t "chofu/#" -v
+mosquitto_sub -h <YOUR_MQTT_BROKER_IP> -t "chofu/#" -v
 
 # Alleen alerts en logs
-mosquitto_sub -h 192.168.1.8 -t "chofu/alert" -v
-mosquitto_sub -h 192.168.1.8 -t "chofu/log/#" -v
+mosquitto_sub -h <YOUR_MQTT_BROKER_IP> -t "chofu/alert" -v
+mosquitto_sub -h <YOUR_MQTT_BROKER_IP> -t "chofu/log/#" -v
 ```
 
 > **Let op:** Simulatiewaarden overleven geen herstart van de Arduino. Na een reset zijn alle sim waarden NAN (niet ingesteld) en worden echte sensorwaarden gebruikt.
@@ -444,7 +444,7 @@ Validatiebereiken: hyst_* 100–3.600.000 ms, pid_interval 100–60.000 ms.
 
 ```bash
 # Versnelling instellen voor simulatie (bijv. 60x sneller: 1 min → 1 sec)
-BROKER=192.168.1.8
+BROKER=<YOUR_MQTT_BROKER_IP>
 mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_slow"    -m "10000"   # 10 sec
 mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_fast"    -m "2000"    # 2 sec
 mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_down"    -m "5000"    # 5 sec
@@ -579,7 +579,7 @@ anna/
 ## Testing Met Mosquitto CLI
 
 ```bash
-BROKER="192.168.1.8"
+BROKER="<YOUR_MQTT_BROKER_IP>"
 
 # Modus wisselen
 mosquitto_pub -h $BROKER -t "chofu/cmd/modus" -m "auto"
@@ -658,7 +658,7 @@ of wacht op volgende alert.
 ### Commando's werken niet
 
 ```
-1. mosquitto_pub -h 192.168.1.8 -t "chofu/cmd/modus" -m "auto"
+1. mosquitto_pub -h <YOUR_MQTT_BROKER_IP> -t "chofu/cmd/modus" -m "auto"
 2. Check Serial monitor: toont "MQTT: chofu/cmd/modus=auto"
 3. Als niks: Arduino niet verbonden met broker
 ```
