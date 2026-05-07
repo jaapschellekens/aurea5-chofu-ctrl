@@ -82,6 +82,70 @@ Use `"°C"` (UTF-8 degree symbol), not `"C"`. HA silently drops entities with mi
 - EEPROM: UNO R4 writes directly; ESP32 requires `EEPROM.begin(64)` + `EEPROM.commit()` — use the `EEPROM_BEGIN()` / `EEPROM_COMMIT()` macros
 - Serial1 init: UNO R4 `begin(9600)` vs ESP32 `begin(9600, SERIAL_8N1, CHOFU_RX_PIN, CHOFU_TX_PIN)`
 
+## Heating Curve (Stooklijn)
+
+### What it does
+
+The heating curve raises the supply water temperature setpoint as outdoor temperature drops. Its formula is:
+
+```
+doel_setpoint = min(45°C,  setpoint + (STOOKLIJN_GRENS − t_outside) × STOOKLIJN_FACTOR)
+                                       only when t_outside < STOOKLIJN_GRENS
+```
+
+With defaults (`setpoint=28°C`, `STOOKLIJN_GRENS=15°C`, `STOOKLIJN_FACTOR=0.68`):
+
+| t_outside | doel_setpoint |
+|-----------|--------------|
+| 15°C      | 28.0°C (flat, no boost) |
+| 10°C      | 31.4°C |
+|  5°C      | 34.8°C |
+|  0°C      | 38.2°C |
+| −5°C      | 41.6°C |
+| −7°C      | 43.2°C |
+| −10°C     | 45.0°C (capped) |
+
+### Role per control mode
+
+| Mode | How the heating curve is used |
+|------|-------------------------------|
+| `AUTO` | `doel_setpoint` is the PID error reference: `aanvoer_fout = doel_setpoint − t_supply`. The PID drives the compressor stage to reach this supply temperature. |
+| `FF_AUTO` | `doel_setpoint` is computed the same way but the FF controller uses `UA_house × (t_room_setpoint − t_outside) / COP` directly — the heating curve result is published to `chofu/doel_setpoint` for monitoring but does **not** enter the FF math. |
+| `WATER` | Heating curve is **not used**. The PID tracks `t_water_gewenst` (fixed water setpoint, default 32°C, adjustable via `chofu/cmd/water_setpoint`). |
+| `FF_WATER` | The heating curve **replaces** `t_water_gewenst` as the FF supply setpoint: `wsp = stooklijn`. The FF then targets `wsp` instead of a fixed temperature, giving automatic weather compensation in this mode. |
+| `HANDMATIG` | Not used. |
+
+### Shut-off threshold (`STOOKLIJN_UIT_GRENS`)
+
+In `AUTO` and `FF_AUTO`, when `t_outside > STOOKLIJN_UIT_GRENS` (default 15°C) the heat pump is switched off entirely — heating season is over. This threshold is independent of `STOOKLIJN_GRENS`.
+
+### Frost protection override
+
+In `AUTO` and `FF_AUTO`, when `t_outside < T_VORST` (default 4°C) and the heat pump is off, it is forced to stage 1 regardless of the room temperature. This overrides the normal shut-off logic.
+
+### Adjusting the heating curve
+
+All parameters are persisted in EEPROM and adjustable via MQTT (no reflash needed):
+
+| MQTT command topic | Variable | Default | Range | Effect |
+|--------------------|----------|---------|-------|--------|
+| `chofu/cmd/stooklijn_grens` | `STOOKLIJN_GRENS` | 15°C | 0–25°C | Outdoor temp at which boost starts. Lower = boost only in harder frost. |
+| `chofu/cmd/stooklijn_factor` | `STOOKLIJN_FACTOR` | 0.68 | 0.1–5.0 | °C of supply boost per °C below the grens. Higher = steeper curve. |
+| `chofu/cmd/stooklijn_uit` | `STOOKLIJN_UIT_GRENS` | 15°C | 5–30°C | Outdoor temp above which heating stops. |
+| `chofu/cmd/water_setpoint` | `t_water_gewenst` | 32°C | 25–55°C | Fixed supply setpoint for `WATER` mode only. |
+| `chofu/cmd/setpoint` | `setpoint` | 28°C | — | Base supply setpoint (the flat part of the curve). |
+
+All changes are saved to EEPROM immediately. Current values are published on `chofu/stooklijn_grens`, `chofu/stooklijn_factor`, `chofu/stooklijn_uit`, `chofu/water_setpoint`, and `chofu/doel_setpoint`.
+
+The same parameters are also editable in the built-in web UI served on port 80.
+
+### Tuning guidance
+
+- If the house is **too cold at low outdoor temps**: increase `STOOKLIJN_FACTOR` (e.g. 0.68 → 0.85).
+- If the house **overshoots on mild days**: lower `STOOKLIJN_GRENS` (e.g. 15 → 10°C) so the boost only kicks in when it's actually cold.
+- If the heat pump **runs unnecessarily in spring/autumn**: lower `STOOKLIJN_UIT_GRENS`.
+- `FF_AUTO` is largely self-tuning via `UA_house` learning — prefer adjusting `ff_UA_house` (via `chofu/cmd/ff_ua_house`) over the heating curve parameters when in FF modes.
+
 ## Calibrated Parameters
 
 Do not change these without re-running the KGE calibration:
