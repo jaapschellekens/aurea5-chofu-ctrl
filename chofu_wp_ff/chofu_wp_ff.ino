@@ -94,14 +94,14 @@ float Kd = 0.036;
 
 // Hysteresis tijden
 long HYST_SLOW_MS = 600000;  // 10 minuten
-long HYST_FAST_MS = 120000;  //  2 minuten
-long HYST_DOWN_MS = 300000;  //  5 minuten
+long HYST_FAST_MS = 120000;  //  2 minuten  (ook: min. herstarttijd na stilstand)
+long HYST_DOWN_MS =  60000;  //  1 minuut   (stap-omlaag, niet herstart)
 long pid_interval_ms = 5000; //  5 seconden
 
 // Stooklijn parameters
 float STOOKLIJN_GRENS  = 15.0;
 float STOOKLIJN_FACTOR = 0.68;
-float T_VORST          = 4.0;
+float T_VORST          = 2.0;
 
 // Safeguards
 float SUPPLY_MAX           = 60.0;
@@ -117,6 +117,8 @@ const float FF_KI_AUTO     = 0.026f;  // integraalversterking auto  — geoptima
 const float FF_KI_WATER    = 0.017f;  // integraalversterking water — geoptimaliseerd KGE
 const float FF_COAST_AUTO  = 0.54f;   // anticipatiezone auto  [°C] — geoptimaliseerd KGE
 const float FF_COAST_WATER = 4.76f;   // anticipatiezone water [°C] — geoptimaliseerd KGE
+const float AUTO_AAN_DREMPEL =  0.4f; // kamer °C onder setpoint → WP aan
+const float AUTO_UIT_DREMPEL = -0.4f; // kamer °C boven setpoint → WP afbouwen
 
 // Vermogen per stand (W)
 const int VERMOGEN[] = {0, 240, 420, 640, 850, 1050, 1250, 1450, 1550, 1650, 1700, 1750, 1800};
@@ -171,6 +173,12 @@ struct ControllerState {
   void zet_uit() {
     stand = 0; wp_aan = false;
     pid_integraal = 0; pid_vorige_fout = 0; ff_integraal = 0;
+  }
+  void koude_start(uint32_t nu) {
+    zet_uit();
+    // 700s in het verleden: altijd groter dan de grootste hysteresis (HYST_SLOW=600s),
+    // ook bij uint32_t-wraparound vlak na boot.
+    vorige_stand_wijz_ms = nu - 700000UL;
   }
   // Alleen PID integralen wissen (bijv. bij modus-wissel zonder afsluiten)
   void reset_pid() { pid_integraal = 0; pid_vorige_fout = 0; }
@@ -246,7 +254,7 @@ void stuur_alert(String msg){
 //  EEPROM
 // ═══════════════════════════════════════════════════════════════
 
-#define EEPROM_MAGIC            0xAD  // v2.0: verhoogd na toevoegen FF params
+#define EEPROM_MAGIC            0xAF  // v2.2: T_VORST default 4→2°C
 #define ADDR_MAGIC              0
 #define ADDR_SETPOINT           1
 #define ADDR_KP                 5
@@ -258,8 +266,9 @@ void stuur_alert(String msg){
 #define ADDR_SUPPLY_MAX         29
 #define ADDR_KOELING_MIN_BUITEN 33
 #define ADDR_STOOKLIJN_UIT      37
-#define ADDR_FF_UA_HOUSE        41   // nieuw v2.0
-#define ADDR_FF_UA_EMITTER      45   // nieuw v2.0
+#define ADDR_FF_UA_HOUSE        41
+#define ADDR_FF_UA_EMITTER      45
+#define ADDR_MODUS              49   // nieuw v2.1
 
 void eeprom_init(){
   if(EEPROM.read(ADDR_MAGIC) != EEPROM_MAGIC){
@@ -285,6 +294,7 @@ void eeprom_save(){
   EEPROM.put(ADDR_STOOKLIJN_UIT, STOOKLIJN_UIT_GRENS);
   EEPROM.put(ADDR_FF_UA_HOUSE, ff_UA_house);
   EEPROM.put(ADDR_FF_UA_EMITTER, ff_UA_emitter);
+  EEPROM.write(ADDR_MODUS, (uint8_t)modus);
   EEPROM_COMMIT();
   Serial.println("EEPROM: settings opgeslagen");
 }
@@ -308,6 +318,10 @@ void eeprom_load(){
   if(isnan(ff_UA_house) || ff_UA_house < 50 || ff_UA_house > 500) ff_UA_house = 272.5;
   EEPROM.get(ADDR_FF_UA_EMITTER, ff_UA_emitter);
   if(isnan(ff_UA_emitter) || ff_UA_emitter < 50 || ff_UA_emitter > 500) ff_UA_emitter = 267.5;
+  uint8_t opgeslagen_modus = EEPROM.read(ADDR_MODUS);
+  // HANDMATIG niet herstellen na herstart — veiliger om in auto te beginnen
+  modus = (opgeslagen_modus <= (uint8_t)Modus::FF_WATER && opgeslagen_modus != (uint8_t)Modus::HANDMATIG)
+          ? (Modus)opgeslagen_modus : Modus::AUTO;
   Serial.print("EEPROM: geladen - SP:");Serial.print(setpoint,1);
   Serial.print(" PID:");Serial.print(Kp,2);Serial.print("/");Serial.print(Ki,3);Serial.print("/");Serial.println(Kd,2);
   Serial.print("  FF UA huis:");Serial.print(ff_UA_house,0);
@@ -454,12 +468,21 @@ void pas_ff_aan(){
   float regel_fout = is_water ? (wsp - t_supply) : (t_kamer_gewenst - t_kamer);
   float afschakeldrempel = is_water ? -1.5f : -1.0f;
 
-  // ── Te warm: uitschakelen (of minimum bij vorst in auto) ───────
+  // ── Te warm: uitschakelen (of minimum bij vorst) ──────────────
   if(regel_fout < afschakeldrempel){
-    if(!is_water && t_outside < T_VORST && ctrl.stand > 1){
-      ctrl.stand = 1; ctrl.wp_aan = true; ctrl.vorige_stand_wijz_ms = nu;
-    } else {
-      ctrl.zet_uit(); ctrl.vorige_stand_wijz_ms = nu;
+    if(t_outside < T_VORST){
+      // Vorstbeveiliging geldt voor alle FF-modi: nooit onder stand 1
+      if(ctrl.stand != 1 || !ctrl.wp_aan){
+        ctrl.stand = 1; ctrl.wp_aan = true; ctrl.vorige_stand_wijz_ms = nu;
+      }
+    } else if(ctrl.stand > 0 && (nu - ctrl.vorige_stand_wijz_ms >= (uint32_t)HYST_DOWN_MS)){
+      // Bij grote overshoot meer stappen tegelijk: COP is dan hoog en elke
+      // stand levert nog netto warmte, dus 1 stap/min is niet snel genoeg.
+      int stap = (-regel_fout > 4.0f) ? 2 : 1;
+      ctrl.stand = (uint8_t)max(0, (int)ctrl.stand - stap);
+      ctrl.vorige_stand_wijz_ms = nu;
+      ctrl.wp_aan = (ctrl.stand > 0);
+      if(ctrl.stand == 0) ctrl.reset_ff();
     }
     return;
   }
@@ -485,8 +508,15 @@ void pas_ff_aan(){
   if(regel_fout > coast_k) stand_ff = min(8, (int)stand_ff + 1);
 
   // ── Integraalcorrectie (±2 stand, traag) ──────────────────────
+  // Alleen accumuleren dichtbij setpoint: voorkomt windup tijdens opwarmfase.
+  // Ver van setpoint (|fout| > integraal_zone) loopt de integraal niet op,
+  // zodat het systeem de aankomstfase niet met +2 standen overschiet.
   float ff_ki = is_water ? FF_KI_WATER : FF_KI_AUTO;
-  ctrl.ff_integraal += regel_fout * (pid_interval_ms / 1000.0f);
+  float integraal_zone = is_water ? 2.0f : 1.0f;
+  // Alleen integreren als WP draait: voorkomt dat integraal opbouwt tijdens stilstand
+  // en bij herstart direct een te hoge stand geeft die weer overshoot veroorzaakt.
+  if(ctrl.stand > 0 && fabsf(regel_fout) < integraal_zone)
+    ctrl.ff_integraal += regel_fout * (pid_interval_ms / 1000.0f);
   float ff_max_int = 3.0f * 3600.0f / ff_ki;
   ctrl.ff_integraal = constrain(ctrl.ff_integraal, -ff_max_int, ff_max_int);
   int8_t int_corr = (int8_t)constrain((int)(ctrl.ff_integraal * ff_ki / 3600.0f), -2, 2);
@@ -498,8 +528,11 @@ void pas_ff_aan(){
 
   // Nieuwe stand: FF + correctie, met stapbeperking
   int nieuwe_stand_i = constrain((int)stand_ff + int_corr, 0, 8);
-  if(!is_water && t_outside < T_VORST) nieuwe_stand_i = max(1, nieuwe_stand_i);
-  nieuwe_stand_i = constrain(nieuwe_stand_i, max(0, (int)ctrl.stand - max_stap), min(8, (int)ctrl.stand + max_stap));
+  if(t_outside < T_VORST) nieuwe_stand_i = max(1, nieuwe_stand_i);
+  // Bij koude start (stand was 0): direct naar evenwichtsstand, geen stapbeperking.
+  // Voorkomt trage 0→1→2→... opbouw als kamer al op setpoint staat.
+  if(ctrl.stand > 0)
+    nieuwe_stand_i = constrain(nieuwe_stand_i, max(0, (int)ctrl.stand - max_stap), min(8, (int)ctrl.stand + max_stap));
   uint8_t nieuwe_stand = (uint8_t)nieuwe_stand_i;
 
   // ── Online leren ───────────────────────────────────────────────
@@ -666,7 +699,7 @@ void pas_pid_aan(){
     mqtt_log("MAX! Kamer: " + String(t_kamer,1) + "C", "ERROR");
     return;
   }
-  if(kamer_fout > 0.1f){
+  if(kamer_fout > AUTO_AAN_DREMPEL){
     ctrl.wp_aan = true;
     float aanvoer_fout = doel_setpoint - t_supply;
     float dt_correctie = 0;
@@ -706,12 +739,17 @@ void pas_pid_aan(){
       Serial.print(" fout=");Serial.print(kamer_fout,1);
       Serial.print(" St=");Serial.println(ctrl.stand);
     }
-  } else if(kamer_fout < -0.2f){
+  } else if(kamer_fout < AUTO_UIT_DREMPEL){
     if(t_outside < T_VORST){
-      if(ctrl.stand > 1){ ctrl.stand = 1; ctrl.wp_aan = true; }
-    } else {
-      ctrl.zet_uit();
-      mqtt_log("Kamer te warm (" + String(t_kamer,1) + "C) -> WP UIT", "INFO");
+      if(ctrl.stand > 1){ ctrl.stand = 1; ctrl.wp_aan = true; ctrl.vorige_stand_wijz_ms = nu; }
+    } else if(ctrl.stand > 0 && (nu - ctrl.vorige_stand_wijz_ms >= (uint32_t)HYST_DOWN_MS)){
+      ctrl.stand--;
+      ctrl.vorige_stand_wijz_ms = nu;
+      ctrl.wp_aan = (ctrl.stand > 0);
+      if(ctrl.stand == 0){
+        ctrl.pid_integraal = 0;
+        mqtt_log("Kamer te warm (" + String(t_kamer,1) + "C) -> WP UIT", "INFO");
+      }
     }
   }
 }
@@ -756,14 +794,17 @@ void mqtt_ontvang(int len){
     float val = payload.toFloat();
     if(val >= 20 && val <= 45){ setpoint = val; eeprom_save(); }
   }
-  else if(topic == "chofu/cmd/kp"){ Kp = payload.toFloat(); eeprom_save(); }
-  else if(topic == "chofu/cmd/ki"){ Ki = payload.toFloat(); eeprom_save(); }
-  else if(topic == "chofu/cmd/kd"){ Kd = payload.toFloat(); eeprom_save(); }
+  else if(topic == "chofu/cmd/kp"){ float v=payload.toFloat(); if(v>=0.1&&v<=100.0){ Kp=v; eeprom_save(); } }
+  else if(topic == "chofu/cmd/ki"){ float v=payload.toFloat(); if(v>=0.0&&v<=1.0){   Ki=v; eeprom_save(); } }
+  else if(topic == "chofu/cmd/kd"){ float v=payload.toFloat(); if(v>=0.0&&v<=10.0){  Kd=v; eeprom_save(); } }
   else if(topic == "chofu/cmd/modus"){
     if(payload == "auto" || payload == "handmatig" || payload == "water" ||
        payload == "ff_auto" || payload == "ff_water"){
-      modus = str_naar_modus(payload);
-      if(modus != Modus::HANDMATIG){ ctrl.reset_pid(); ctrl.reset_ff(); }
+      Modus nieuwe_modus = str_naar_modus(payload);
+      bool modus_gewijzigd = (nieuwe_modus != modus);
+      modus = nieuwe_modus;
+      if(modus_gewijzigd && modus != Modus::HANDMATIG){ ctrl.koude_start(millis()); }
+      eeprom_save();
       mqtt_log("Modus: " + String(modus_naar_str(modus)), "INFO");
     }
   }
@@ -1405,6 +1446,20 @@ void setup(){
 // ═══════════════════════════════════════════════════════════════
 
 void mqtt_herverbind(){
+  // WiFi eerst: MQTT kan niet werken zonder WiFi
+  if(WiFi.status() != WL_CONNECTED){
+    Serial.println("WiFi: herverbinden...");
+    WiFi.disconnect();
+    WiFi.begin(SSID, PASS);
+    uint32_t t = millis();
+    while(WiFi.status() != WL_CONNECTED && millis() - t < 10000) delay(500);
+    if(WiFi.status() != WL_CONNECTED){
+      Serial.println("WiFi: herverbinden mislukt");
+      return;
+    }
+    Serial.print("WiFi: herverbonden, IP: "); Serial.println(WiFi.localIP());
+  }
+
   if(mqttClient.connected()) return;
   Serial.println("MQTT: herverbinden...");
   mqttClient.beginWill("chofu/status", true, 1);

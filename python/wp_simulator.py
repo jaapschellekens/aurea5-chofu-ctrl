@@ -171,9 +171,15 @@ class Simulator:
         print(f"  Setpoint kamer = {self.kamer_sp:.1f}°C")
         print(f"  Tijdstap       = {dt_sim:.0f}s sim / {dt_real:.0f}s real  (speed {self.args.speed}×)")
         print(f"{'─'*88}")
-        print(f"{'tijd':>8}  {'modus':>8}  {'stand':>5}  {'T_kamer':>8}  "
-              f"{'T_supply':>9}  {'T_water_sp':>10}  {'T_buiten':>9}  {'COP':>5}  {'kW':>5}")
-        print(f"{'─'*88}")
+        water_modus = self.args.modus in WATER_MODI
+        if water_modus:
+            print(f"{'tijd':>8}  {'modus':>8}  {'stand':>5}  {'T_supply':>9}  "
+                  f"{'T_water_sp':>10}  {'afwijk':>7}  {'T_kamer':>8}  {'T_buiten':>9}  {'kW':>5}")
+            print(f"{'─'*82}")
+        else:
+            print(f"{'tijd':>8}  {'modus':>8}  {'stand':>5}  {'T_kamer':>8}  "
+                  f"{'T_supply':>9}  {'T_water_sp':>10}  {'T_buiten':>9}  {'COP':>5}  {'kW':>5}")
+            print(f"{'─'*88}")
 
         t_sim_s = 0
         try:
@@ -202,15 +208,27 @@ class Simulator:
                 # Console
                 uren = int(t_sim_s) // 3600
                 minu = (int(t_sim_s) % 3600) // 60
-                print(f"{uren:4d}:{minu:02d}  "
-                      f"{self.modus:>8}  "
-                      f"{self.stand:5d}  "
-                      f"{t_k:8.2f}°C  "
-                      f"{t_s:9.2f}°C  "
-                      f"{t_water_sp:10.2f}°C  "
-                      f"{self.t_outside:9.1f}°C  "
-                      f"{cop:5.2f}  "
-                      f"{p_heat/1000:5.2f}")
+                if self.modus in WATER_MODI:
+                    afwijk = t_s - t_water_sp
+                    print(f"{uren:4d}:{minu:02d}  "
+                          f"{self.modus:>8}  "
+                          f"{self.stand:5d}  "
+                          f"{t_s:9.2f}°C  "
+                          f"{t_water_sp:10.2f}°C  "
+                          f"{afwijk:+7.2f}°C  "
+                          f"{t_k:8.2f}°C  "
+                          f"{self.t_outside:9.1f}°C  "
+                          f"{p_heat/1000:5.2f}")
+                else:
+                    print(f"{uren:4d}:{minu:02d}  "
+                          f"{self.modus:>8}  "
+                          f"{self.stand:5d}  "
+                          f"{t_k:8.2f}°C  "
+                          f"{t_s:9.2f}°C  "
+                          f"{t_water_sp:10.2f}°C  "
+                          f"{self.t_outside:9.1f}°C  "
+                          f"{cop:5.2f}  "
+                          f"{p_heat/1000:5.2f}")
 
                 t_sim_s += dt_sim
                 time.sleep(dt_real)
@@ -246,6 +264,24 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     sim = Simulator(args)
-    sim.model.t_kamer  = args.t_kamer
-    sim.model.t_supply = args.t_supply
+    sim.model.t_kamer = args.t_kamer
+
+    # Bereken passende begintemperatuur voor de supply als de gebruiker
+    # geen expliciete waarde opgaf (default 35.0).
+    # Water/ff_water: start op het berekende setpoint zodat de Arduino
+    # niet direct in de shutdown-zone start en een uur wacht op afkoeling.
+    # Auto/ff_auto: start op de stooklijn waarde.
+    if args.t_supply != 35.0:
+        sim.model.t_supply = args.t_supply
+    elif args.modus in WATER_MODI:
+        sim.model.t_supply = max(25.0, sim._water_setpoint())
+    else:
+        stooklijn_grens  = 15.0
+        stooklijn_factor = 0.68
+        stooklijn_sp     = 28.0
+        if args.outside < stooklijn_grens:
+            sim.model.t_supply = min(45.0, stooklijn_sp +
+                                     (stooklijn_grens - args.outside) * stooklijn_factor)
+        else:
+            sim.model.t_supply = stooklijn_sp
     sim.run()
