@@ -14,10 +14,9 @@
   #define EEPROM_BEGIN()
   #define EEPROM_COMMIT()
 #else
-  // ESP32: EEPROM is flash-emulatie, vereist begin() en commit()
-  #define EEPROM_SIZE    80
-  #define EEPROM_BEGIN() EEPROM.begin(EEPROM_SIZE)
-  #define EEPROM_COMMIT() EEPROM.commit()
+  // ESP32: gebruikt Preferences (NVS) — geen EEPROM.begin() nodig
+  #define EEPROM_BEGIN()
+  #define EEPROM_COMMIT()
   // Chofu UART pins — pas aan voor jouw ESP32 board
   #define CHOFU_RX_PIN   16
   #define CHOFU_TX_PIN   17

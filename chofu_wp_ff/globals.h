@@ -9,7 +9,9 @@
 #endif
 #include <ArduinoMqttClient.h>
 #include <LiquidCrystal_I2C.h>
-#include <EEPROM.h>
+#if defined(ARDUINO_UNOR4_WIFI)
+  #include <EEPROM.h>
+#endif
 
 #include "types.h"
 
