@@ -296,6 +296,7 @@ Optocoupler #2 (TX richting - Arduino → Controlbox):
 | Item | Aantal | Prijs | Link |
 |------|--------|-------|------|
 | PC817 Optocoupler | 2 | €0.40 | - |
+| IC voetje 28-pins DIP | 1 | €0.30 | - |
 | 220Ω Weerstand (1/4W) | 2 | €0.20 | - |
 | 1kΩ Weerstand (1/4W) | 2 | €0.20 | - |
 | Breadboard 400 pins | 1 | €2.50 | - |
@@ -516,6 +517,7 @@ Voor permanente installatie kan je een custom PCB laten maken:
 | 1kΩ Weerstand | 1 | €0,10 | ❌ |
 | 16mm paneel drukknop NO | 2 | €3,00 | ✅ |
 | PC817 Optocoupler | 2 | €0,40 | ✅ |
+| IC voetje 28-pins DIP | 1 | €0,30 | ✅ |
 | 220Ω Weerstand | 2 | €0,20 | ✅ |
 | Breadboard | 1 | €2,50 | ✅ |
 | USB-C kabel | 1 | €5,00 | ❌ |
