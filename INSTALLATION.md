@@ -451,15 +451,16 @@ GEVAAR: Verkeerde aansluiting kan hardware beschadigen!
 
 **Aansluiting:**
 ```
-Controlbox          Arduino
-─────────────       ───────────
-TX (Terminal 1) →   Pin 3 (RX)
-RX (Terminal 2) →   Pin 2 (TX)  ← Via 1kΩ weerstand!
+Controlbox          Arduino UNO R4 WiFi
+─────────────       ───────────────────
+TX (Terminal 1) →   D0 (RX1)
+RX (Terminal 2) →   D1 (TX1)  ← Via 1kΩ weerstand!
 GND               →   GND
 ```
 
 **BELANGRIJK:**
-- **Pin 2 (TX) MOET via 1kΩ weerstand!**
+- **D1 (TX1) MOET via 1kΩ weerstand!**
+- Gebruik **D0/D1** (hardware UART, Serial1) — **niet** pin 2/3 (SoftwareSerial crasht de WiFi co-processor)
 - Dit beschermt controlbox tegen overbelasting
 - Zonder weerstand: risico op beschadiging!
 
