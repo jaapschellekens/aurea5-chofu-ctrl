@@ -50,6 +50,8 @@ Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt a
 |-------|------|------|---------|--------------|
 | `chofu/supply_max` | float | °C | 60.0 | Noodstop aanvoer temperatuur |
 | `chofu/koeling_min_buiten` | float | °C | 18.0 | Minimale buitentemp voor koeling |
+| `chofu/supply_min` | float | °C | 17.0 | Condensatiebescherming koeling |
+| `chofu/koeling_afschakel` | float | °C | 0.5 | Afschakeldrempel koeling (niet EEPROM) |
 | `chofu/stooklijn_uit` | float | °C | 15.0 | Boven deze buitentemp: verwarming uit (auto) |
 
 ### Systeem
@@ -145,22 +147,41 @@ Topic:   chofu/cmd/koeling
 Payload: "1" → Koelen
          "0" → Verwarmen (default)
 
+Koeling is alleen beschikbaar in ff_auto, ff_water en handmatig.
+In auto of water wordt het commando genegeerd met een alert.
+
+FF_AUTO:  P_nodig = UA_house × (t_outside − t_kamer_gewenst)
+FF_WATER: P_nodig = UA_emitter × (t_kamer − t_water_gewenst)
+HANDMATIG: vaste stand, ongewijzigd.
+
 Zet protocol byte 19-2,3 op 2 (koeling) i.p.v. 1 (verwarming).
-PID fout wordt omgekeerd: te warm water = meer vermogen.
 Wordt automatisch uitgeschakeld als buiten < KOELING_MIN_BUITEN.
 Niet opgeslagen in EEPROM.
 
-Typisch gebruik:
-  chofu/cmd/modus          = "water"
+Typisch gebruik FF_AUTO:
+  chofu/cmd/modus          = "ff_auto"
+  chofu/cmd/koeling        = "1"
+
+Typisch gebruik FF_WATER:
+  chofu/cmd/modus          = "ff_water"
   chofu/cmd/water_setpoint = "18.0"
   chofu/cmd/koeling        = "1"
 ```
 
-**Regelgedrag koeling (voorbeeld setpoint 18°C):**
+**Condensatiebescherming (SUPPLY_MIN):**
 ```
-19.0°C ════ AAN trigger 🧊
-18.0°C ──── DOEL ✅
-17.0°C ════ UIT trigger ✋
+Topic:   chofu/cmd/supply_min
+Payload: "10.0" – "25.0"  (float, °C)
+Aanvoer daalt nooit onder deze grens (voorkomt condensatie op vloer/plafond).
+Opgeslagen in EEPROM. Default: 17.0°C
+```
+
+**Afschakeldrempel (KOELING_AFSCHAKEL):**
+```
+Topic:   chofu/cmd/koeling_afschakel
+Payload: "0.1" – "5.0"  (float, °C)
+Koeling schakelt terug als kamer/aanvoer meer dan deze waarde onder setpoint daalt.
+Niet opgeslagen in EEPROM. Default: 0.5°C
 ```
 
 ### Stooklijn Parameters
@@ -291,6 +312,7 @@ De Arduino publiceert alle HA discovery configs automatisch bij opstart (retaine
 | Chofu Kamer | sensor (°C) | `chofu/kamer` |
 | Chofu Kamer Gewenst | sensor (°C) | `chofu/kamer_gewenst` |
 | Chofu Setpoint | sensor (°C) | `chofu/setpoint` |
+| Chofu Doel Setpoint | sensor (°C) | `chofu/doel_setpoint` |
 | Chofu Stand | sensor | `chofu/stand` |
 | Chofu Vermogen | sensor (W) | `chofu/vermogen` |
 | Chofu Modus | sensor | `chofu/modus` |
@@ -303,6 +325,8 @@ De Arduino publiceert alle HA discovery configs automatisch bij opstart (retaine
 | Chofu Power | switch | `chofu/cmd/power` |
 | Chofu LCD | switch | `chofu/cmd/lcd` |
 | Chofu Koeling | switch | `chofu/cmd/koeling` |
+| Chofu Koeling Aanvoer Min | number (°C) | `chofu/cmd/supply_min` |
+| Chofu Koeling Afschakeldrempel | number (°C) | `chofu/cmd/koeling_afschakel` |
 | Chofu Modus Select | select | `chofu/cmd/modus` |
 | Chofu Water SP | number (°C) | `chofu/cmd/water_setpoint` |
 | Chofu Vorstgrens | number (°C) | `chofu/cmd/t_vorst` |
@@ -589,8 +613,8 @@ mosquitto_pub -h $BROKER -t "chofu/cmd/modus" -m "handmatig"
 # Water modus instellen
 mosquitto_pub -h $BROKER -t "chofu/cmd/water_setpoint" -m "45.0"
 
-# Koeling inschakelen (water modus vereist)
-mosquitto_pub -h $BROKER -t "chofu/cmd/modus" -m "water"
+# Koeling inschakelen (alleen ff_auto, ff_water of handmatig)
+mosquitto_pub -h $BROKER -t "chofu/cmd/modus" -m "ff_water"
 mosquitto_pub -h $BROKER -t "chofu/cmd/water_setpoint" -m "18.0"
 mosquitto_pub -h $BROKER -t "chofu/cmd/koeling" -m "1"
 
@@ -672,14 +696,15 @@ Volgende parameters blijven bewaard na herstart:
 | Parameter | Default | Commando |
 |-----------|---------|---------|
 | Setpoint (stooklijn) | 28.0°C | `chofu/cmd/setpoint` |
-| Kp | 19.9 | `chofu/cmd/kp` |
-| Ki | 0.084 | `chofu/cmd/ki` |
-| Kd | 0.036 | `chofu/cmd/kd` |
+| Kp | 75.0 | `chofu/cmd/kp` |
+| Ki | 0.800 | `chofu/cmd/ki` |
+| Kd | 0.010 | `chofu/cmd/kd` |
 | Stooklijn grens | 15.0°C | `chofu/cmd/stooklijn_grens` |
 | Stooklijn factor | 0.68 | `chofu/cmd/stooklijn_factor` |
 | T_VORST | 4.0°C | `chofu/cmd/t_vorst` |
 | SUPPLY_MAX | 60.0°C | `chofu/cmd/supply_max` |
 | KOELING_MIN_BUITEN | 18.0°C | `chofu/cmd/koeling_min_buiten` |
+| SUPPLY_MIN | 17.0°C | `chofu/cmd/supply_min` |
 | STOOKLIJN_UIT | 15.0°C | `chofu/cmd/stooklijn_uit` |
 | FF UA_house | 272.5 W/K | `chofu/cmd/ff_ua_house` |
 | FF UA_emitter | 267.5 W/K | `chofu/cmd/ff_ua_emitter` |

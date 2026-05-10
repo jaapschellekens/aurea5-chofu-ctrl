@@ -21,6 +21,7 @@ Complete stap-voor-stap guide van hardware tot werkend systeem.
 - ✅ USB-A naar USB-C kabel
 - ✅ Computer (Windows/Mac/Linux)
 - ✅ Chofu warmtepomp met controlbox
+- ☑️ *(Optioneel)* 2x 16mm paneel drukknop NO — voor handmatige standbediening zonder WiFi
 
 ### Software
 - ✅ Arduino IDE (gratis download)
@@ -125,6 +126,21 @@ SCL      →   A5 (SCL)
 - Gebruik verschillende kleuren per draad
 - Check polariteit (VCC/GND niet omkeren!)
 - Zorg voor stevige verbinding
+
+### Stap 2: Knoppen Aansluiten (Optioneel)
+
+Twee knoppen geven handmatige standbediening — handig als WiFi of MQTT uitvalt.
+
+**Benodigdheden:** 2× drukknop (NO), geen weerstanden
+
+```
+Knop OMHOOG:   D5 ────┤ knop ├──── GND
+Knop OMLAAG:   D6 ────┤ knop ├──── GND
+```
+
+Gebruik de NO-aansluitpunten (Normally Open). De firmware activeert zelf de interne pull-up.
+
+> Zie **WIRING.md → Handmatige Bediening** voor het volledige schema en knop-aanbevelingen.
 
 ### Stap 2: LCD Testen (Optioneel maar aanbevolen)
 
@@ -313,30 +329,29 @@ Foutmelding: "MQTT connection failed"
 
 ### Stap 3: LCD Check
 
-**LCD toont (scrollt automatisch):**
+De LCD roteert elke 6 seconden door 4 schermen. **Scherm 0 en 3 zijn altijd gelijk; schermen 1 en 2 zijn mode-specifiek.** Zie [docs/LCD.md](docs/LCD.md) voor de volledige referentie.
+
+**Scherm 0 — Altijd: status**
 ```
-Scherm 1 (5 sec):
 ╔════════════════╗
-║Kromhout WP     ║
-║IP:192.168.1.XXX║
+║St3 1200W  AAN ║   stand · vermogen · aan/uit
+║FF-A   Hz:45   ║   modus · compressorfrequentie
 ╚════════════════╝
+```
 
-Scherm 2 (5 sec):
+**Scherm 1 — Primaire regelinfo (voorbeeld: FF_AUTO)**
+```
 ╔════════════════╗
-║K:20.5 S:20.5  ║
-║A:35.2 St:2    ║
+║K:20.1 >21.0   ║   kamer actual → setpoint
+║B: 5.0  UA:272 ║   buiten · geleerd UA_house
 ╚════════════════╝
+```
 
-Scherm 3 (5 sec):
+**Scherm 3 — Altijd: netwerk**
+```
 ╔════════════════╗
-║R:30.1 B:8.5   ║
-║DT:5.1 420W    ║
-╚════════════════╝
-
-Scherm 4 (5 sec):
-╔════════════════╗
-║Auto  WP:AAN   ║
-║PID:45%        ║
+║P:60%  DT: 5.1 ║   pomp% · delta_T
+║192.168.1.50   ║   IP-adres
 ╚════════════════╝
 ```
 
@@ -501,6 +516,7 @@ Check:
 □ Protocol data wordt ontvangen (RX messages)
 □ Commando's worden verstuurd (TX messages)
 □ Warmtepomp reageert op stand wijzigingen
+□ (Optioneel) Knoppen op D5/D6 wisselen stand en modus → HANDMATIG
 ```
 
 ### Test Scenario's

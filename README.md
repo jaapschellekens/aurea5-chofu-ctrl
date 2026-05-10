@@ -132,13 +132,25 @@ Stand 12 = 1800 W
 
 ### Koelmodus
 
-Activeer via `chofu/cmd/koeling = "1"` in combinatie met water of handmatige modus. Protocol byte 19-2,3 wordt op 2 gezet (koelen i.p.v. verwarmen). PID logica draait automatisch om:
+Activeer via `chofu/cmd/koeling = "1"`. Koeling is **alleen beschikbaar** in `ff_auto`, `ff_water` en `handmatig` — niet in `auto` of `water`.
 
+**FF_AUTO koeling** — feedforward op basis van warmte-inval van buiten:
 ```
-Setpoint + 1°C ══ AAN trigger  (water te warm → meer vermogen)
-Setpoint        ── Doel ✅
-Setpoint - 1°C ══ UIT trigger
+P_nodig = UA_house × (t_outside − t_kamer_gewenst)
 ```
+Regelt de compressorstand zodat de kamer op setpoint blijft.
+
+**FF_WATER koeling** — feedforward op basis van kamer→water warmtestroom:
+```
+P_nodig = UA_emitter × (t_kamer − t_water_gewenst)
+```
+Regelt de aanvoertemperatuur op `t_water_gewenst` (bijv. 18°C).
+
+**HANDMATIG** — vaste stand zoals bij verwarming.
+
+**Condensatiebescherming:** aanvoer daalt nooit onder `SUPPLY_MIN` (default 17°C).  
+**Afschakeldrempel:** koeling schakelt terug als kamer/aanvoer meer dan `KOELING_AFSCHAKEL` (0.5°C) onder setpoint zakt.  
+**Seizoensbeveiliging:** koeling geblokkeerd als buiten < `KOELING_MIN_BUITEN` (default 18°C).
 
 ---
 
@@ -228,12 +240,14 @@ Zie [INSTALLATION.md](INSTALLATION.md) voor uitgebreide stap-voor-stap instructi
 | `chofu/delta_t` | Aanvoer − retour | °C |
 | `chofu/modus` | Huidige modus | auto/ff_auto/water/ff_water/handmatig |
 | `chofu/setpoint` | Actief aanvoer setpoint | °C |
-| `chofu/doel_setpoint` | Doel-setpoint voor PID | °C |
+| `chofu/doel_setpoint` | Actief regelsetpoint (stooklijn bij verwarming, kamer/water bij koeling) | °C |
 | `chofu/water_setpoint` | Water modus setpoint | °C |
 | `chofu/pid` | PID uitvoer | % |
 | `chofu/ff_ua_house` | Geleerde UA_house (FF) | W/K |
 | `chofu/ff_ua_emitter` | Geleerde UA_emitter (FF) | W/K |
 | `chofu/koeling` | Koelmodus actief | 0/1 |
+| `chofu/supply_min` | Condensatiegrens koeling | °C |
+| `chofu/koeling_afschakel` | Afschakeldrempel koeling | °C |
 | `chofu/defrost` | Ontdooien actief | 0/1 |
 | `chofu/aan` | WP actief | 0/1 |
 | `chofu/t_vorst` | Vorstbeveiligingsgrens | °C |
@@ -248,6 +262,8 @@ Zie [INSTALLATION.md](INSTALLATION.md) voor uitgebreide stap-voor-stap instructi
 | `chofu/cmd/water_setpoint` | Aanvoer setpoint water modus | 25–55°C |
 | `chofu/cmd/setpoint` | Aanvoer setpoint auto stooklijn | 20–45°C |
 | `chofu/cmd/koeling` | Koelmodus aan/uit | 0/1 |
+| `chofu/cmd/supply_min` | Condensatiebescherming koeling (EEPROM) | 10–25°C |
+| `chofu/cmd/koeling_afschakel` | Afschakeldrempel koeling | 0.1–5.0°C |
 | `chofu/cmd/power` | WP aan/uit | 0/1 |
 | `chofu/cmd/t_vorst` | Vorstgrens | −10 tot 10°C |
 | `chofu/cmd/kp` / `ki` / `kd` | PID parameters | getal |
@@ -314,6 +330,8 @@ De map `python/` bevat tools voor het optimaliseren en valideren van regelparame
 - [INSTALLATION.md](INSTALLATION.md) — Installatie handleiding
 - [WIRING.md](WIRING.md) — Bekabelingsschema's
 - [MQTT_REFERENCE.md](MQTT_REFERENCE.md) — Volledige MQTT referentie
+- [docs/TUNING.md](docs/TUNING.md) — PID en feedforward parameter tuning gids
+- [docs/LCD.md](docs/LCD.md) — LCD scherm-indeling per modus
 
 ---
 

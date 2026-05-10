@@ -55,8 +55,11 @@ extern bool    lcd_enabled;
 extern Modus   modus;
 extern uint8_t handmatig_stand;
 
-// PID
+// PID (auto modus: aanvoer vs stooklijn setpoint)
 extern float Kp, Ki, Kd;
+
+// PID water modus (aanvoer vs vaste water setpoint — apart geoptimaliseerd)
+extern float Kp_water, Ki_water, Kd_water;
 
 // Hysteresis tijden
 extern long HYST_SLOW_MS;
@@ -71,8 +74,17 @@ extern float T_VORST;
 
 // Safeguards
 extern float SUPPLY_MAX;
+extern float SUPPLY_MIN;
 extern float KOELING_MIN_BUITEN;
+extern float KOELING_AFSCHAKEL;
 extern float STOOKLIJN_UIT_GRENS;
+extern float STOOKLIJN_AAN_GRENS;  // aan-drempel na buitenseizoen: hysteresis t.o.v. UIT_GRENS
+extern long  FF_MIN_OFF_MS;         // min uitschakelperiode na thermische stop (ms)
+extern float FF_RESTART_COAST;      // °C onder setpoint vereist voor herstart vanuit stand 0
+extern long  AUTO_HYST_DOWN_MS;     // ms — hysteresis bij afbouwen in AUTO (water=HYST_DOWN_MS)
+extern float FF_AFSCHAKEL_AUTO;     // °C fout waarbij FF begint terug te schakelen (auto modus)
+extern long  FF_LOOKAHEAD_MS;       // ms vooruitkijken voor predictieve terugschakeling (default 300s)
+extern long  FF_THERMAL_MIN_OFF_MS; // min uitschakelperiode na thermische stop (korter dan seizoensstop)
 extern long  MQTT_WATCHDOG_MS;
 
 // FF leerwaarden (instelbaar via MQTT, opgeslagen in EEPROM)

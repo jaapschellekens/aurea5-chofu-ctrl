@@ -6,10 +6,11 @@ Complete bekabeling schemas en aansluitingen.
 
 ## Overzicht
 
-**3 Hoofdonderdelen:**
+**3 Hoofdonderdelen + optionele bediening:**
 1. Arduino UNO R4 WiFi
 2. LCD 16x2 I2C Display
 3. Warmtepomp Protocol Interface
+4. *(Optioneel)* 2 drukknopjes voor handmatige standbediening
 
 ---
 
@@ -80,6 +81,77 @@ void setup() {
 
 void loop() {}
 ```
+
+---
+
+## Handmatige Bediening — Knoppen
+
+Twee drukknopjes maken het mogelijk de WP-stand direct in te stellen, zonder WiFi of MQTT. Indrukken zet de modus automatisch op HANDMATIG; MQTT-commando's kunnen daarna nog steeds overschrijven.
+
+### Aanbevolen knoppen
+
+| Situatie | Type | Formaat | Prijs | Tip |
+|----------|------|---------|-------|-----|
+| Testen / breadboard | Tactile push button | 6×6mm of 12×12mm | €0,10 | Zit in elk Arduino starterskit |
+| Permanente montage | Paneel-montage drukknop (NO) | 16mm of 22mm | €1–3 | Roestvrij staal, rood/groen |
+
+**Zoekterm**: `"16mm momentary push button NO"` of `"22mm panel mount momentary"`  
+**Verkrijgbaar bij**: Okaphone, Conrad, AliExpress, Farnell
+
+> Kies voor de NO-uitvoering (Normally Open). LED-verlichting in de knop is optioneel — sluit de LED dan gewoon niet aan.
+
+### Bedrading
+
+```
+Arduino D5 ●────┤  ▲ BTN UP   ├──── GND     (stand omhoog)
+Arduino D6 ●────┤  ▼ BTN DOWN ├──── GND     (stand omlaag)
+```
+
+Geen externe weerstand nodig — de firmware activeert de interne pull-up (`INPUT_PULLUP`).
+
+### Pin Mapping
+
+| Functie | Arduino Pin | Knop-aansluiting |
+|---------|-------------|------------------|
+| Stand omhoog | D5 | NO contact → GND |
+| Stand omlaag | D6 | NO contact → GND |
+
+### Schema
+
+```
+┌──────────────────────────────────────────┐
+│ Arduino UNO R4                           │
+│                                          │
+│   D5 ●──────────────┐                   │
+│                      │  ╔════════╗       │
+│                      └──║ BTN UP ║──┐   │
+│                         ╚════════╝  │   │
+│                                     │   │
+│   D6 ●──────────────┐               │   │
+│                      │  ╔══════════╗│   │
+│                      └──║ BTN DOWN ║│   │
+│                         ╚══════════╝│   │
+│                                     │   │
+│  GND ●──────────────────────────────┘   │
+└──────────────────────────────────────────┘
+```
+
+### Gedrag
+
+| Actie | Effect |
+|-------|--------|
+| Kort drukken | Stand ±1, modus → HANDMATIG, LCD en MQTT direct bijgewerkt |
+| Ingehouden houden | Auto-repeat elke 200 ms (handig voor snel naar stand 0 of 12) |
+| MQTT-commando daarna | Overschrijft de handmatige stand gewoon |
+
+### Bill of Materials — Knoppen
+
+| Item | Aantal | Prijs (schatting) |
+|------|--------|-------------------|
+| 16mm paneel drukknop NO (rood) | 1 | €1,50 |
+| 16mm paneel drukknop NO (groen) | 1 | €1,50 |
+| Jumper wires (M-F) | 2 | €0,20 |
+| **Totaal** | | **€3,20** |
 
 ---
 
@@ -438,18 +510,19 @@ Voor permanente installatie kan je een custom PCB laten maken:
 
 | Item | Aantal | Prijs | Optioneel |
 |------|--------|-------|-----------|
-| Arduino UNO R4 WiFi | 1 | €30.00 | ❌ |
-| LCD 16x2 I2C | 1 | €5.00 | ❌ |
-| Jumper Wires F-F | 4 | €1.00 | ❌ |
-| 1kΩ Weerstand | 1 | €0.10 | ❌ |
-| PC817 Optocoupler | 2 | €0.40 | ✅ |
-| 220Ω Weerstand | 2 | €0.20 | ✅ |
-| Breadboard | 1 | €2.50 | ✅ |
-| USB-C kabel | 1 | €5.00 | ❌ |
-| 5V Power supply | 1 | €8.00 | ✅ |
-| Krimptang connectors | 10 | €1.00 | ✅ |
-| **Totaal (basis)** | - | **€41.10** | - |
-| **Totaal (volledig)** | - | **€53.20** | - |
+| Arduino UNO R4 WiFi | 1 | €30,00 | ❌ |
+| LCD 16x2 I2C | 1 | €5,00 | ❌ |
+| Jumper Wires F-F | 4 | €1,00 | ❌ |
+| 1kΩ Weerstand | 1 | €0,10 | ❌ |
+| 16mm paneel drukknop NO | 2 | €3,00 | ✅ |
+| PC817 Optocoupler | 2 | €0,40 | ✅ |
+| 220Ω Weerstand | 2 | €0,20 | ✅ |
+| Breadboard | 1 | €2,50 | ✅ |
+| USB-C kabel | 1 | €5,00 | ❌ |
+| 5V Power supply | 1 | €8,00 | ✅ |
+| Krimptang connectors | 10 | €1,00 | ✅ |
+| **Totaal (basis)** | | **€41,10** | |
+| **Totaal (volledig)** | | **€56,20** | |
 
 ---
 

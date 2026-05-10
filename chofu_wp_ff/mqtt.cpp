@@ -83,9 +83,12 @@ void mqtt_ontvang(int len){
     float val = payload.toFloat();
     if(val >= 20 && val <= 45){ setpoint = val; eeprom_save(); }
   }
-  else if(topic == "chofu/cmd/kp"){ float v=payload.toFloat(); if(v>=0.1&&v<=100.0){ Kp=v; eeprom_save(); } }
-  else if(topic == "chofu/cmd/ki"){ float v=payload.toFloat(); if(v>=0.0&&v<=1.0){   Ki=v; eeprom_save(); } }
-  else if(topic == "chofu/cmd/kd"){ float v=payload.toFloat(); if(v>=0.0&&v<=10.0){  Kd=v; eeprom_save(); } }
+  else if(topic == "chofu/cmd/kp"){ float v=payload.toFloat(); if(v>=0.1&&v<=500.0){ Kp=v; eeprom_save(); } }
+  else if(topic == "chofu/cmd/ki"){ float v=payload.toFloat(); if(v>=0.0&&v<=5.0){   Ki=v; eeprom_save(); } }
+  else if(topic == "chofu/cmd/kd"){ float v=payload.toFloat(); if(v>=0.0&&v<=50.0){  Kd=v; eeprom_save(); } }
+  else if(topic == "chofu/cmd/kp_water"){ float v=payload.toFloat(); if(v>=0.1&&v<=500.0){ Kp_water=v; eeprom_save(); } }
+  else if(topic == "chofu/cmd/ki_water"){ float v=payload.toFloat(); if(v>=0.0&&v<=5.0){   Ki_water=v; eeprom_save(); } }
+  else if(topic == "chofu/cmd/kd_water"){ float v=payload.toFloat(); if(v>=0.0&&v<=50.0){  Kd_water=v; eeprom_save(); } }
   else if(topic == "chofu/cmd/modus"){
     if(payload == "auto" || payload == "handmatig" || payload == "water" ||
        payload == "ff_auto" || payload == "ff_water"){
@@ -110,8 +113,21 @@ void mqtt_ontvang(int len){
     if(val >= 0.1 && val <= 5.0){ STOOKLIJN_FACTOR = val; eeprom_save(); }
   }
   else if(topic == "chofu/cmd/koeling"){
-    koeling_modus = (payload == "1"); ctrl.reset_pid();
-    mqtt_log(koeling_modus ? "Koeling aan" : "Verwarming aan", "INFO");
+    bool gewenst = (payload == "1");
+    if(gewenst && modus != Modus::FF_AUTO && modus != Modus::FF_WATER && modus != Modus::HANDMATIG){
+      stuur_alert("Koeling alleen in FF_AUTO/FF_WATER/HANDMATIG — verzoek genegeerd");
+    } else {
+      koeling_modus = gewenst; ctrl.reset_pid();
+      mqtt_log(koeling_modus ? "Koeling aan" : "Verwarming aan", "INFO");
+    }
+  }
+  else if(topic == "chofu/cmd/supply_min"){
+    float val = payload.toFloat();
+    if(val >= 10 && val <= 25){ SUPPLY_MIN = val; eeprom_save(); }
+  }
+  else if(topic == "chofu/cmd/koeling_afschakel"){
+    float val = payload.toFloat();
+    if(val >= 0.1f && val <= 5.0f){ KOELING_AFSCHAKEL = val; }
   }
   else if(topic == "chofu/cmd/water_setpoint"){
     float val = payload.toFloat();
@@ -129,6 +145,40 @@ void mqtt_ontvang(int len){
   else if(topic == "chofu/cmd/stooklijn_uit"){
     float val = payload.toFloat();
     if(val >= 5 && val <= 30){ STOOKLIJN_UIT_GRENS = val; eeprom_save(); }
+  }
+  else if(topic == "chofu/cmd/stooklijn_aan"){
+    float val = payload.toFloat();
+    // aan-drempel moet lager zijn dan uit-drempel voor zinvolle hysteresis
+    if(val >= 0 && val <= 25 && val < STOOKLIJN_UIT_GRENS){ STOOKLIJN_AAN_GRENS = val; eeprom_save(); }
+  }
+  else if(topic == "chofu/cmd/ff_min_off"){
+    // Waarde in minuten voor gebruiksgemak (0 = uitgeschakeld, bijv. voor HIL-testen)
+    float val = payload.toFloat();
+    if(val >= 0 && val <= 120){ FF_MIN_OFF_MS = (long)(val * 60000L); }
+  }
+  else if(topic == "chofu/cmd/ff_restart_coast"){
+    float val = payload.toFloat();
+    if(val >= 0.0f && val <= 5.0f){ FF_RESTART_COAST = val; }
+  }
+  else if(topic == "chofu/cmd/auto_hyst_down"){
+    // Waarde in minuten
+    float val = payload.toFloat();
+    if(val >= 0 && val <= 30){ AUTO_HYST_DOWN_MS = (long)(val * 60000L); }
+  }
+  else if(topic == "chofu/cmd/ff_afschakel"){
+    // Negatieve waarde: °C boven setpoint waarbij FF terugschakelt (bijv. -0.5)
+    float val = payload.toFloat();
+    if(val >= -3.0f && val <= 0.0f){ FF_AFSCHAKEL_AUTO = val; }
+  }
+  else if(topic == "chofu/cmd/ff_lookahead"){
+    // Vooruitkijktijd voor predictieve terugschakeling in minuten (0 = uit)
+    float val = payload.toFloat();
+    if(val >= 0 && val <= 60){ FF_LOOKAHEAD_MS = (long)(val * 60000.0f); }
+  }
+  else if(topic == "chofu/cmd/ff_thermal_min_off"){
+    // Min. uitschakelperiode na thermische stop in minuten (0-30)
+    float val = payload.toFloat();
+    if(val >= 0 && val <= 30){ FF_THERMAL_MIN_OFF_MS = (long)(val * 60000.0f); }
   }
   else if(topic == "chofu/cmd/ff_ua_house"){
     float val = payload.toFloat();
@@ -262,6 +312,8 @@ void discovery_fase2(){
   disco_pub("homeassistant/number/chofu_hp/kamer_gewenst/config", pl);
   pl = "{\"name\":\"Chofu Setpoint\",\"uniq_id\":\"chofu_hp_setpoint\",\"stat_t\":\"chofu/setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/sensor/chofu_hp/setpoint/config", pl);
+  pl = "{\"name\":\"Chofu Doel Setpoint\",\"uniq_id\":\"chofu_hp_doel_setpoint\",\"stat_t\":\"chofu/doel_setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/doel_setpoint/config", pl);
   pl = "{\"name\":\"Chofu Vorstgrens\",\"uniq_id\":\"chofu_hp_t_vorst\",\"cmd_t\":\"chofu/cmd/t_vorst\",\"stat_t\":\"chofu/t_vorst\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":-10,\"max\":10,\"step\":0.5," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/chofu_hp/t_vorst/config", pl);
   pl = "{\"name\":\"Chofu Water SP\",\"uniq_id\":\"chofu_hp_water_setpoint\",\"cmd_t\":\"chofu/cmd/water_setpoint\",\"stat_t\":\"chofu/water_setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":25,\"max\":55,\"step\":0.5," + avty + "," + dev + "}";
@@ -295,6 +347,12 @@ void discovery_fase3(){
   disco_pub("homeassistant/number/chofu_hp/stand_cmd/config", pl);
   pl = "{\"name\":\"Chofu Koeling\",\"uniq_id\":\"chofu_hp_koeling\",\"cmd_t\":\"chofu/cmd/koeling\",\"stat_t\":\"chofu/koeling\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/switch/chofu_hp/koeling/config", pl);
+  pl = "{\"name\":\"Chofu Koeling Min Buiten\",\"uniq_id\":\"chofu_hp_koeling_min_buiten\",\"cmd_t\":\"chofu/cmd/koeling_min_buiten\",\"stat_t\":\"chofu/koeling_min_buiten\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":0,\"max\":30,\"step\":0.5," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/koeling_min_buiten/config", pl);
+  pl = "{\"name\":\"Chofu Koeling Aanvoer Min\",\"uniq_id\":\"chofu_hp_supply_min\",\"cmd_t\":\"chofu/cmd/supply_min\",\"stat_t\":\"chofu/supply_min\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":10,\"max\":25,\"step\":0.5," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/supply_min/config", pl);
+  pl = "{\"name\":\"Chofu Koeling Afschakeldrempel\",\"uniq_id\":\"chofu_hp_koeling_afschakel\",\"cmd_t\":\"chofu/cmd/koeling_afschakel\",\"stat_t\":\"chofu/koeling_afschakel\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":0.1,\"max\":5,\"step\":0.1," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/koeling_afschakel/config", pl);
 
   pl = "{\"name\":\"Chofu Modus\",\"uniq_id\":\"chofu_hp_modus_sel\",\"cmd_t\":\"chofu/cmd/modus\",\"stat_t\":\"chofu/modus\",\"options\":[\"auto\",\"water\",\"ff_auto\",\"ff_water\",\"handmatig\"]," + avty + "," + dev + "}";
   disco_pub("homeassistant/select/chofu_hp/modus_sel/config", pl);
@@ -307,6 +365,8 @@ void discovery_fase3(){
   disco_pub("homeassistant/number/chofu_hp/supply_max/config", pl);
   pl = "{\"name\":\"Chofu Stooklijn Uit\",\"uniq_id\":\"chofu_hp_stooklijn_uit\",\"cmd_t\":\"chofu/cmd/stooklijn_uit\",\"stat_t\":\"chofu/stooklijn_uit\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":5,\"max\":30,\"step\":0.5," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/chofu_hp/stooklijn_uit/config", pl);
+  pl = "{\"name\":\"Chofu Stooklijn Aan\",\"uniq_id\":\"chofu_hp_stooklijn_aan\",\"cmd_t\":\"chofu/cmd/stooklijn_aan\",\"stat_t\":\"chofu/stooklijn_aan\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":0,\"max\":25,\"step\":0.5," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/stooklijn_aan/config", pl);
 
   pl = "{\"name\":\"Chofu FF UA Huis\",\"uniq_id\":\"chofu_hp_ff_ua_house\",\"stat_t\":\"chofu/ff_ua_house\",\"unit_of_meas\":\"W/K\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/sensor/chofu_hp/ff_ua_house/config", pl);
@@ -325,6 +385,20 @@ void discovery_fase3(){
   disco_pub("homeassistant/number/chofu_hp/hyst_down/config", pl);
   pl = "{\"name\":\"Chofu PID Interval ms\",\"uniq_id\":\"chofu_hp_pid_interval\",\"cmd_t\":\"chofu/cmd/pid_interval\",\"stat_t\":\"chofu/pid_interval\",\"unit_of_meas\":\"ms\",\"min\":100,\"max\":60000,\"step\":100," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/chofu_hp/pid_interval/config", pl);
+
+  pl = "{\"name\":\"Chofu PID Kp\",\"uniq_id\":\"chofu_hp_kp\",\"cmd_t\":\"chofu/cmd/kp\",\"stat_t\":\"chofu/kp\",\"min\":0.1,\"max\":500,\"step\":0.5," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/kp/config", pl);
+  pl = "{\"name\":\"Chofu PID Ki\",\"uniq_id\":\"chofu_hp_ki\",\"cmd_t\":\"chofu/cmd/ki\",\"stat_t\":\"chofu/ki\",\"min\":0,\"max\":5,\"step\":0.001," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/ki/config", pl);
+  pl = "{\"name\":\"Chofu PID Kd\",\"uniq_id\":\"chofu_hp_kd\",\"cmd_t\":\"chofu/cmd/kd\",\"stat_t\":\"chofu/kd\",\"min\":0,\"max\":50,\"step\":0.001," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/kd/config", pl);
+
+  pl = "{\"name\":\"Chofu Water PID Kp\",\"uniq_id\":\"chofu_hp_kp_water\",\"cmd_t\":\"chofu/cmd/kp_water\",\"stat_t\":\"chofu/kp_water\",\"min\":0.1,\"max\":500,\"step\":0.5," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/kp_water/config", pl);
+  pl = "{\"name\":\"Chofu Water PID Ki\",\"uniq_id\":\"chofu_hp_ki_water\",\"cmd_t\":\"chofu/cmd/ki_water\",\"stat_t\":\"chofu/ki_water\",\"min\":0,\"max\":5,\"step\":0.001," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/ki_water/config", pl);
+  pl = "{\"name\":\"Chofu Water PID Kd\",\"uniq_id\":\"chofu_hp_kd_water\",\"cmd_t\":\"chofu/cmd/kd_water\",\"stat_t\":\"chofu/kd_water\",\"min\":0,\"max\":50,\"step\":0.001," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/chofu_hp/kd_water/config", pl);
 
   stuur_data();
 }
@@ -362,13 +436,28 @@ void stuur_data(){
   mqttClient.beginMessage("chofu/sim_actief");mqttClient.print(sim_actief()?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage("chofu/supply_max");mqttClient.print(SUPPLY_MAX,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/koeling_min_buiten");mqttClient.print(KOELING_MIN_BUITEN,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/supply_min");mqttClient.print(SUPPLY_MIN,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/koeling_afschakel");mqttClient.print(KOELING_AFSCHAKEL,2);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/stooklijn_uit");mqttClient.print(STOOKLIJN_UIT_GRENS,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/stooklijn_aan");mqttClient.print(STOOKLIJN_AAN_GRENS,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/ff_min_off");mqttClient.print(FF_MIN_OFF_MS/60000L);mqttClient.endMessage();  // in minuten
+  mqttClient.beginMessage("chofu/ff_restart_coast");mqttClient.print(FF_RESTART_COAST,2);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/auto_hyst_down");mqttClient.print(AUTO_HYST_DOWN_MS/60000L);mqttClient.endMessage();  // in minuten
+  mqttClient.beginMessage("chofu/ff_afschakel");mqttClient.print(FF_AFSCHAKEL_AUTO,2);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/ff_lookahead");mqttClient.print(FF_LOOKAHEAD_MS/60000.0f,2);mqttClient.endMessage();  // in minuten
+  mqttClient.beginMessage("chofu/ff_thermal_min_off");mqttClient.print(FF_THERMAL_MIN_OFF_MS/60000.0f,2);mqttClient.endMessage();  // in minuten
   mqttClient.beginMessage("chofu/hyst_slow");mqttClient.print(HYST_SLOW_MS);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/hyst_fast");mqttClient.print(HYST_FAST_MS);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/hyst_down");mqttClient.print(HYST_DOWN_MS);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/pid_interval");mqttClient.print(pid_interval_ms);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/ff_ua_house");mqttClient.print(ff_UA_house,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/ff_ua_emitter");mqttClient.print(ff_UA_emitter,1);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/kp");mqttClient.print(Kp,3);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/ki");mqttClient.print(Ki,4);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/kd");mqttClient.print(Kd,4);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/kp_water");mqttClient.print(Kp_water,3);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/ki_water");mqttClient.print(Ki_water,4);mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/kd_water");mqttClient.print(Kd_water,4);mqttClient.endMessage();
 
   // Ververs retained availability zodat HA entiteiten beschikbaar blijven na discovery
   mqttClient.beginMessage("chofu/status", true, 1);

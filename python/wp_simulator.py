@@ -79,6 +79,14 @@ class HouseModel:
         return self.t_kamer, self.t_supply, t_return, cop, p_heat
 
 
+# ── Timing defaults (spiegelt firmware globals.cpp) ──────────────────────────
+FF_MIN_OFF_MIN_DEFAULT   = 10    # minuten (600s)
+AUTO_HYST_DOWN_MIN_DEFAULT = 5   # minuten
+FF_RESTART_COAST_DEFAULT = 0.20  # °C
+FF_LOOKAHEAD_MIN_DEFAULT = 5.0   # minuten (300s)
+FF_THERMAL_MIN_OFF_MIN_DEFAULT = 1.0  # minuut (60s)
+
+
 # ── MQTT simulator ────────────────────────────────────────────────────────────
 class Simulator:
     def __init__(self, args):
@@ -135,6 +143,40 @@ class Simulator:
             payload = str(value)
         self.client.publish(topic, payload, retain=retain)
 
+    def _set_arduino_timing(self, speed: float):
+        """Schaal timing-parameters met speed zodat gesimuleerde tijden kloppen.
+
+        Bij speed=1 worden de firmware-defaults hersteld.
+        Bij speed>1 worden timers verkleind zodat 1 gesimuleerde minuut
+        ook 1 echte minuut aan hysteresis oplevert.
+        """
+        ff_min_off   = max(0.0, FF_MIN_OFF_MIN_DEFAULT   / speed)
+        hyst_down    = max(0.0, AUTO_HYST_DOWN_MIN_DEFAULT / speed)
+        ff_lookahead = max(0.0, FF_LOOKAHEAD_MIN_DEFAULT  / speed)
+        ff_thermal   = max(0.0, FF_THERMAL_MIN_OFF_MIN_DEFAULT / speed)
+        restart_coast = FF_RESTART_COAST_DEFAULT
+
+        self.client.publish("chofu/cmd/ff_min_off",         f"{ff_min_off:.2f}")
+        self.client.publish("chofu/cmd/auto_hyst_down",     f"{hyst_down:.2f}")
+        self.client.publish("chofu/cmd/ff_lookahead",       f"{ff_lookahead:.2f}")
+        self.client.publish("chofu/cmd/ff_thermal_min_off", f"{ff_thermal:.2f}")
+        self.client.publish("chofu/cmd/ff_restart_coast",   f"{restart_coast:.2f}")
+
+        if speed != 1.0:
+            print(f"  Timing geschaald (speed {speed}×):")
+            print(f"    ff_min_off    : {FF_MIN_OFF_MIN_DEFAULT} min → {ff_min_off:.2f} min real ({FF_MIN_OFF_MIN_DEFAULT:.0f} min sim)")
+            print(f"    auto_hyst_down: {AUTO_HYST_DOWN_MIN_DEFAULT} min → {hyst_down:.2f} min real ({AUTO_HYST_DOWN_MIN_DEFAULT:.0f} min sim)")
+            print(f"    ff_lookahead  : {FF_LOOKAHEAD_MIN_DEFAULT} min → {ff_lookahead:.2f} min real ({FF_LOOKAHEAD_MIN_DEFAULT:.0f} min sim)")
+
+    def _restore_arduino_timing(self):
+        """Herstel firmware-defaults na afloop van de simulatie."""
+        self.client.publish("chofu/cmd/ff_min_off",         str(FF_MIN_OFF_MIN_DEFAULT))
+        self.client.publish("chofu/cmd/auto_hyst_down",     str(AUTO_HYST_DOWN_MIN_DEFAULT))
+        self.client.publish("chofu/cmd/ff_lookahead",       str(FF_LOOKAHEAD_MIN_DEFAULT))
+        self.client.publish("chofu/cmd/ff_thermal_min_off", str(FF_THERMAL_MIN_OFF_MIN_DEFAULT))
+        self.client.publish("chofu/cmd/ff_restart_coast",   str(FF_RESTART_COAST_DEFAULT))
+        print("Arduino timing hersteld naar firmware defaults.")
+
     def _water_setpoint(self):
         """
         Bereken de benodigde aanvoertemperatuur voor het kamer setpoint
@@ -163,6 +205,10 @@ class Simulator:
 
         dt_real = self.args.dt                   # wachttijd per stap in seconden
         dt_sim  = dt_real * self.args.speed       # gesimuleerde tijd per stap
+
+        # Wacht even zodat MQTT verbinding opgezet is en Arduino subscriptions actief zijn
+        time.sleep(1.0)
+        self._set_arduino_timing(self.args.speed)
 
         print(f"\nSimulatie gestart:")
         print(f"  T_kamer init   = {self.model.t_kamer:.1f}°C")
@@ -236,6 +282,8 @@ class Simulator:
         except KeyboardInterrupt:
             print("\nSimulatie gestopt.")
         finally:
+            self._restore_arduino_timing()
+            time.sleep(0.5)  # geef MQTT tijd om laatste berichten te versturen
             self.client.loop_stop()
             self.client.disconnect()
 

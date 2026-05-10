@@ -43,9 +43,14 @@ bool    lcd_enabled = true;
 Modus   modus = Modus::AUTO;
 uint8_t handmatig_stand = 1;
 
-float Kp = 19.9;
-float Ki = 0.084;
-float Kd = 0.036;
+float Kp = 75.0;    // auto modus — geoptimaliseerd KGE (was 19.9)
+float Ki = 0.800;   // auto modus — geoptimaliseerd KGE (was 0.084)
+float Kd = 0.010;   // auto modus — geoptimaliseerd KGE (was 0.036)
+
+// PID water modus: hogere Kp nodig voor aanvoer-tracking; lage Kd (minder switching)
+float Kp_water = 50.0;   // water modus — geoptimaliseerd KGE (stooklijn als setpoint)
+float Ki_water = 0.800;  // water modus — geoptimaliseerd KGE (stooklijn als setpoint)
+float Kd_water = 0.010;  // water modus — geoptimaliseerd KGE (stooklijn als setpoint)
 
 long HYST_SLOW_MS = 600000;  // 10 minuten
 long HYST_FAST_MS = 120000;  //  2 minuten
@@ -57,12 +62,21 @@ float STOOKLIJN_FACTOR = 0.68;
 float T_VORST          = 2.0;
 
 float SUPPLY_MAX           = 60.0;
+float SUPPLY_MIN           = 17.0;  // condensatiebescherming koeling (°C)
 float KOELING_MIN_BUITEN   = 18.0;
-float STOOKLIJN_UIT_GRENS  = 15.0;
+float KOELING_AFSCHAKEL    = 0.5f;  // °C ónder setpoint → koeling terugschakelen (niet EEPROM)
+float STOOKLIJN_UIT_GRENS  = 18.0;  // WP uit bij >18°C buiten (huis heeft dan nog ~500W warmtevraag)
+float STOOKLIJN_AAN_GRENS  = 16.0;  // aan bij <16°C (2°C hysteresis)
+long  FF_MIN_OFF_MS        = 600000L;  // 10 min min. uitschakelperiode na thermische stop
+float FF_RESTART_COAST     = 0.20f;    // °C onder setpoint vereist voor herstart vanuit stand 0
+long  AUTO_HYST_DOWN_MS    = 300000L;  // 5 min — trager afbouwen in AUTO dan water (1 min)
+float FF_AFSCHAKEL_AUTO    = -0.5f;    // °C kamer boven setpoint → FF begint terug te schakelen
+long  FF_LOOKAHEAD_MS      = 300000L;  // 5 min vooruitkijken voor predictieve terugschakeling
+long  FF_THERMAL_MIN_OFF_MS = 60000L;  // 1 min min. uitschakelperiode na thermische stop (vs 10 min seizoen)
 long  MQTT_WATCHDOG_MS     = 7200000;
 
 float ff_UA_house   = 272.5;  // [W/K] lerende UA huis  — geoptimaliseerd KGE
-float ff_UA_emitter = 267.5;  // [W/K] lerende UA emitter — geoptimaliseerd KGE
+float ff_UA_emitter = 250.0;  // [W/K] lerende UA emitter — bijgesteld na sim-analyse (was 267.5)
 
 // ═══════════════════════════════════════════════════════════════
 //  CONTROLLER TOESTAND

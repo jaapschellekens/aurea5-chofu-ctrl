@@ -32,9 +32,13 @@ void handle_web_client(){
     v = parse_param("kp");         if(v.length()){ Kp = v.toFloat(); eeprom_save(); }
     v = parse_param("ki");         if(v.length()){ Ki = v.toFloat(); eeprom_save(); }
     v = parse_param("kd");         if(v.length()){ Kd = v.toFloat(); eeprom_save(); }
+    v = parse_param("kp_water");   if(v.length()){ Kp_water = v.toFloat(); eeprom_save(); }
+    v = parse_param("ki_water");   if(v.length()){ Ki_water = v.toFloat(); eeprom_save(); }
+    v = parse_param("kd_water");   if(v.length()){ Kd_water = v.toFloat(); eeprom_save(); }
     v = parse_param("modus");      if(v.length() && (v=="auto"||v=="water"||v=="ff_auto"||v=="ff_water"||v=="handmatig")){
       modus = str_naar_modus(v); if(modus != Modus::HANDMATIG){ ctrl.reset_pid(); ctrl.reset_ff(); } }
     v = parse_param("water_setpoint"); if(v.length()){ float f=v.toFloat(); if(f>=25&&f<=55) t_water_gewenst=f; }
+    v = parse_param("stooklijn_aan");  if(v.length()){ float f=v.toFloat(); if(f>=0&&f<=25&&f<STOOKLIJN_UIT_GRENS){ STOOKLIJN_AAN_GRENS=f; eeprom_save(); } }
     v = parse_param("ff_ua_house");    if(v.length()){ float f=v.toFloat(); if(f>=50&&f<=500){ ff_UA_house=f; eeprom_save(); } }
     v = parse_param("ff_ua_emitter");  if(v.length()){ float f=v.toFloat(); if(f>=50&&f<=500){ ff_UA_emitter=f; eeprom_save(); } }
   }
@@ -70,7 +74,7 @@ void handle_web_client(){
 
   // Instellingen
   client.println("<div class='card'><h2>Instellingen</h2><form>");
-  client.print("<div>Setpoint: <input type='number' name='setpoint' value='"); client.print(setpoint,1); client.println("' step='0.5' min='20' max='45'> °C</div>");
+  client.print("<div>Setpoint: <input type='number' name='setpoint' value='"); client.print(setpoint,1); client.println("' step='0.1' min='20' max='45'> °C</div>");
   client.print("<div>Modus: <select name='modus'>");
   for(const char* m : {"auto","water","ff_auto","ff_water","handmatig"}){
     client.print("<option value='"); client.print(m); client.print("'");
@@ -78,11 +82,16 @@ void handle_web_client(){
     client.print(">"); client.print(m); client.println("</option>");
   }
   client.println("</select></div>");
-  client.print("<div>Water setpoint: <input type='number' name='water_setpoint' value='"); client.print(t_water_gewenst,1); client.println("' step='0.5' min='25' max='55'> °C</div>");
-  client.println("<h3>PID Parameters</h3>");
-  client.print("<div>Kp: <input type='number' name='kp' value='"); client.print(Kp,2); client.println("' step='0.1' min='0' max='10'></div>");
-  client.print("<div>Ki: <input type='number' name='ki' value='"); client.print(Ki,3); client.println("' step='0.001' min='0' max='1'></div>");
-  client.print("<div>Kd: <input type='number' name='kd' value='"); client.print(Kd,2); client.println("' step='0.1' min='0' max='10'></div>");
+  client.print("<div>Water setpoint: <input type='number' name='water_setpoint' value='"); client.print(t_water_gewenst,1); client.println("' step='0.1' min='25' max='55'> °C</div>");
+  client.print("<div>Stooklijn aan (&lt; uit): <input type='number' name='stooklijn_aan' value='"); client.print(STOOKLIJN_AAN_GRENS,1); client.println("' step='0.5' min='0' max='25'> °C</div>");
+  client.println("<h3>PID Parameters — AUTO modus</h3>");
+  client.print("<div>Kp: <input type='number' name='kp' value='"); client.print(Kp,2); client.println("' step='0.5' min='0' max='500'></div>");
+  client.print("<div>Ki: <input type='number' name='ki' value='"); client.print(Ki,4); client.println("' step='0.001' min='0' max='5'></div>");
+  client.print("<div>Kd: <input type='number' name='kd' value='"); client.print(Kd,4); client.println("' step='0.001' min='0' max='50'></div>");
+  client.println("<h3>PID Parameters — WATER modus</h3>");
+  client.print("<div>Kp water: <input type='number' name='kp_water' value='"); client.print(Kp_water,2); client.println("' step='0.5' min='0' max='500'></div>");
+  client.print("<div>Ki water: <input type='number' name='ki_water' value='"); client.print(Ki_water,4); client.println("' step='0.001' min='0' max='5'></div>");
+  client.print("<div>Kd water: <input type='number' name='kd_water' value='"); client.print(Kd_water,4); client.println("' step='0.001' min='0' max='50'></div>");
   client.println("<h3>FF Parameters (lerende UA)</h3>");
   client.print("<div>UA huis: <input type='number' name='ff_ua_house' value='"); client.print(ff_UA_house,0); client.println("' step='1' min='50' max='500'> W/K</div>");
   client.print("<div>UA emitter: <input type='number' name='ff_ua_emitter' value='"); client.print(ff_UA_emitter,0); client.println("' step='1' min='50' max='500'> W/K</div>");

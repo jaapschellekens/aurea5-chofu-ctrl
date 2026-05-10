@@ -42,6 +42,7 @@
 #include "mqtt.h"
 #include "display.h"
 #include "web.h"
+#include "knoppen.h"
 
 // ═══════════════════════════════════════════════════════════════
 //  SETUP
@@ -56,6 +57,7 @@ void setup(){
 #endif
   EEPROM_BEGIN();
   eeprom_init();
+  knoppen_init();
 #if defined(ARDUINO_UNOR4_WIFI)
   chofuSerial.begin(9600);
 #else
@@ -150,6 +152,7 @@ void mqtt_herverbind(){
 void loop(){
   mqtt_herverbind();
   mqttClient.poll();
+  check_knoppen();
   check_mqtt_watchdog();
   lees_warmtepomp_data();
   pas_sim_toe();
