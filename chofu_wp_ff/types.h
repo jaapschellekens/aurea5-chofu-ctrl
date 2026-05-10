@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CHOFU_TYPES_H
+#define CHOFU_TYPES_H
 #include <Arduino.h>
 
 // ═══════════════════════════════════════════════════════════════
@@ -106,3 +107,4 @@ const float AUTO_AANVOER_DEADBAND =  0.5f;    // °C aanvoerfout: geen standwijz
 
 // Vermogen per stand 0–12 (W)
 const int VERMOGEN[] = {0, 240, 420, 640, 850, 1050, 1250, 1450, 1550, 1650, 1700, 1750, 1800};
+#endif // CHOFU_TYPES_H

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CHOFU_MQTT_H
+#define CHOFU_MQTT_H
 #include "globals.h"
 
 // Declaratie MET default-parameter — definitie in mqtt.cpp ZONDER default
@@ -11,3 +12,4 @@ void discovery_fase1();
 void discovery_fase2();
 void discovery_fase3();
 void stuur_data();
+#endif // CHOFU_MQTT_H

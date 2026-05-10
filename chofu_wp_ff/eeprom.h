@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CHOFU_EEPROM_H
+#define CHOFU_EEPROM_H
 #include "globals.h"
 
 // ═══════════════════════════════════════════════════════════════
@@ -29,3 +30,4 @@
 void eeprom_init();
 void eeprom_save();
 void eeprom_load();
+#endif // CHOFU_EEPROM_H

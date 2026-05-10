@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CHOFU_GLOBALS_H
+#define CHOFU_GLOBALS_H
 
 #if defined(ARDUINO_UNOR4_WIFI)
   #include <WiFiS3.h>
@@ -152,3 +153,4 @@ extern uint32_t laatste_log_ms;
 extern bool     data_sturen_gevraagd;
 
 constexpr uint32_t LOG_THROTTLE_MS = 500;
+#endif // CHOFU_GLOBALS_H
