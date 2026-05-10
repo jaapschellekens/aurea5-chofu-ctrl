@@ -1,5 +1,6 @@
 #ifndef CHOFU_EEPROM_H
 #define CHOFU_EEPROM_H
+#include <EEPROM.h>   // expliciet voor ESP32 toolchain compatibiliteit
 #include "globals.h"
 
 // ═══════════════════════════════════════════════════════════════

@@ -1,3 +1,4 @@
+#include <EEPROM.h>   // expliciet — ESP32 core vereist dit soms direct
 #include "eeprom.h"
 
 void eeprom_init(){
