@@ -146,3 +146,41 @@ python python/wp_simulator.py --host <MQTT_BROKER_IP> --modus ff_auto --outside 
 - `--modus` publiceert met `retain=True` — zonder retain wint een oud retained commando van de broker
 - Simulatieparameters: `UA_house=263 W/K`, `C_th=12.5 MJ/K`
 - Publiceert op `chofu/sim/supply`, `chofu/sim/outside`, `chofu/sim/return`, `chofu/sim/power`
+
+---
+
+## Plugwise Adam lokale REST API
+
+### HTTP/1.1 verplicht
+De Adam weigert HTTP/1.0 met `505 HTTP Version Not Supported`. Gebruik altijd `HTTP/1.1`.
+
+### Chunked encoding — geen probleem voor streaming parser
+HTTP/1.1 gebruikt chunked transfer encoding. De chunk-headers (bijv. `3FA2\r\n`) bestaan uit korte hex-strings en verstoren een KMP-achtige streaming zoekfunctie niet, zolang een chunk-grens niet precies in het midden van de gezochte XML-tag valt (kans verwaarloosbaar bij chunks van 4KB+).
+
+### XML-structuur
+- Endpoint: `GET /core/domain_objects` — één XML-response van ~215 KB
+- Auth: HTTP Basic, gebruikersnaam altijd `smile`, wachtwoord = 8-teken stickercode
+- **Niet gesorteerd** — appliances en locations zijn volledig door elkaar
+- `<location id='UUID'/>` (self-closing) = referentie binnenin een appliance-element
+- `<location id='UUID'>` (niet self-closing) = echte zone (top-level element)
+- `intended_boiler_temperature` staat op ~32 KB (~14% van de XML) — vóór de zone-elementen
+- `maximum_boiler_temperature` is het plafond van de Adam-stooklijn, **niet** het actieve setpoint
+
+### Timings (ESP32, WiFi)
+- Connectie + headers: ~200 ms
+- Lezen tot `intended_boiler_temperature` (~32 KB): ~600–900 ms totaal
+- Totale XML (~215 KB): niet nodig voor setpoint
+
+### Betekenis van `intended_boiler_temperature`
+- Waarde `0` = geen warmtevraag (Adam heeft WP/ketel uitgeschakeld)
+- Waarde `> 0` = gewenste aanvoertemperatuur in °C die Adam via OpenTherm naar de ketel stuurt
+- Gebruik als `t_water_gewenst` in `WATER`/`FF_WATER` modus van de Chofu controller
+
+### Integratie-aanwijzing
+```cpp
+float sp = fetch_adam_setpoint();
+if (!isnan(sp)) {
+    t_water_gewenst = sp;           // overschrijf lokaal setpoint
+    if (sp == 0) ctrl.zet_uit();    // geen warmtevraag: WP uit
+}
+```

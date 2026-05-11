@@ -1,0 +1,6 @@
+// Adam API test — credentials (kopieer naar config.h en vul in, niet in git)
+#define SSID      "jouw-wifi-netwerk"
+#define PASS      "jouw-wifi-wachtwoord"
+#define ADAM_IP   "192.168.1.x"    // IP-adres van de Plugwise Adam
+#define ADAM_PASS "jouw-smile-ww"  // 8-tekens wachtwoord van de sticker op de Adam
+#define ADAM_ZONE "Woonkamer"      // naam van de hoofdzone (exact zoals in de Adam app, hoofdlettergevoelig)
