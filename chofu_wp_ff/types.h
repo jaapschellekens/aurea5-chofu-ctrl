@@ -6,7 +6,11 @@
 //  HARDWARE / BOARD INSTELLINGEN
 // ═══════════════════════════════════════════════════════════════
 
-#define USE_LCD        true
+#if defined(ARDUINO_UNOR4_WIFI)
+  #define USE_LCD        true
+#else
+  #define USE_LCD        false  // geen LCD op ESP32 — zet op true als LCD aangesloten is
+#endif
 #define USE_LED_MATRIX true   // alleen effectief op UNO R4 WiFi
 
 #if defined(ARDUINO_UNOR4_WIFI)

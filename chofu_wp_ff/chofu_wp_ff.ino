@@ -70,19 +70,25 @@ void setup(){
     delay(2000);
   }
 
+  #if USE_LCD
   lcd.clear(); lcd.print("WiFi...");
+  #endif
   WiFi.begin(SSID, PASS);
   int attempts = 0;
   while(WiFi.status() != WL_CONNECTED && attempts < 20){ Serial.print("."); delay(500); attempts++; }
   if(WiFi.status() == WL_CONNECTED){
     while(WiFi.localIP() == IPAddress(0,0,0,0) && attempts < 30){ delay(1000); attempts++; }
     Serial.print("WiFi OK! IP: "); Serial.println(WiFi.localIP());
+    #if USE_LCD
     lcd.clear(); lcd.print("WiFi OK!"); lcd.setCursor(0,1); lcd.print(WiFi.localIP());
     delay(2000);
+    #endif
   }
 
   webServer.begin();
+  #if USE_LCD
   lcd.clear(); lcd.print("MQTT...");
+  #endif
   mqttClient.setUsernamePassword(MQTT_USER, MQTT_PASS);
   mqttClient.onMessage(mqtt_ontvang);
   mqttClient.beginWill("chofu/status", true, 1);
@@ -99,7 +105,9 @@ void setup(){
     mqttClient.print("online");
     mqttClient.endMessage();
     delay(1000);
+    #if USE_LCD
     lcd.clear(); lcd.print("Discovery...");
+    #endif
     discovery_fase1();
     vorige_discovery_ms = millis();
     discovery_fase = 1;
