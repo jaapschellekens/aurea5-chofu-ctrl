@@ -38,11 +38,15 @@ Het resultaat wordt begrensd op **45°C**.
 
 ## Stookkransen: wanneer loopt de WP?
 
-### `STOOKLIJN_UIT_GRENS` — Uitschakelgrens (standaard: 15°C)
+### `STOOKLIJN_UIT_GRENS` — Uitschakelgrens (standaard: 18°C)
 
 Als de buitentemperatuur **boven** deze waarde stijgt, wordt de warmtepomp volledig uitgeschakeld. Het stookseizoen is voorbij. Geldt voor `AUTO` en `FF_AUTO`.
 
-### `T_VORST` — Vorstbeveiliging (standaard: 4°C)
+### `STOOKLIJN_AAN_GRENS` — Inschakelgrens (standaard: 16°C)
+
+Na een uitschakelstop (boven `STOOKLIJN_UIT_GRENS`) herstart de warmtepomp pas als de buitentemperatuur **onder** deze waarde daalt. De 2°C hysteresis voorkomt snelle aan/uit-cycli bij temperaturen rond de uitschakeldrempel.
+
+### `T_VORST` — Vorstbeveiliging (standaard: 2°C)
 
 Als de buitentemperatuur **onder** deze waarde daalt, wordt de warmtepomp gedwongen ingeschakeld op minimumstand (stand 1), ook als de kamer al op temperatuur is. Voorkomt bevriezing van de leidingen. Geldt voor `AUTO` en `FF_AUTO`.
 
@@ -126,11 +130,12 @@ Alle parameters worden **direct in EEPROM opgeslagen** na een wijziging — ze o
 | `chofu/cmd/setpoint` | `setpoint` | 28°C | — | Basis-aanvoertemperatuur (vlak deel van de curve, bij en boven `STOOKLIJN_GRENS`) |
 | `chofu/cmd/stooklijn_grens` | `STOOKLIJN_GRENS` | 15°C | 0–25°C | Buitentemperatuur waaronder de verhoging begint |
 | `chofu/cmd/stooklijn_factor` | `STOOKLIJN_FACTOR` | 0.68 | 0.1–5.0 | °C aanvoerverhoging per °C onder de drempel |
-| `chofu/cmd/stooklijn_uit` | `STOOKLIJN_UIT_GRENS` | 15°C | 5–30°C | Buitentemperatuur waarboven de verwarming stopt |
+| `chofu/cmd/stooklijn_uit` | `STOOKLIJN_UIT_GRENS` | 18°C | 5–30°C | Buitentemperatuur waarboven de verwarming stopt |
+| `chofu/cmd/stooklijn_aan` | `STOOKLIJN_AAN_GRENS` | 16°C | 5–30°C | Buitentemperatuur waaronder de verwarming hervat (hysteresis t.o.v. `stooklijn_uit`) |
 | `chofu/cmd/water_setpoint` | `t_water_gewenst` | 32°C | 25–55°C | Vast aanvoersetpoint voor `WATER`-modus; in `FF_WATER` overgenomen van de Adam |
 
 Actuele waarden worden gepubliceerd (zonder retain) op:
-`chofu/doel_setpoint`, `chofu/stooklijn_grens`, `chofu/stooklijn_factor`, `chofu/stooklijn_uit`, `chofu/water_setpoint`
+`chofu/doel_setpoint`, `chofu/stooklijn_grens`, `chofu/stooklijn_factor`, `chofu/stooklijn_uit`, `chofu/stooklijn_aan`, `chofu/water_setpoint`
 
 Dezelfde parameters zijn ook instelbaar via de ingebouwde **webinterface** (poort 80 op het IP-adres van de Arduino).
 

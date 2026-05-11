@@ -52,7 +52,8 @@ Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt a
 | `chofu/koeling_min_buiten` | float | °C | 18.0 | Minimale buitentemp voor koeling |
 | `chofu/supply_min` | float | °C | 17.0 | Condensatiebescherming koeling |
 | `chofu/koeling_afschakel` | float | °C | 0.5 | Afschakeldrempel koeling (niet EEPROM) |
-| `chofu/stooklijn_uit` | float | °C | 15.0 | Boven deze buitentemp: verwarming uit (auto) |
+| `chofu/stooklijn_uit` | float | °C | 18.0 | Boven deze buitentemp: verwarming uit (auto) |
+| `chofu/stooklijn_aan` | float | °C | 16.0 | Onder deze buitentemp: verwarming hervat (hysteresis) |
 
 ### Systeem
 
@@ -135,7 +136,8 @@ Niet opgeslagen in EEPROM (reset naar 40°C na herstart).
 39.0°C ════ AAN trigger 🔥
 
 Hysteresis bij standwijziging:
-  Omlaag:        5 min  (HYST_DOWN_MS)
+  Omlaag:        1 min  (HYST_DOWN_MS — water/ff_water)
+                 5 min  (AUTO_HYST_DOWN_MS — auto/ff_auto)
   Omhoog groot:  2 min  (HYST_FAST_MS, fout > 5°C)
   Omhoog normaal:10 min (HYST_SLOW_MS)
 ```
@@ -194,7 +196,7 @@ Opgeslagen in EEPROM. Default: 28.0°C
 Topic:   chofu/cmd/t_vorst
 Payload: "-10.0" – "10.0"  (float, °C)
 Vorstgrens: WP blijft minimaal stand 1 bij buiten < T_VORST.
-Opgeslagen in EEPROM. Default: 4.0°C
+Opgeslagen in EEPROM. Default: 2.0°C
 
 Topic:   chofu/cmd/stooklijn_grens
 Payload: "0.0" – "25.0"  (float, °C)
@@ -209,9 +211,15 @@ Voorbeeld: buiten 5°C, grens 15°C, factor 0.68 → +6.8°C setpoint
 ### PID Parameters
 
 ```
-Topic:   chofu/cmd/kp     Payload: float  Default: 19.9
-Topic:   chofu/cmd/ki     Payload: float  Default: 0.084
-Topic:   chofu/cmd/kd     Payload: float  Default: 0.036
+AUTO modus:
+  Topic:   chofu/cmd/kp     Payload: float  Default: 75.0
+  Topic:   chofu/cmd/ki     Payload: float  Default: 0.800
+  Topic:   chofu/cmd/kd     Payload: float  Default: 0.010
+
+WATER modus (aparte set — hogere Kp voor aanvoer-tracking):
+  Topic:   chofu/cmd/kp_water     Payload: float  Default: 50.0
+  Topic:   chofu/cmd/ki_water     Payload: float  Default: 0.800
+  Topic:   chofu/cmd/kd_water     Payload: float  Default: 0.010
 
 Alle PID parameters opgeslagen in EEPROM.
 ```
@@ -227,7 +235,7 @@ Opgeslagen in EEPROM. Default: 272.5 W/K
 Topic:   chofu/cmd/ff_ua_emitter
 Payload: "50" – "500"  (float, W/K)
 UA_emitter overschrijven. Wordt ook online bijgeleerd.
-Opgeslagen in EEPROM. Default: 267.5 W/K
+Opgeslagen in EEPROM. Default: 250.0 W/K
 
 Topic:   chofu/cmd/ff_save
 Payload: "1"
@@ -250,7 +258,13 @@ Opgeslagen in EEPROM. Default: 18.0°C
 Topic:   chofu/cmd/stooklijn_uit
 Payload: "5.0" – "30.0"  (float, °C)
 Auto modus: verwarming stopt als buiten > deze grens.
-Opgeslagen in EEPROM. Default: 15.0°C
+Opgeslagen in EEPROM. Default: 18.0°C
+
+Topic:   chofu/cmd/stooklijn_aan
+Payload: "5.0" – "30.0"  (float, °C)
+Auto modus: verwarming hervat als buiten < deze grens (na uitschakelstop).
+Hysteresis t.o.v. stooklijn_uit — voorkomt snelle aan/uit-cycli.
+Opgeslagen in EEPROM. Default: 16.0°C
 ```
 
 ### Overig
@@ -274,9 +288,10 @@ Overzicht van alle ingebouwde beveiligingen:
 | Safeguard | Conditie | Actie | Instelbaar |
 |-----------|----------|-------|------------|
 | **Noodstop aanvoer** | `t_supply > SUPPLY_MAX` (60°C) | Stand 0, WP uit | `chofu/cmd/supply_max` |
-| **Vorstbeveiliging** | `t_outside < T_VORST` (4°C) | Minimaal stand 1 | `chofu/cmd/t_vorst` |
+| **Vorstbeveiliging** | `t_outside < T_VORST` (2°C) | Minimaal stand 1 | `chofu/cmd/t_vorst` |
 | **Koeling blokkering** | `koeling=1` en `buiten < 18°C` | Koeling automatisch uit | `chofu/cmd/koeling_min_buiten` |
-| **Stooklijn uit** | `buiten > 15°C` in auto modus | Stand 0, WP uit | `chofu/cmd/stooklijn_uit` |
+| **Stooklijn uit** | `buiten > 18°C` in auto modus | Stand 0, WP uit | `chofu/cmd/stooklijn_uit` |
+| **Stooklijn aan** | `buiten < 16°C` na uitschakelstop | Verwarming hervat | `chofu/cmd/stooklijn_aan` |
 | **Spike filter aanvoer/retour** | Sprong > 10°C per cyclus | Waarde verworpen, vorige behouden | — |
 | **Spike filter buiten** | Sprong > 5°C of buiten −30..+50°C | Waarde verworpen | — |
 | **MQTT watchdog** | Geen MQTT > 120 min | Water/handmatig → auto | — |
@@ -290,9 +305,9 @@ Alle safeguard meldingen verschijnen op `chofu/alert` (retained) en `chofu/log/W
 "Koeling geblokkeerd: buiten 15.3C < min 18.0C"
 "Spike aanvoer: 72.1C verworpen (was 42.3C)"
 "Spike buiten: 88.5C verworpen"
-"Verwarming gestopt: buiten 16.2C > 15.0C"
+"Verwarming gestopt: buiten 19.2C > 18.0C"
 "MQTT watchdog: geen contact > 120 min, terug naar auto"
-"❄️ VORSTBEVEILIGING! Buiten: 3.2°C → Stand 1"
+"❄️ VORSTBEVEILIGING! Buiten: 1.2°C → Stand 1"
 ```
 
 ---
@@ -400,13 +415,13 @@ mosquitto_pub -h $BROKER -t "chofu/cmd/koeling" -m "1"
 mosquitto_pub -h $BROKER -t "chofu/sim/outside" -m "10.0"
 # Verwacht: koeling=0, alert
 
-# Stooklijn uit (auto modus, buiten > 15°C)
+# Stooklijn uit (auto modus, buiten > 18°C)
 mosquitto_pub -h $BROKER -t "chofu/cmd/modus" -m "auto"
 mosquitto_pub -h $BROKER -t "chofu/sim/outside" -m "20.0"
 # Verwacht: stand=0, alert
 
-# Vorstbeveiliging (buiten < T_VORST = 4°C)
-mosquitto_pub -h $BROKER -t "chofu/sim/outside" -m "2.0"
+# Vorstbeveiliging (buiten < T_VORST = 2°C)
+mosquitto_pub -h $BROKER -t "chofu/sim/outside" -m "1.0"
 # Verwacht: stand minimaal 1
 
 # Water modus PID testen
@@ -456,8 +471,8 @@ Voor het replay van historische tijdreeksen via een Python script kan de timing 
 | Topic | Standaard | Eenheid | Beschrijving |
 |-------|-----------|---------|--------------|
 | `chofu/cmd/hyst_slow` | 600000 | ms | Hysteresis bij standverhoging (normaal: 10 min) |
-| `chofu/cmd/hyst_fast` | 120000 | ms | Hysteresis bij grote fout >1°C (normaal: 2 min) |
-| `chofu/cmd/hyst_down` | 300000 | ms | Hysteresis bij standverlaging (normaal: 5 min) |
+| `chofu/cmd/hyst_fast` | 120000 | ms | Hysteresis bij grote fout >5°C (normaal: 2 min) |
+| `chofu/cmd/hyst_down` |  60000 | ms | Hysteresis bij standverlaging water/ff_water (normaal: 1 min); auto/ff_auto gebruikt intern 5 min (AUTO_HYST_DOWN_MS) |
 | `chofu/cmd/pid_interval` | 5000 | ms | PID berekeninterval (normaal: 5 sec) |
 
 State topics (gepubliceerd elke 10 sec): `chofu/hyst_slow`, `chofu/hyst_fast`, `chofu/hyst_down`, `chofu/pid_interval`
@@ -471,13 +486,13 @@ Validatiebereiken: hyst_* 100–3.600.000 ms, pid_interval 100–60.000 ms.
 BROKER=<YOUR_MQTT_BROKER_IP>
 mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_slow"    -m "10000"   # 10 sec
 mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_fast"    -m "2000"    # 2 sec
-mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_down"    -m "5000"    # 5 sec
+mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_down"    -m "1000"    # 1 sec
 mosquitto_pub -h $BROKER -t "chofu/cmd/pid_interval" -m "83"      # ~1/60 van 5000ms
 
 # Na simulatie: herstellen (of gewoon Arduino herstarten)
 mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_slow"    -m "600000"
 mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_fast"    -m "120000"
-mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_down"    -m "300000"
+mosquitto_pub -h $BROKER -t "chofu/cmd/hyst_down"    -m "60000"
 mosquitto_pub -h $BROKER -t "chofu/cmd/pid_interval" -m "5000"
 ```
 
@@ -534,7 +549,7 @@ chofu/
 ├── setpoint                 28.0
 ├── doel_setpoint            34.8
 ├── water_setpoint           32.0
-├── t_vorst                   4.0
+├── t_vorst                   2.0
 ├── stand                     3
 ├── vermogen                640
 ├── aan                       1
@@ -542,18 +557,19 @@ chofu/
 ├── koeling                   0
 ├── pid                      37.5
 ├── ff_ua_house             272.5
-├── ff_ua_emitter           267.5
+├── ff_ua_emitter           250.0
 ├── defrost                   0
 ├── pomp                     60
 ├── comp_hz                  45
 ├── lcd                       1
 ├── supply_max               60.0
 ├── koeling_min_buiten       18.0
-├── stooklijn_uit            15.0
+├── stooklijn_uit            18.0
+├── stooklijn_aan            16.0
 ├── sim_actief                0
 ├── hyst_slow            600000   ← simulatie timing (niet EEPROM)
 ├── hyst_fast            120000
-├── hyst_down            300000
+├── hyst_down             60000
 ├── pid_interval           5000
 ├── status                online   ← retained, LWT
 ├── alert          Verwarming gestopt: buiten 16.2C   ← retained
@@ -580,9 +596,11 @@ chofu/
     ├── supply_max
     ├── koeling_min_buiten
     ├── stooklijn_uit
+    ├── stooklijn_aan
     ├── stooklijn_grens
     ├── stooklijn_factor
     ├── kp / ki / kd
+    ├── kp_water / ki_water / kd_water
     ├── ff_ua_house         ← FF leerwaarden
     ├── ff_ua_emitter
     ├── ff_save
@@ -696,18 +714,23 @@ Volgende parameters blijven bewaard na herstart:
 | Parameter | Default | Commando |
 |-----------|---------|---------|
 | Setpoint (stooklijn) | 28.0°C | `chofu/cmd/setpoint` |
-| Kp | 75.0 | `chofu/cmd/kp` |
-| Ki | 0.800 | `chofu/cmd/ki` |
-| Kd | 0.010 | `chofu/cmd/kd` |
+| Kp (auto) | 75.0 | `chofu/cmd/kp` |
+| Ki (auto) | 0.800 | `chofu/cmd/ki` |
+| Kd (auto) | 0.010 | `chofu/cmd/kd` |
+| Kp (water) | 50.0 | `chofu/cmd/kp_water` |
+| Ki (water) | 0.800 | `chofu/cmd/ki_water` |
+| Kd (water) | 0.010 | `chofu/cmd/kd_water` |
 | Stooklijn grens | 15.0°C | `chofu/cmd/stooklijn_grens` |
 | Stooklijn factor | 0.68 | `chofu/cmd/stooklijn_factor` |
-| T_VORST | 4.0°C | `chofu/cmd/t_vorst` |
+| T_VORST | 2.0°C | `chofu/cmd/t_vorst` |
 | SUPPLY_MAX | 60.0°C | `chofu/cmd/supply_max` |
 | KOELING_MIN_BUITEN | 18.0°C | `chofu/cmd/koeling_min_buiten` |
 | SUPPLY_MIN | 17.0°C | `chofu/cmd/supply_min` |
-| STOOKLIJN_UIT | 15.0°C | `chofu/cmd/stooklijn_uit` |
+| STOOKLIJN_UIT | 18.0°C | `chofu/cmd/stooklijn_uit` |
+| STOOKLIJN_AAN | 16.0°C | `chofu/cmd/stooklijn_aan` |
 | FF UA_house | 272.5 W/K | `chofu/cmd/ff_ua_house` |
-| FF UA_emitter | 267.5 W/K | `chofu/cmd/ff_ua_emitter` |
+| FF UA_emitter | 250.0 W/K | `chofu/cmd/ff_ua_emitter` |
+| Modus | auto | `chofu/cmd/modus` |
 
 ---
 
