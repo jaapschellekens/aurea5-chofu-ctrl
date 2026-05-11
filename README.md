@@ -162,7 +162,8 @@ Regelt de aanvoertemperatuur op `t_water_gewenst` (bijv. 18°C).
 
 ### Benodigde Arduino bibliotheken
 - `ArduinoMqttClient`
-- `LiquidCrystal_I2C`
+- `LiquidCrystal_I2C` (optioneel, alleen als LCD aangesloten)
+- `Arduino_LED_Matrix` (alleen UNO R4 WiFi)
 - WiFi is ingebouwd: `WiFiS3` op UNO R4 WiFi, `WiFi` op ESP32
 
 ---
@@ -293,6 +294,20 @@ Zie [INSTALLATION.md](INSTALLATION.md) voor uitgebreide stap-voor-stap instructi
 
 ---
 
+## Plugwise Adam integratie (`adam_api_test/`)
+
+Experimentele integratie met de lokale REST API van de Plugwise Adam zoneregeling. De Adam bepaalt via OpenTherm de gewenste aanvoertemperatuur — deze kan als `t_water_gewenst` in de `water`/`ff_water` modus van de Chofu controller worden gebruikt.
+
+| Bestand | Functie |
+|---------|---------|
+| `adam_api_test.ino` | Arduino/ESP32 sketch: haalt `intended_boiler_temperature` op (~1s, HTTP/1.1) |
+| `adam_discover.py` | Python diagnostics: zones, keteldata en alle XML-types |
+| `config.h.example` | Credentials template (kopieer naar `config.h`) |
+
+**Werking:** `intended_boiler_temperature = 0` → geen warmtevraag; `> 0` → gewenste aanvoertemperatuur in °C.
+
+---
+
 ## Python simulatietools
 
 De map `python/` bevat tools voor het optimaliseren en valideren van regelparameters op historische Home Assistant data.
@@ -327,11 +342,13 @@ De map `python/` bevat tools voor het optimaliseren en valideren van regelparame
 
 ## Documentatie
 
-- [INSTALLATION.md](INSTALLATION.md) — Installatie handleiding
-- [WIRING.md](WIRING.md) — Bekabelingsschema's
-- [MQTT_REFERENCE.md](MQTT_REFERENCE.md) — Volledige MQTT referentie
+- [docs/INSTALLATION.md](docs/INSTALLATION.md) — Installatie handleiding
+- [docs/WIRING.md](docs/WIRING.md) — Bekabelingsschema's
+- [docs/MQTT_REFERENCE.md](docs/MQTT_REFERENCE.md) — Volledige MQTT referentie
 - [docs/TUNING.md](docs/TUNING.md) — PID en feedforward parameter tuning gids
+- [docs/STOOKLIJN.md](docs/STOOKLIJN.md) — Stooklijn werking en instelling
 - [docs/LCD.md](docs/LCD.md) — LCD scherm-indeling per modus
+- [docs/ervaringen.md](docs/ervaringen.md) — Valkuilen en bevindingen uit de ontwikkeling
 
 ---
 
