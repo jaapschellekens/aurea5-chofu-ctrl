@@ -309,27 +309,13 @@ Optocoupler #2 (TX richting - Arduino → Controlbox):
 
 ### Controlbox Terminals
 
-**Typische locatie:**
-```
-╔═══════════════════════════════╗
-║  Atlantic Aurea Controlbox    ║
-╠═══════════════════════════════╣
-║  ┌─────────────┐              ║
-║  │ Display LCD │              ║
-║  └─────────────┘              ║
-║                               ║
-║  Terminal Block (onderaan):   ║
-║  ┌───┬───┬───┬───┬───┐        ║
-║  │TX │RX │5V │GND│ ? │        ║
-║  └───┴───┴───┴───┴───┘        ║
-╚═══════════════════════════════╝
-```
+![image](pins.avif)
+
+Foto van https://gathering.tweakers.net/forum/view_message/84924782
 
 **Let op:**
-- Sommige controlboxen hebben andere labels
-- Check handleiding van je specifieke model
-- TX/RX kunnen ook SEND/RECV heten
-- Bij twijfel: meet met multimeter (5V = correct)
+- Sommige controlboxen hebben andere labels op de chip.
+- Bij twijfel: meet met multimeter
 
 ---
 
