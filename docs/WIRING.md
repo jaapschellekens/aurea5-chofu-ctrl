@@ -226,80 +226,15 @@ Controlbox GND →  Arduino GND       [Direct]
 
 ---
 
-## Optie B: Via Optocoupler (Veilig, aanbevolen)
 
-**Voor:** Galvanische scheiding, bescherming  
-**Tegen:** Meer onderdelen, complexer  
-**Aanbevolen voor:** Permanente installatie, productie
 
-### Schema
-
-```
-Controlbox              Optocoupler              Arduino
-┌──────────┐            ┌──────────┐            ┌─────────┐
-│          │            │ PC817 #1 │            │         │
-│   TX  ●──┼──[220Ω]────┼─1    4───┼─[1kΩ]─────┼─● D0    │
-│       │  │            │          │       5V   │   (RX1) │
-│   GND ●──┼────────────┼─2    3───┼────────────┼─● GND   │
-│          │            └──────────┘            │         │
-│          │            ┌──────────┐            │         │
-│          │            │ PC817 #2 │            │         │
-│   RX  ●──┼────────────┼─4    1───┼─[220Ω]────┼─● 5V    │
-│       │  │       GND  │          │            │         │
-│   GND ●──┼────────────┼─3    2───┼─[1kΩ]─────┼─● D1    │
-│          │            └──────────┘            │   (TX1) │
-└──────────┘                                    └─────────┘
-```
-
-### PC817 Pinout
-
-```
-     PC817
-   ┌───┴───┐
-   │1     4│
-   │       │
-   │2     3│
-   └───────┘
-   
-Pin 1: Anode (LED)
-Pin 2: Cathode (LED)
-Pin 3: Emitter (Transistor)
-Pin 4: Collector (Transistor)
-```
-
-### Breadboard Layout
-
-```
-Optocoupler #1 (RX richting - Controlbox → Arduino):
-┌─────────────────────────────────┐
-│ Controlbox TX                    │
-│     ↓                            │
-│  [220Ω] → PC817 Pin 1            │
-│           PC817 Pin 2 → GND      │
-│           PC817 Pin 4 → [1kΩ] → Arduino D0 (RX1)
-│           PC817 Pin 3 → GND      │
-└─────────────────────────────────┘
-
-Optocoupler #2 (TX richting - Arduino → Controlbox):
-┌─────────────────────────────────┐
-│ Arduino D1 (TX1)                 │
-│     ↓                            │
-│  [1kΩ] → PC817 Pin 2             │
-│          PC817 Pin 3 → GND       │
-│          PC817 Pin 1 → [220Ω] → 5V
-│          PC817 Pin 4 → Controlbox RX
-└─────────────────────────────────┘
-```
 
 ### Bill of Materials (BOM)
 
 | Item | Aantal | Prijs | Link |
 |------|--------|-------|------|
 | PC817 Optocoupler | 2 | €0.40 | - |
-| IC voetje 28-pins DIP | 1 | €0.30 | - |
-| 220Ω Weerstand (1/4W) | 2 | €0.20 | - |
 | 1kΩ Weerstand (1/4W) | 2 | €0.20 | - |
-| Breadboard 400 pins | 1 | €2.50 | - |
 | Jumper Wires (M-M) | 10 | €1.50 | - |
 | **Totaal** | - | **€4.80** | - |
 

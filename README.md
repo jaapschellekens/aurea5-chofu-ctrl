@@ -174,9 +174,9 @@ Regelt de aanvoertemperatuur op `t_water_gewenst` (bijv. 18°C).
 
 
 ```
-Arduino D0 (RX1) ←── Controlbox TX
-Arduino D1 (TX1) ──→ Controlbox RX  (via transistor/level shifter!)
-Arduino GND      ───  Controlbox GND
+Arduino D0 (RX1) ←── Controlbox TX (pin 26)
+Arduino D1 (TX1) ──→ Controlbox RX  (pin 27 via transistor/level shifter!)
+Arduino GND      ───  Controlbox GND (pin 22)
 ```
 
 > De transistor is nodig omdat de Chofu controlbox 5V logica gebruikt. Zie [WIRING.md](WIRING.md) voor het schema.
