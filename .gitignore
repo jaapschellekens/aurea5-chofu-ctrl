@@ -1,3 +1,7 @@
+# Tool directories — niet op GitHub
+.claude/
+.github/
+
 # Credentials — nooit committen
 config.h
 
