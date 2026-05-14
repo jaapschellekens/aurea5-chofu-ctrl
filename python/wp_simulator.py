@@ -114,6 +114,8 @@ class Simulator:
         client.subscribe("chofu/modus")
         client.subscribe("anna/setpoint")
         print("Subscribed: chofu/stand, chofu/modus, anna/setpoint")
+        client.publish("chofu/cmd/sim", "1", retain=False)
+        print("Simulatie ingeschakeld op Arduino")
         if self.args.modus:
             client.publish("chofu/cmd/modus", self.args.modus, retain=True)
             print(f"Modus ingesteld: {self.args.modus}")
@@ -282,6 +284,8 @@ class Simulator:
         except KeyboardInterrupt:
             print("\nSimulatie gestopt.")
         finally:
+            self.client.publish("chofu/cmd/sim", "0", retain=False)
+            print("Simulatie uitgeschakeld op Arduino.")
             self._restore_arduino_timing()
             time.sleep(0.5)  # geef MQTT tijd om laatste berichten te versturen
             self.client.loop_stop()

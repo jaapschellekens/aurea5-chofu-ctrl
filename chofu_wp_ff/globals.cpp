@@ -105,6 +105,8 @@ float sim_t_outside       = NAN;
 float sim_t_water_gewenst = NAN;
 float sim_t_kamer         = NAN;
 float sim_t_kamer_gewenst = NAN;
+bool  sim_enabled         = false;
+bool  proto_logging       = false;  // schakelbaar via chofu/cmd/proto_log
 
 // ═══════════════════════════════════════════════════════════════
 //  TIMERS

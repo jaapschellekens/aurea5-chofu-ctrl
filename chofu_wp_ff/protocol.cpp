@@ -16,13 +16,20 @@ void stuur_stand_telegram(){
   telegram[23] = bereken_checksum(telegram, 23);
   telegram[24] = 0x00;
   chofuSerial.write(telegram, 25);
+  String dec_tx = " | stand=" + String(ctrl.stand)
+                + " modus=" + (ctrl.stand == 0 ? "uit" : (koeling_modus ? "koeling" : "verwarming"));
+  mqtt_proto("tx", telegram, 25, dec_tx);
   Serial.print("TX: Stand ");Serial.print(ctrl.stand);Serial.println(" naar WP");
 }
 
 void verwerk_telegram_0x91(){
   if(telegram_buffer[0] != 0x91) return;
   uint8_t calc_cs = bereken_checksum(telegram_buffer, 23);
-  if(calc_cs != telegram_buffer[23]){ Serial.println("RX: checksum fout"); return; }
+  if(calc_cs != telegram_buffer[23]){
+    String err = " | CS FOUT: berekend=" + String(calc_cs, HEX) + " ontvangen=" + String(telegram_buffer[23], HEX);
+    mqtt_proto("err", telegram_buffer, 25, err);
+    Serial.println("RX: checksum fout"); return;
+  }
 
   int16_t temp_raw = (telegram_buffer[3] << 8) | telegram_buffer[4];
   float new_supply = temp_raw / 10.0;
@@ -43,6 +50,29 @@ void verwerk_telegram_0x91(){
   comp_hz = telegram_buffer[9];
   pomp_snelheid_wp = telegram_buffer[10];
   defrost = (telegram_buffer[11] & 0x01);
+
+  if(comp_hz > 0){
+    werkelijk_vermogen_w = 240 + ((comp_hz - 30) / 90.0) * 1210;
+    if(werkelijk_vermogen_w < 0) werkelijk_vermogen_w = 0;
+    if(werkelijk_vermogen_w > 1450) werkelijk_vermogen_w = 1450;
+  } else {
+    werkelijk_vermogen_w = 0;
+  }
+  delta_t = t_supply - t_return;
+
+  // Protocol logging: hex + decoded betekenis
+  String dec_rx = " | A=" + String(t_supply, 1)
+                + " R=" + String(t_return, 1)
+                + " B=" + String(t_outside, 1)
+                + " Hz=" + String(comp_hz)
+                + " P=" + String(pomp_snelheid_wp) + "%"
+                + " ontd=" + String(defrost)
+                + " b11=" + String(telegram_buffer[11], HEX)
+                + " b12=" + String(telegram_buffer[12], HEX)
+                + " b13=" + String(telegram_buffer[13], HEX)
+                + " b14=" + String(telegram_buffer[14], HEX)
+                + " b15=" + String(telegram_buffer[15], HEX);
+  mqtt_proto("rx", telegram_buffer, 25, dec_rx);
 
   if(comp_hz > 0){
     werkelijk_vermogen_w = 240 + ((comp_hz - 30) / 90.0) * 1210;
@@ -79,12 +109,14 @@ void lees_warmtepomp_data(){
     }
   }
   if(millis() - vorige_telegram_ms > 5000){
+    if(proto_logging) mqtt_log("WP timeout: geen 0x91 >5s, stuur TX", "WARNING");
     stuur_stand_telegram();
     vorige_telegram_ms = millis();
   }
 }
 
 void pas_sim_toe(){
+  if(!sim_enabled) return;
   if(!isnan(sim_t_supply))        { t_supply        = sim_t_supply;        prev_t_supply  = sim_t_supply; }
   if(!isnan(sim_t_return))        { t_return        = sim_t_return;        prev_t_return  = sim_t_return; }
   if(!isnan(sim_t_outside))       { t_outside       = sim_t_outside;       prev_t_outside = sim_t_outside; }

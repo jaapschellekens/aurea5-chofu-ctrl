@@ -153,6 +153,19 @@ void pas_ff_aan(){
   float wsp = is_water ? t_water_gewenst : stooklijn;
   doel_setpoint = wsp;
 
+  // ── Adam/extern: geen warmtevraag (SP=0) → WP uit, tenzij vorst ─
+  if(is_water && t_water_gewenst == 0.0f){
+    if(t_outside < T_VORST){
+      if(ctrl.stand != 1 || !ctrl.wp_aan){
+        ctrl.stand = 1; ctrl.wp_aan = true; ctrl.vorige_stand_wijz_ms = nu;
+        mqtt_log("VORSTBEVEILIGING (SP=0): buiten " + String(t_outside,1) + "C", "WARNING");
+      }
+    } else {
+      if(ctrl.wp_aan){ ctrl.wp_uit_ms = nu; ctrl.wp_thermal_stop = false; ctrl.zet_uit(); }
+    }
+    return;
+  }
+
   // ── Buiten seizoen: WP uit (alleen ff_auto) ───────────────────
   // [A] Hysteresis: uit bij STOOKLIJN_UIT_GRENS, aan pas bij STOOKLIJN_AAN_GRENS
   if(!is_water){
@@ -376,6 +389,18 @@ void pas_pid_aan(){
 
   // ── WATER MODUS ────────────────────────────────────────────────
   if(modus == Modus::WATER){
+    // Adam/extern: geen warmtevraag (SP=0) → WP uit, tenzij vorst
+    if(t_water_gewenst == 0.0f){
+      if(t_outside < T_VORST){
+        if(ctrl.stand != 1 || !ctrl.wp_aan){
+          ctrl.stand = 1; ctrl.wp_aan = true; ctrl.vorige_stand_wijz_ms = nu;
+          mqtt_log("VORSTBEVEILIGING (SP=0): buiten " + String(t_outside,1) + "C", "WARNING");
+        }
+      } else {
+        if(ctrl.wp_aan){ ctrl.zet_uit(); mqtt_log("WATER: geen vraag (SP=0) -> WP UIT", "INFO"); }
+      }
+      return;
+    }
     float water_fout = t_water_gewenst - t_supply;
     if(t_outside < T_VORST && ctrl.stand == 0){
       ctrl.stand = 1; ctrl.wp_aan = true; ctrl.vorige_stand_wijz_ms = nu;

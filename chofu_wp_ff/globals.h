@@ -122,10 +122,13 @@ extern float sim_t_outside;
 extern float sim_t_water_gewenst;
 extern float sim_t_kamer;
 extern float sim_t_kamer_gewenst;
+extern bool  sim_enabled;
+extern bool  proto_logging;
 
 inline bool sim_actief(){
-  return !isnan(sim_t_supply) || !isnan(sim_t_return) || !isnan(sim_t_outside)
-      || !isnan(sim_t_water_gewenst) || !isnan(sim_t_kamer);
+  return sim_enabled &&
+        (!isnan(sim_t_supply) || !isnan(sim_t_return) || !isnan(sim_t_outside)
+      || !isnan(sim_t_water_gewenst) || !isnan(sim_t_kamer));
 }
 
 // ═══════════════════════════════════════════════════════════════

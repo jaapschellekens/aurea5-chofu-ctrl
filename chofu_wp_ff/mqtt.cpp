@@ -33,6 +33,30 @@ void stuur_alert(String msg){
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  PROTOCOL LOGGING
+// ═══════════════════════════════════════════════════════════════
+
+// Publiceert hex-dump van telegram op chofu/proto/<subtopic>
+// extra: optionele tekst achter de hex (bijv. " | CS FOUT")
+void mqtt_proto(const char* subtopic, uint8_t* buf, uint8_t len, const String& extra){
+  if(!proto_logging || !mqttClient.connected()) return;
+  // bouw hex string: "19 01 00 01 00 ... CS"
+  String hex;
+  hex.reserve(len * 3 + extra.length() + 4);
+  for(uint8_t i = 0; i < len; i++){
+    if(i) hex += ' ';
+    if(buf[i] < 0x10) hex += '0';
+    hex += String(buf[i], HEX);
+  }
+  if(extra.length()) hex += extra;
+  String topic = "chofu/proto/";
+  topic += subtopic;
+  mqttClient.beginMessage(topic, (unsigned long)hex.length());
+  mqttClient.print(hex);
+  mqttClient.endMessage();
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  WATCHDOG
 // ═══════════════════════════════════════════════════════════════
 
@@ -131,7 +155,8 @@ void mqtt_ontvang(int len){
   }
   else if(topic == "chofu/cmd/water_setpoint"){
     float val = payload.toFloat();
-    if(val >= 25 && val <= 55){ t_water_gewenst = val;
+    // 0 = geen warmtevraag (Adam); 25–55 = geldig setpoint
+    if(val == 0.0f || (val >= 25 && val <= 55)){ t_water_gewenst = val;
       mqtt_log("Water SP: " + String(t_water_gewenst,1) + "C", "INFO"); }
   }
   else if(topic == "chofu/cmd/supply_max"){
@@ -213,7 +238,19 @@ void mqtt_ontvang(int len){
     ctrl.vorige_stand_wijz_ms = 0;
     Serial.println("FORCE START - hysteresis gereset");
   }
+  else if(topic == "chofu/cmd/proto_log"){
+    proto_logging = (payload == "1");
+    mqtt_log(proto_logging ? "Protocol logging AAN" : "Protocol logging UIT", "INFO");
+  }
   // Simulatie topics
+  else if(topic == "chofu/cmd/sim"){
+    sim_enabled = (payload == "1");
+    if(!sim_enabled){
+      sim_t_supply = NAN; sim_t_return = NAN; sim_t_outside = NAN;
+      sim_t_water_gewenst = NAN; sim_t_kamer = NAN; sim_t_kamer_gewenst = NAN;
+    }
+    mqtt_log(sim_enabled ? "Simulatie ingeschakeld" : "Simulatie uitgeschakeld", "INFO");
+  }
   else if(topic == "chofu/sim/supply"){
     if(payload.length() == 0 || payload == "reset") sim_t_supply = NAN;
     else { float v = payload.toFloat(); if(v >= -10 && v <= 80) sim_t_supply = v; }
@@ -400,6 +437,16 @@ void discovery_fase3(){
   pl = "{\"name\":\"Chofu Water PID Kd\",\"uniq_id\":\"chofu_hp_kd_water\",\"cmd_t\":\"chofu/cmd/kd_water\",\"stat_t\":\"chofu/kd_water\",\"min\":0,\"max\":50,\"step\":0.001," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/chofu_hp/kd_water/config", pl);
 
+  // Protocol logging sensors
+  pl = "{\"name\":\"Chofu Proto TX\",\"uniq_id\":\"chofu_hp_proto_tx\",\"stat_t\":\"chofu/proto/tx\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/proto_tx/config", pl);
+  pl = "{\"name\":\"Chofu Proto RX\",\"uniq_id\":\"chofu_hp_proto_rx\",\"stat_t\":\"chofu/proto/rx\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/proto_rx/config", pl);
+  pl = "{\"name\":\"Chofu Proto Fout\",\"uniq_id\":\"chofu_hp_proto_err\",\"stat_t\":\"chofu/proto/err\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/chofu_hp/proto_err/config", pl);
+  pl = "{\"name\":\"Chofu Protocol Log\",\"uniq_id\":\"chofu_hp_proto_log\",\"cmd_t\":\"chofu/cmd/proto_log\",\"stat_t\":\"chofu/proto_log\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/switch/chofu_hp/proto_log/config", pl);
+
   stuur_data();
 }
 
@@ -434,6 +481,7 @@ void stuur_data(){
   mqttClient.beginMessage("chofu/pomp");mqttClient.print(pomp_snelheid_wp);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/comp_hz");mqttClient.print(comp_hz);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/sim_actief");mqttClient.print(sim_actief()?"1":"0");mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/proto_log");mqttClient.print(proto_logging?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage("chofu/supply_max");mqttClient.print(SUPPLY_MAX,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/koeling_min_buiten");mqttClient.print(KOELING_MIN_BUITEN,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/supply_min");mqttClient.print(SUPPLY_MIN,1);mqttClient.endMessage();
