@@ -12,10 +12,11 @@
 
 ## Over Dit Project
 
-Open-source controller voor Chofu warmtepompen (Aurea hybride systeem). De controller spreekt het Chofu 0x19/0x91 serieel protocol, regelt het compressorvermogen in standen 0–8 (handmatig tot 12), en integreert volledig met Home Assistant via MQTT auto-discovery.
+Dit is een test versie gebaseerd op de originele kromhout code. Het is zo aangepast dat het bij mij werkt (de hardware connectie werkt nog niet!)
+
+De controller spreekt het Chofu 0x19/0x91 serieel protocol, regelt het compressorvermogen in standen 0–8 (handmatig tot 12), en integreert volledig met Home Assistant via MQTT auto-discovery.
 
 
-**Firmware:** `chofu_wp_ff/chofu_wp_ff.ino`
 
 ---
 
@@ -43,7 +44,7 @@ PID regelt de aanvoertemperatuur op basis van de kamertemperatuurafwijking (Anna
 Kamer gewenst: 20.5°C (Anna setpoint)
 
 20.7°C ════ UIT trigger (hysteresis boven)
-20.5°C ──── Doel ✅
+20.5°C ──── Doel 
 20.4°C ════ AAN trigger (hysteresis onder)
 ```
 
@@ -82,7 +83,7 @@ Regelt op een vast aanvoertemperatuur setpoint, ongeacht de kamertemperatuur. Nu
 
 ```
 Setpoint + 1°C ══ UIT trigger
-Setpoint        ── Doel ✅
+Setpoint        ── Doel 
 Setpoint - 1°C ══ AAN trigger
 ```
 
@@ -130,7 +131,7 @@ Stand 12 = 1800 W
 
 ---
 
-### Koelmodus
+### Koelmodus (nog niet getest)
 
 Activeer via `chofu/cmd/koeling = "1"`. Koeling is **alleen beschikbaar** in `ff_auto`, `ff_water` en `handmatig` — niet in `auto` of `water`.
 
