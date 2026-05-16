@@ -14,6 +14,8 @@
 
 Dit is een test versie gebaseerd op de originele kromhout code. Het is zo aangepast dat het bij mij werkt (de hardware connectie werkt nog niet!)
 
+Hoewel ik uiteindelijk veel handmatig heb gedaan is dit voor een groot deel met behulp van claude code en copilot gemaakt. 
+
 De controller spreekt het Chofu 0x19/0x91 serieel protocol, regelt het compressorvermogen in standen 0–8 (handmatig tot 12), en integreert volledig met Home Assistant via MQTT auto-discovery.
 
 
