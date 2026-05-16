@@ -206,8 +206,17 @@ static uint8_t  jgc_data_len = 0;
 static uint8_t  jgc_buf[80]  = {0};
 static uint8_t  jgc_idx      = 0;
 
+// Timing — identiek aan JGC origineel
+static const uint32_t JGC_SEND_DELAY       =   99;  // ms na einde ontvangen frame
+static const uint32_t JGC_SEND_TIMEOUT     = 2000;  // ms zonder reply → toch sturen
+static const uint32_t JGC_MIN_SEND_INTERVAL=  300;  // ms minimale tijd tussen twee sends
+static uint32_t jgc_laatste_rx_einde_ms    = 0;     // tijdstip einde laatste ontvangen frame
+static uint32_t jgc_laatste_send_ms        = 0;     // tijdstip laatste TX
+static bool     jgc_is_ontvangend          = false; // blokkeer TX tijdens ontvangst
+
 static void lees_warmtepomp_data_jgc(){
   while(chofuSerial.available()){
+    jgc_is_ontvangend = true;
     uint8_t b = chofuSerial.read();
     switch(jgc_state){
       case JgcState::WachtStart:
@@ -236,17 +245,28 @@ static void lees_warmtepomp_data_jgc(){
           jgc_sla_frame_op(jgc_id, jgc_data_len, jgc_buf);
           if(jgc_id == 2) jgc_verwerk_frames();
           vorige_telegram_ms = millis();
+          jgc_laatste_rx_einde_ms = millis();
         } else {
           if(proto_logging) mqtt_log("JGC: eindnul ontbreekt ID=" + String(jgc_id), "WARNING");
         }
+        jgc_is_ontvangend = false;
         jgc_state = JgcState::WachtStart;
         break;
     }
   }
-  if(millis() - vorige_telegram_ms > 5000){
-    if(proto_logging) mqtt_log("JGC timeout: geen frame >5s, stuur TX", "WARNING");
+  // Als de buffer leeg is zijn we niet meer aan het ontvangen
+  if(!chofuSerial.available()) jgc_is_ontvangend = false;
+
+  uint32_t nu = millis();
+  bool na_delay   = (nu - jgc_laatste_rx_einde_ms >= JGC_SEND_DELAY) && !jgc_is_ontvangend;
+  bool timeout    = (nu - jgc_laatste_rx_einde_ms >= JGC_SEND_TIMEOUT);
+  bool min_interval_ok = (nu - jgc_laatste_send_ms >= JGC_MIN_SEND_INTERVAL);
+
+  if((na_delay || timeout) && min_interval_ok){
+    if(timeout && proto_logging) mqtt_log("JGC timeout: geen frame >2s, stuur TX", "WARNING");
     stuur_stand_telegram_jgc();
-    vorige_telegram_ms = millis();
+    jgc_laatste_send_ms = nu;
+    vorige_telegram_ms  = nu;
   }
 }
 
