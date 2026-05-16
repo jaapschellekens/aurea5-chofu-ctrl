@@ -295,7 +295,7 @@ Meet ook op Arduino D0 (RX1) (moet zelfde zijn)
 ```cpp
 void setup() {
   Serial.begin(115200);
-  Serial1.begin(9600);   // hardware UART op D0/D1
+  Serial1.begin(666);   // hardware UART op D0/D1
   Serial.println("Protocol Test");
 }
 
@@ -327,7 +327,7 @@ Check:
 □ Controlbox heeft stroom?
 □ Warmtepomp draait?
 □ GND gemeenschappelijk?
-□ Baud rate correct? (9600)
+□ Baud rate correct? (666)
 ```
 
 ---

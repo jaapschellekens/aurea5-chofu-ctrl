@@ -59,9 +59,9 @@ void setup(){
   eeprom_init();
   knoppen_init();
 #if defined(ARDUINO_UNOR4_WIFI)
-  chofuSerial.begin(9600);
+  chofuSerial.begin(666);
 #else
-  chofuSerial.begin(9600, SERIAL_8N1, CHOFU_RX_PIN, CHOFU_TX_PIN);
+  chofuSerial.begin(666, SERIAL_8N1, CHOFU_RX_PIN, CHOFU_TX_PIN);
 #endif
 
   if(USE_LCD){
