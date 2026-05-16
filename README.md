@@ -357,7 +357,8 @@ De map `python/` bevat tools voor het optimaliseren en valideren van regelparame
 
 ## Credits
 
-**Protocol reverse engineering:** WackoH (Tweakers.net) — [Tweakers topic](https://gathering.tweakers.net/forum/list_messages/2220972/0)
+Protocol reverse engineering: WackoH (Tweakers.net) — [Tweakers topic](https://gathering.tweakers.net/forum/list_messages/2220972/0)
+Fork van kromhoutmaarten-sys/Aurea-5-hybrid_uno4
 
 **Bibliotheken:**
 - ArduinoMqttClient (Arduino)
