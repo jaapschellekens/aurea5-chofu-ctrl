@@ -26,6 +26,7 @@ void verwerk_telegram_0x91(){
   if(telegram_buffer[0] != 0x91) return;
   uint8_t calc_cs = bereken_checksum(telegram_buffer, 23);
   if(calc_cs != telegram_buffer[23]){
+    proto_crc_fouten++;
     String err = " | CS FOUT: berekend=" + String(calc_cs, HEX) + " ontvangen=" + String(telegram_buffer[23], HEX);
     mqtt_proto("err", telegram_buffer, 25, err);
     Serial.println("RX: checksum fout"); return;
@@ -150,6 +151,7 @@ static void jgc_sla_frame_op(uint8_t id, uint8_t data_len, uint8_t *payload){
   for(uint8_t i = 0; i < data_len; i++) frame[3 + i] = payload[i];
   uint16_t crc = jgc_bereken_crc(frame, data_len + 2);
   if(crc != 0){
+    proto_crc_fouten++;
     if(proto_logging) mqtt_log("JGC CRC fout ID=" + String(id), "WARNING");
     return;
   }

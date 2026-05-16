@@ -244,6 +244,7 @@ void mqtt_ontvang(int len){
   }
   else if(topic == "chofu/cmd/parser"){
     parser_jgc = (payload == "jgc");
+    proto_crc_fouten = 0;
     mqtt_log(parser_jgc ? "Parser: JGC (multi-frame CRC-CCITT)" : "Parser: klassiek (25-byte som)", "INFO");
   }
   // Simulatie topics

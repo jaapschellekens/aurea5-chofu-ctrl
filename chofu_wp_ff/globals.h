@@ -125,6 +125,7 @@ extern float sim_t_kamer_gewenst;
 extern bool  sim_enabled;
 extern bool  proto_logging;
 extern bool  parser_jgc;     // true = JGC multi-frame parser, false = klassieke 25-byte parser
+extern uint16_t proto_crc_fouten; // teller CRC/checksum fouten (reset bij parser-wissel)
 
 inline bool sim_actief(){
   return sim_enabled &&

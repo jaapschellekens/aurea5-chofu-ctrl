@@ -12,6 +12,7 @@ void update_lcd(){
 
   static uint8_t scherm = 0;
   int verm = (werkelijk_vermogen_w > 0) ? (int)werkelijk_vermogen_w : VERMOGEN[ctrl.stand];
+  uint8_t max_scherm = proto_logging ? 5 : 4;
 
   lcd.clear();
 
@@ -159,9 +160,22 @@ void update_lcd(){
       lcd.setCursor(0,1);
       lcd.print(WiFi.localIP());
       break;
+    // ── Scherm 4: Protocol debug (alleen als proto_logging aan) ──
+    case 4: {
+      // r0: "DBG klas  OK" of "DBG jgc TOUT"
+      // r1: "A:35.2 Err:0"
+      bool timeout = (millis() - vorige_telegram_ms > 5000);
+      lcd.print("DBG ");
+      lcd.print(parser_jgc ? "jgc " : "klas");
+      lcd.print(timeout ? " TOUT" : " OK  ");
+      lcd.setCursor(0, 1);
+      lcd.print("A:"); lcd.print(t_supply, 1);
+      lcd.print(" Err:"); lcd.print(proto_crc_fouten);
+      break;
+    }
   }
 
-  scherm = (scherm + 1) % 4;
+  scherm = (scherm + 1) % max_scherm;
 }
 
 // ═══════════════════════════════════════════════════════════════

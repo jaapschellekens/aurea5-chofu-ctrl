@@ -108,6 +108,7 @@ float sim_t_kamer_gewenst = NAN;
 bool  sim_enabled         = false;
 bool  proto_logging       = false;  // schakelbaar via chofu/cmd/proto_log
 bool  parser_jgc          = false;  // schakelbaar via chofu/cmd/parser
+uint16_t proto_crc_fouten = 0;      // teller checksum/CRC fouten
 
 // ═══════════════════════════════════════════════════════════════
 //  TIMERS
