@@ -43,6 +43,8 @@ Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt a
 | `chofu/comp_hz` | int | Hz | Compressor frequentie |
 | `chofu/lcd` | string | 0/1 | LCD backlight status |
 | `chofu/sim_actief` | string | 0/1 | Simulatiemodus actief |
+| `chofu/proto_log` | string | 0/1 | Protocol logging actief |
+| `chofu/parser` | string | klassiek/jgc | Actieve protocol parser |
 
 ### Safeguard Grenzen (instelbaar)
 
@@ -343,6 +345,7 @@ De Arduino publiceert alle HA discovery configs automatisch bij opstart (retaine
 | Chofu Koeling Aanvoer Min | number (°C) | `chofu/cmd/supply_min` |
 | Chofu Koeling Afschakeldrempel | number (°C) | `chofu/cmd/koeling_afschakel` |
 | Chofu Modus Select | select | `chofu/cmd/modus` |
+| Chofu Parser | select | `chofu/cmd/parser` |
 | Chofu Water SP | number (°C) | `chofu/cmd/water_setpoint` |
 | Chofu Vorstgrens | number (°C) | `chofu/cmd/t_vorst` |
 | Chofu Stand (handmatig) | number | `chofu/cmd/stand` |
@@ -500,6 +503,66 @@ mosquitto_pub -h $BROKER -t "chofu/cmd/pid_interval" -m "5000"
 
 ---
 
+## Protocol Debug Topics
+
+### Protocol logging
+
+Zet protocol-logging aan om ruwe seriële frames in MQTT te zien. Handig bij het debuggen van hardware communicatie.
+
+```
+Topic:   chofu/cmd/proto_log
+Payload: "1"  → aan
+         "0"  → uit
+State:   chofu/proto_log
+```
+
+Bij ingeschakelde logging worden alle ontvangen (rx) en verzonden (tx) frames gepubliceerd op:
+
+| Topic | Beschrijving |
+|-------|--------------|
+| `chofu/proto/tx` | Verzonden telegram (hex + decoded) |
+| `chofu/proto/rx` | Ontvangen telegram (hex + decoded) |
+| `chofu/proto/err` | Checksum-fout of ongeldig frame |
+
+### Parser selectie
+
+De firmware heeft twee implementaties van het Chofu seriële protocol die je tijdens runtime kunt wisselen:
+
+```
+Topic:   chofu/cmd/parser
+Payload: "klassiek"  → originele 25-byte vaste parser (byte-som checksum)
+         "jgc"       → JGC multi-frame parser (CRC-CCITT, variabele framelengte)
+State:   chofu/parser
+```
+
+| Parser | Checksum | Frame-formaat | TX |
+|--------|----------|---------------|----|
+| `klassiek` | Byte-som mod 256 | Vaste 25 bytes, startbyte 0x91 | Één commando-telegram |
+| `jgc` | CRC-CCITT (0xFFFF, poly 0x1021) | Variabele lengte (13/14/19/21 bytes), 4 IDs | 4 telegrammen roterendheid (data0..data3) |
+
+**Teststrategie:**
+```bash
+BROKER="<YOUR_MQTT_BROKER_IP>"
+
+# Protocol logging aanzetten
+mosquitto_pub -h $BROKER -t "chofu/cmd/proto_log" -m "1"
+
+# Wissel naar JGC parser
+mosquitto_pub -h $BROKER -t "chofu/cmd/parser" -m "jgc"
+
+# Volg logs (RX-frames, CRC-fouten, TX-telegrammen)
+mosquitto_sub -h $BROKER -t "chofu/proto/#" -v
+mosquitto_sub -h $BROKER -t "chofu/log/#" -v
+
+# Terug naar klassieke parser
+mosquitto_pub -h $BROKER -t "chofu/cmd/parser" -m "klassiek"
+```
+
+> **Baudrate:** De warmtepomp communiceert op **666 baud** (hardware UART Serial1, pins D0/D1).  
+> **Serieel protocol:** Chofu 0x19 (commando) / 0x91 (status). Zie `WIRING.md` voor bekabeling.
+
+---
+
 ## Anna Thermostaat Topics
 
 | Topic | Richting | Beschrijving |
@@ -567,6 +630,8 @@ chofu/
 ├── stooklijn_uit            18.0
 ├── stooklijn_aan            16.0
 ├── sim_actief                0
+├── proto_log                 0   ← protocol logging aan/uit
+├── parser               klassiek ← actieve parser (klassiek/jgc)
 ├── hyst_slow            600000   ← simulatie timing (niet EEPROM)
 ├── hyst_fast            120000
 ├── hyst_down             60000
@@ -576,6 +641,10 @@ chofu/
 ├── log/
 │   ├── INFO             laatste event
 │   └── WARNING          laatste waarschuwing
+├── proto/
+│   ├── tx               verzonden telegram (hex + decoded)
+│   ├── rx               ontvangen telegram (hex + decoded)
+│   └── err              checksum-fout of ongeldig frame
 ├── sim/
 │   ├── supply              (schrijf alleen, geen state)
 │   ├── return              (schrijf alleen, geen state)
@@ -606,6 +675,8 @@ chofu/
     ├── ff_save
     ├── lcd
     ├── force_start
+    ├── proto_log           ← protocol logging aan/uit
+    ├── parser              ← "klassiek" of "jgc"
     ├── hyst_slow           ← simulatie timing (niet EEPROM)
     ├── hyst_fast
     ├── hyst_down

@@ -461,6 +461,7 @@ GND               →   GND
 **BELANGRIJK:**
 - **D1 (TX1) MOET via 1kΩ weerstand!**
 - Gebruik **D0/D1** (hardware UART, Serial1) — **niet** pin 2/3 (SoftwareSerial crasht de WiFi co-processor)
+- Communicatie op **666 baud** (ongebruikelijk maar correct voor het Chofu protocol)
 - Dit beschermt controlbox tegen overbelasting
 - Zonder weerstand: risico op beschadiging!
 
