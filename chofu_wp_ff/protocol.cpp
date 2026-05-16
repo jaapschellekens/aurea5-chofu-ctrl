@@ -7,7 +7,7 @@ uint8_t bereken_checksum(uint8_t *buf, uint8_t len){
   return (sum & 0xFF);
 }
 
-void stuur_stand_telegram(){
+static void stuur_stand_telegram_klassiek(){
   uint8_t telegram[25] = {0};
   telegram[0] = 0x19;
   telegram[1] = ctrl.stand;
@@ -93,7 +93,7 @@ void verwerk_telegram_0x91(){
   }
 }
 
-void lees_warmtepomp_data(){
+static void lees_warmtepomp_data_klassiek(){
   while(chofuSerial.available()){
     uint8_t byte = chofuSerial.read();
     if(byte == 0x91 || byte == 0x19){
@@ -110,9 +110,193 @@ void lees_warmtepomp_data(){
   }
   if(millis() - vorige_telegram_ms > 5000){
     if(proto_logging) mqtt_log("WP timeout: geen 0x91 >5s, stuur TX", "WARNING");
-    stuur_stand_telegram();
+    stuur_stand_telegram_klassiek();
     vorige_telegram_ms = millis();
   }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  JGC PARSER — multi-frame, CRC-CCITT, variabele frame-lengte
+// ═══════════════════════════════════════════════════════════════
+
+static const uint8_t JGC_VALID_LENGTHS[] = {13, 14, 19, 21};
+
+static uint16_t jgc_bereken_crc(uint8_t *data, uint8_t len){
+  uint16_t crc = 0xFFFF;
+  for(uint8_t i = 0; i < len; i++){
+    crc ^= (uint16_t)data[i] << 8;
+    for(uint8_t j = 0; j < 8; j++){
+      crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : (crc << 1);
+    }
+  }
+  return crc;
+}
+
+static bool jgc_geldige_lengte(uint8_t len){
+  for(uint8_t i = 0; i < sizeof(JGC_VALID_LENGTHS); i++)
+    if(len == JGC_VALID_LENGTHS[i]) return true;
+  return false;
+}
+
+// Per-ID opgeslagen framedata (max 80 bytes, 4 IDs)
+static uint8_t jgc_frames[4][80] = {0};
+
+static void jgc_sla_frame_op(uint8_t id, uint8_t data_len, uint8_t *payload){
+  // Bouw frame voor CRC-check: [0x91][id][data_len+2][payload...]
+  uint8_t frame[80];
+  frame[0] = 0x91;
+  frame[1] = id;
+  frame[2] = data_len + 2;
+  for(uint8_t i = 0; i < data_len; i++) frame[3 + i] = payload[i];
+  uint16_t crc = jgc_bereken_crc(frame, data_len + 2);
+  if(crc != 0){
+    if(proto_logging) mqtt_log("JGC CRC fout ID=" + String(id), "WARNING");
+    return;
+  }
+  jgc_frames[id][0] = 0x91;
+  jgc_frames[id][1] = id;
+  jgc_frames[id][2] = data_len + 2;
+  for(uint8_t i = 0; i < data_len; i++) jgc_frames[id][i + 3] = payload[i];
+}
+
+static void jgc_verwerk_frames(){
+  // Temperaturen uit ID=2: bytes [3][4]=aanvoer, [5][6]=retour, [7][8]=buiten
+  // Gesorteerd als little-endian signed 16-bit, schaal 0.1°C
+  auto lees_temp = [](uint8_t id, uint8_t lo_idx) -> float {
+    int16_t raw = (int16_t)((uint16_t)jgc_frames[id][lo_idx + 1] << 8 | jgc_frames[id][lo_idx]);
+    return raw / 10.0f;
+  };
+
+  float new_supply  = lees_temp(2, 3);
+  float new_return  = lees_temp(2, 5);
+  float new_outside = lees_temp(2, 7);
+
+  if(abs(new_supply  - prev_t_supply)  > 10.0) stuur_alert("JGC spike aanvoer: "  + String(new_supply, 1));
+  else { t_supply  = new_supply;  prev_t_supply  = new_supply; }
+
+  if(abs(new_return  - prev_t_return)  > 10.0) stuur_alert("JGC spike retour: "   + String(new_return, 1));
+  else { t_return  = new_return;  prev_t_return  = new_return; }
+
+  if(new_outside < -30.0 || new_outside > 50.0) stuur_alert("JGC ongeldige buitentemp: " + String(new_outside, 1));
+  else if(abs(new_outside - prev_t_outside) > 5.0) stuur_alert("JGC spike buiten: " + String(new_outside, 1));
+  else { t_outside = new_outside; prev_t_outside = new_outside; }
+
+  // Compressor Hz en pompsnelheid uit ID=3
+  comp_hz          = jgc_frames[3][9];
+  pomp_snelheid_wp = jgc_frames[3][10];
+
+  // Defrost uit ID=1
+  defrost = (jgc_frames[1][4] != 0);
+
+  delta_t = t_supply - t_return;
+
+  if(proto_logging){
+    mqtt_log("JGC RX: A=" + String(t_supply,1) + " R=" + String(t_return,1)
+           + " B=" + String(t_outside,1) + " Hz=" + String(comp_hz)
+           + " P=" + String(pomp_snelheid_wp) + " ontd=" + String(defrost), "INFO");
+  }
+}
+
+enum class JgcState : uint8_t { WachtStart, LeesHeader, LeesPayload, LeesEinde };
+static JgcState jgc_state    = JgcState::WachtStart;
+static uint8_t  jgc_id       = 0;
+static uint8_t  jgc_data_len = 0;
+static uint8_t  jgc_buf[80]  = {0};
+static uint8_t  jgc_idx      = 0;
+
+static void lees_warmtepomp_data_jgc(){
+  while(chofuSerial.available()){
+    uint8_t b = chofuSerial.read();
+    switch(jgc_state){
+      case JgcState::WachtStart:
+        if(b == 0x91){ jgc_state = JgcState::LeesHeader; jgc_idx = 0; }
+        break;
+      case JgcState::LeesHeader:
+        if(jgc_idx == 0){
+          jgc_id = b;
+          if(jgc_id > 3){ jgc_state = JgcState::WachtStart; break; }
+        } else {
+          uint8_t msg_len = b + 1;
+          if(!jgc_geldige_lengte(msg_len)){ jgc_state = JgcState::WachtStart; break; }
+          jgc_data_len = msg_len - 3;
+          jgc_idx = 0;
+          jgc_state = JgcState::LeesPayload;
+          break;
+        }
+        jgc_idx++;
+        break;
+      case JgcState::LeesPayload:
+        jgc_buf[jgc_idx++] = b;
+        if(jgc_idx >= jgc_data_len) jgc_state = JgcState::LeesEinde;
+        break;
+      case JgcState::LeesEinde:
+        if(b == 0x00){
+          jgc_sla_frame_op(jgc_id, jgc_data_len, jgc_buf);
+          if(jgc_id == 2) jgc_verwerk_frames();
+          vorige_telegram_ms = millis();
+        } else {
+          if(proto_logging) mqtt_log("JGC: eindnul ontbreekt ID=" + String(jgc_id), "WARNING");
+        }
+        jgc_state = JgcState::WachtStart;
+        break;
+    }
+  }
+  if(millis() - vorige_telegram_ms > 5000){
+    if(proto_logging) mqtt_log("JGC timeout: geen frame >5s, stuur TX", "WARNING");
+    stuur_stand_telegram_jgc();
+    vorige_telegram_ms = millis();
+  }
+}
+
+// JGC TX — roteert 4 telegrammen, data2 bevat stand + CRC-CCITT
+static uint8_t jgc_tx0[] = { 0x19, 0x0, 0x8, 0x0, 0x0, 0x0, 0xd9, 0xb5 };
+static uint8_t jgc_tx1[] = { 0x19, 0x1, 0x0c, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0xaa, 0x35 };
+static uint8_t jgc_tx2[] = { 0x19, 0x2, 0x8, 0x1, 0x1, 0x0, 0x99, 0x37 };
+static uint8_t jgc_tx3[] = { 0x19, 0x3, 0x8, 0xb2, 0x2, 0x0, 0xc1, 0x9a };
+static uint8_t jgc_telegram_count = 0;
+
+static void stuur_stand_telegram_jgc(){
+  switch(jgc_telegram_count){
+    case 0:
+      chofuSerial.write(jgc_tx0, sizeof(jgc_tx0));
+      if(proto_logging) mqtt_proto("tx-jgc0", jgc_tx0, sizeof(jgc_tx0), " | init0");
+      break;
+    case 1:
+      chofuSerial.write(jgc_tx1, sizeof(jgc_tx1));
+      if(proto_logging) mqtt_proto("tx-jgc1", jgc_tx1, sizeof(jgc_tx1), " | init1");
+      break;
+    case 2: {
+      uint8_t speed = ctrl.stand;
+      jgc_tx2[3] = (speed == 0) ? 0x00 : 0x01;
+      jgc_tx2[4] = speed;
+      uint16_t crc = jgc_bereken_crc(jgc_tx2, sizeof(jgc_tx2) - 2);
+      jgc_tx2[6] = (crc >> 8) & 0xFF;
+      jgc_tx2[7] = crc & 0xFF;
+      chofuSerial.write(jgc_tx2, sizeof(jgc_tx2));
+      String dec = " | stand=" + String(speed) + " modus=" + (speed == 0 ? "uit" : (koeling_modus ? "koeling" : "verwarming"));
+      if(proto_logging) mqtt_proto("tx-jgc2", jgc_tx2, sizeof(jgc_tx2), dec);
+      break;
+    }
+    case 3:
+      chofuSerial.write(jgc_tx3, sizeof(jgc_tx3));
+      if(proto_logging) mqtt_proto("tx-jgc3", jgc_tx3, sizeof(jgc_tx3), " | init3");
+      break;
+  }
+  jgc_telegram_count = (jgc_telegram_count + 1) % 4;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PUBLIEKE DISPATCHERS
+// ═══════════════════════════════════════════════════════════════
+
+void stuur_stand_telegram(){
+  if(parser_jgc) stuur_stand_telegram_jgc();
+  else           stuur_stand_telegram_klassiek();
+}
+
+void lees_warmtepomp_data(){
+  if(parser_jgc) lees_warmtepomp_data_jgc();
+  else           lees_warmtepomp_data_klassiek();
 }
 
 void pas_sim_toe(){
