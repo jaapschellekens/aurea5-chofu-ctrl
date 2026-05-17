@@ -139,12 +139,12 @@ static bool jgc_geldige_lengte(uint8_t len){
   return false;
 }
 
-// Per-ID opgeslagen framedata (max 80 bytes, 4 IDs)
-static uint8_t jgc_frames[4][80] = {0};
+// Per-ID opgeslagen framedata (max 21 bytes payload + 3 header = 24, afgerond naar 25)
+static uint8_t jgc_frames[4][25] = {0};
 
 static void jgc_sla_frame_op(uint8_t id, uint8_t data_len, uint8_t *payload){
-  // Bouw frame voor CRC-check: [0x91][id][data_len+2][payload...]
-  uint8_t frame[80];
+  // Bouw frame voor CRC-check: [0x91][id][data_len+2][payload...] (max 24 bytes)
+  uint8_t frame[25];
   frame[0] = 0x91;
   frame[1] = id;
   frame[2] = data_len + 2;
@@ -203,7 +203,7 @@ enum class JgcState : uint8_t { WachtStart, LeesHeader, LeesPayload, LeesEinde }
 static JgcState jgc_state    = JgcState::WachtStart;
 static uint8_t  jgc_id       = 0;
 static uint8_t  jgc_data_len = 0;
-static uint8_t  jgc_buf[80]  = {0};
+static uint8_t  jgc_buf[25]  = {0};
 static uint8_t  jgc_idx      = 0;
 
 // Timing — identiek aan JGC origineel
