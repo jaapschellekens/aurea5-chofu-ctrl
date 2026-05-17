@@ -185,7 +185,7 @@ void update_lcd(){
 void update_matrix() {
   if(!USE_LED_MATRIX) return;
   uint32_t nu = millis();
-  if(nu - vorige_matrix_ms < 4000) return;
+  if(nu - vorige_matrix_ms < 2000) return;
   vorige_matrix_ms = nu;
 
   // Pagina 0 — stand bar: elke kolom = één stand (0–12)
@@ -288,8 +288,14 @@ void update_matrix() {
 
   if(matrix_pagina == 0) {
     int leds = min((int)ctrl.stand, 12);
-    for(int col = 0; col < leds; col++)
-      for(int row = 0; row < 8; row++) frame[row][col] = 1;
+    if(leds == 0) {
+      // WP uit: één pixel in het midden als standby-indicator
+      frame[3][5] = 1; frame[3][6] = 1;
+      frame[4][5] = 1; frame[4][6] = 1;
+    } else {
+      for(int col = 0; col < leds; col++)
+        for(int row = 0; row < 8; row++) frame[row][col] = 1;
+    }
   } else if(matrix_pagina == 1) {
     const uint8_t (*icon)[12];
     if     (defrost)                          icon = ICON_DEFROST;
