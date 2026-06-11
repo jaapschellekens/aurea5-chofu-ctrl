@@ -324,12 +324,11 @@ void update_matrix() {
       }
     }
   }
-  // DEBUG: druk pagina, stand en fb-waarden af (verwijder zodra matrix werkt)
   Serial.print("matrix upd: pagina="); Serial.print((matrix_pagina+2)%3);
-  Serial.print(" stand="); Serial.print(ctrl.stand);
   Serial.print(" fb=0x"); Serial.print(fb[0],HEX);
   Serial.print(",0x"); Serial.print(fb[1],HEX);
   Serial.print(",0x"); Serial.println(fb[2],HEX);
-  matrix.loadFrame(fb);
+  // DEBUG: laad hart vanuit display.cpp om te testen of loadFrame hier werkt
+  matrix.loadFrame(LEDMATRIX_HEART_BIG);
 #endif
 }
