@@ -315,11 +315,6 @@ void update_matrix() {
 
   matrix_pagina = (matrix_pagina + 1) % 3;
 #if defined(ARDUINO_UNOR4_WIFI)
-  // renderBitmap() is een macro → loadPixels() → loadPixelsToBuffer() → loadFrame().
-  // loadPixelsToBuffer() heeft een carry-over bug bij pixelgroep-overgangen.
-  // Omzeil dit door zelf de uint32_t[3] te berekenen en loadFrame() direct aan te roepen.
-  // Formaat: LED-index i → bit (31 - i%32) van buf[i/32].
-  // LED-index = row*12 + col.
   uint32_t fb[3] = {0, 0, 0};
   for(int row = 0; row < 8; row++){
     for(int col = 0; col < 12; col++){
@@ -329,6 +324,12 @@ void update_matrix() {
       }
     }
   }
+  // DEBUG: druk pagina, stand en fb-waarden af (verwijder zodra matrix werkt)
+  Serial.print("matrix upd: pagina="); Serial.print((matrix_pagina+2)%3);
+  Serial.print(" stand="); Serial.print(ctrl.stand);
+  Serial.print(" fb=0x"); Serial.print(fb[0],HEX);
+  Serial.print(",0x"); Serial.print(fb[1],HEX);
+  Serial.print(",0x"); Serial.println(fb[2],HEX);
   matrix.loadFrame(fb);
 #endif
 }
