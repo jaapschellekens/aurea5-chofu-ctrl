@@ -7,6 +7,8 @@ uint8_t bereken_checksum(uint8_t *buf, uint8_t len){
   return (sum & 0xFF);
 }
 
+static void stuur_stand_telegram_jgc(); // forward declaration
+
 static void stuur_stand_telegram_klassiek(){
   uint8_t telegram[25] = {0};
   telegram[0] = 0x19;
