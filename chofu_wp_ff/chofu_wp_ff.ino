@@ -184,6 +184,18 @@ void mqtt_herverbind(){
 }
 
 void loop(){
+  // DEBUG: toon hart 10s na boot om te testen of ISR nog actief is in de loop.
+  // Verwijder zodra LED matrix werkt.
+  static bool loop_matrix_test = false;
+  if(!loop_matrix_test && millis() > 10000){
+    loop_matrix_test = true;
+    Serial.println("LED matrix loop-test: hart laden...");
+    matrix.loadFrame(LEDMATRIX_HEART_BIG);
+    delay(2000);
+    matrix.clear();
+    Serial.println("LED matrix loop-test: klaar");
+  }
+
   mqtt_herverbind();
   mqttClient.poll();
   check_knoppen();
