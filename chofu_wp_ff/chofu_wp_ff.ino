@@ -52,9 +52,6 @@ void setup(){
   Serial.begin(115200);
   delay(2000);
   Serial.println("\n\nKromhout WP v2.0 — FF modus");
-#if defined(ARDUINO_UNOR4_WIFI)
-  if(USE_LED_MATRIX) matrix.begin();
-#endif
   EEPROM_BEGIN();
   eeprom_init();
   knoppen_init();
@@ -124,6 +121,14 @@ void setup(){
 
   Serial.println("Systeem operationeel");
   Serial.print("Web: http://"); Serial.println(WiFi.localIP());
+#if defined(ARDUINO_UNOR4_WIFI)
+  // matrix.begin() MOET na WiFi.begin() komen: de WiFi-library reset op de UNO R4
+  // bepaalde hardware-timers waardoor de ISR van de LED-matrix stopt.
+  if(USE_LED_MATRIX){
+    bool ok = matrix.begin();
+    Serial.print("LED matrix begin(): "); Serial.println(ok ? "OK" : "MISLUKT");
+  }
+#endif
 }
 
 // ═══════════════════════════════════════════════════════════════
