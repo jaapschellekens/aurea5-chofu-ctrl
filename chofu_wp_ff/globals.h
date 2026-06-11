@@ -143,6 +143,10 @@ extern uint32_t vorige_data_ms;
 extern uint32_t vorige_lcd_ms;
 extern uint32_t vorige_matrix_ms;
 extern uint8_t  matrix_pagina;
+// Berekend frame voor de LED matrix — wordt door update_matrix() gevuld en door
+// de .ino via matrix.loadFrame() naar de ISR gestuurd (zelfde translation unit als ISR).
+extern uint32_t matrix_fb[3];
+extern bool     matrix_fb_klaar;
 extern uint32_t vorige_pid_ms;
 extern uint32_t vorige_telegram_ms;
 extern uint32_t vorige_web_check_ms;

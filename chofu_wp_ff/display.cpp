@@ -315,20 +315,17 @@ void update_matrix() {
 
   matrix_pagina = (matrix_pagina + 1) % 3;
 #if defined(ARDUINO_UNOR4_WIFI)
-  uint32_t fb[3] = {0, 0, 0};
+  // Bereken uint32_t[3] frame: LED-index i → bit (31-i%32) van fb[i/32].
+  // loadFrame() wordt door de .ino aangeroepen (zelfde TU als ISR/framebuffer).
+  matrix_fb[0] = matrix_fb[1] = matrix_fb[2] = 0;
   for(int row = 0; row < 8; row++){
     for(int col = 0; col < 12; col++){
       if(frame[row][col]){
         int idx = row * 12 + col;
-        fb[idx / 32] |= (1u << (31 - (idx % 32)));
+        matrix_fb[idx / 32] |= (1u << (31 - (idx % 32)));
       }
     }
   }
-  Serial.print("matrix upd: pagina="); Serial.print((matrix_pagina+2)%3);
-  Serial.print(" fb=0x"); Serial.print(fb[0],HEX);
-  Serial.print(",0x"); Serial.print(fb[1],HEX);
-  Serial.print(",0x"); Serial.println(fb[2],HEX);
-  // DEBUG: laad hart vanuit display.cpp om te testen of loadFrame hier werkt
-  matrix.loadFrame(LEDMATRIX_HEART_BIG);
+  matrix_fb_klaar = true;
 #endif
 }

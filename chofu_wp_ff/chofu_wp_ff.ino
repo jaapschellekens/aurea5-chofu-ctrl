@@ -127,16 +127,6 @@ void setup(){
   if(USE_LED_MATRIX){
     bool ok = matrix.begin();
     Serial.print("LED matrix begin(): "); Serial.println(ok ? "OK" : "MISLUKT");
-    if(ok){
-      // Hardware-test: toon 3 seconden een hart. Als dit zichtbaar is werkt de
-      // hardware correct en zit het probleem in update_matrix(). Als het donker
-      // blijft is er een dieper hardware- of timer-probleem.
-      Serial.println("LED matrix: hardware test (hart, 3s)...");
-      matrix.loadFrame(LEDMATRIX_HEART_BIG);
-      delay(3000);
-      matrix.clear();
-      Serial.println("LED matrix: hardware test klaar");
-    }
   }
 #endif
 }
@@ -184,18 +174,6 @@ void mqtt_herverbind(){
 }
 
 void loop(){
-  // DEBUG: toon hart 10s na boot om te testen of ISR nog actief is in de loop.
-  // Verwijder zodra LED matrix werkt.
-  static bool loop_matrix_test = false;
-  if(!loop_matrix_test && millis() > 10000){
-    loop_matrix_test = true;
-    Serial.println("LED matrix loop-test: hart laden...");
-    matrix.loadFrame(LEDMATRIX_HEART_BIG);
-    delay(2000);
-    matrix.clear();
-    Serial.println("LED matrix loop-test: klaar");
-  }
-
   mqtt_herverbind();
   mqttClient.poll();
   check_knoppen();
@@ -205,6 +183,14 @@ void loop(){
   pas_pid_aan();
   update_lcd();
   update_matrix();
+#if defined(ARDUINO_UNOR4_WIFI)
+  // loadFrame() hier aanroepen (zelfde TU als ISR) zodat de juiste 'framebuffer'
+  // static variabele wordt bijgewerkt. display.cpp heeft een eigen kopie.
+  if(USE_LED_MATRIX && matrix_fb_klaar){
+    matrix_fb_klaar = false;
+    matrix.loadFrame(matrix_fb);
+  }
+#endif
   if(data_sturen_gevraagd || millis() - vorige_data_ms > 10000){
     data_sturen_gevraagd = false;
     stuur_data();
