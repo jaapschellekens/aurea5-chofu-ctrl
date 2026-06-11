@@ -127,6 +127,16 @@ void setup(){
   if(USE_LED_MATRIX){
     bool ok = matrix.begin();
     Serial.print("LED matrix begin(): "); Serial.println(ok ? "OK" : "MISLUKT");
+    if(ok){
+      // Hardware-test: toon 3 seconden een hart. Als dit zichtbaar is werkt de
+      // hardware correct en zit het probleem in update_matrix(). Als het donker
+      // blijft is er een dieper hardware- of timer-probleem.
+      Serial.println("LED matrix: hardware test (hart, 3s)...");
+      matrix.loadFrame(LEDMATRIX_HEART_BIG);
+      delay(3000);
+      matrix.clear();
+      Serial.println("LED matrix: hardware test klaar");
+    }
   }
 #endif
 }
