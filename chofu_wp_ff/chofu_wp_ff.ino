@@ -89,18 +89,25 @@ void setup(){
   #if USE_LCD
   lcd.clear(); lcd.print("MQTT...");
   #endif
+  Serial.print("MQTT: verbinden met "); Serial.print(MQTT_BROKER);
+  Serial.print(":"); Serial.println(MQTT_PORT);
+  Serial.print("MQTT: gebruiker="); Serial.println(MQTT_USER);
   mqttClient.setUsernamePassword(MQTT_USER, MQTT_PASS);
   mqttClient.onMessage(mqtt_ontvang);
+  Serial.println("MQTT: LWT instellen (chofu/status = offline)");
   mqttClient.beginWill("chofu/status", true, 1);
   mqttClient.print("offline");
   mqttClient.endWill();
 
+  Serial.println("MQTT: connect()...");
   if(mqttClient.connect(MQTT_BROKER, MQTT_PORT)){
     Serial.println("MQTT OK!");
+    Serial.println("MQTT: abonneren op chofu/cmd/#, chofu/sim/#, anna/setpoint, anna/temperatuur");
     mqttClient.subscribe("chofu/cmd/#");
     mqttClient.subscribe("chofu/sim/#");
     mqttClient.subscribe("anna/setpoint");
     mqttClient.subscribe("anna/temperatuur");
+    Serial.println("MQTT: publiceren chofu/status = online");
     mqttClient.beginMessage("chofu/status", true, 1);
     mqttClient.print("online");
     mqttClient.endMessage();
@@ -111,6 +118,8 @@ void setup(){
     discovery_fase1();
     vorige_discovery_ms = millis();
     discovery_fase = 1;
+  } else {
+    Serial.print("MQTT: verbinding mislukt, foutcode="); Serial.println(mqttClient.connectError());
   }
 
   Serial.println("Systeem operationeel");
@@ -137,7 +146,8 @@ void mqtt_herverbind(){
   }
 
   if(mqttClient.connected()) return;
-  Serial.println("MQTT: herverbinden...");
+  Serial.print("MQTT: herverbinden met "); Serial.print(MQTT_BROKER);
+  Serial.print(":"); Serial.println(MQTT_PORT);
   mqttClient.beginWill("chofu/status", true, 1);
   mqttClient.print("offline");
   mqttClient.endWill();
@@ -153,7 +163,8 @@ void mqtt_herverbind(){
     discovery_fase = 0; discovery_fase1();
     vorige_discovery_ms = millis(); discovery_fase = 1;
   } else {
-    Serial.println("MQTT: herverbinden mislukt"); delay(5000);
+    Serial.print("MQTT: herverbinden mislukt, foutcode="); Serial.println(mqttClient.connectError());
+    delay(5000);
   }
 }
 
