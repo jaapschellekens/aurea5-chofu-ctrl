@@ -68,6 +68,19 @@ Gebruik uitsluitend `Serial1` (hardware UART, pinnen D0/D1) voor Chofu-communica
 
 ---
 
+## Hardware-communicatie valkuilen (juni 2026, opgelost)
+
+### TX/RX-labels op het IC-voetje zijn vanuit de verwijderde chip
+De Arduino *vervangt* de chip en moet pad "TX" met zijn eigen TX (D1) aansturen en pad "RX" op D0 lezen — omgekeerd aan de gebruikelijke TX→RX conventie tussen twee apparaten. Verkeerd om = TX gaat uit maar de pomp antwoordt nooit (herhaald `JGC timeout: geen frame >2s, stuur TX`).
+
+### De pomp antwoordt alleen op geldige JGC-polls (master/slave)
+Met de chip verwijderd is de lijn stil totdat de Arduino correcte JGC-telegrammen (CRC-CCITT) stuurt. De "klassieke" 25-byte poll wordt genegeerd → totale stilte. Daarom staat `parser_jgc = true` als default in `globals.cpp`. Een passieve sniffer ziet dan ook níets — dat is geen defect.
+
+### `chofu/cmd/parser` wordt niet in EEPROM bewaard
+Na een herstart geldt weer de compile-time default. Niet via MQTT op "jgc" zetten en denken dat het blijft staan.
+
+---
+
 ## MQTT-valkuilen
 
 ### ArduinoMqttClient trunceert stil op 256 bytes

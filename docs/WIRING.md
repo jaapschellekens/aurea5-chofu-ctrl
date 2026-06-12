@@ -178,15 +178,22 @@ LET OP:
 
 > **Let op:** De firmware gebruikt de hardware UART (`Serial1`, pins D0/D1), **niet** SoftwareSerial op pin 2/3. Sluit de controlbox daarom aan op D0 en D1.
 
+> **⚠️ TX/RX-labels op het IC-voetje zijn vanuit de VERWIJDERDE CHIP gezien!**
+> De Arduino *vervangt* de chip en moet dus de chip-pads als de chip zelf aansturen:
+> Arduino **TX (D1) → pad "TX"** en Arduino **RX (D0) → pad "RX"**.
+> Dit is dus *omgekeerd* aan de gebruikelijke conventie (TX→RX) bij twee losse apparaten.
+> Verkeerd om aangesloten = TX gaat wel uit ("JGC timeout: geen frame >2s") maar de pomp antwoordt nooit.
+
 ### Schema
 
 ```
-Controlbox                    Arduino UNO R4
+Controlbox (IC-voetje,        Arduino UNO R4
+labels v/d verwijderde chip)
 ┌─────────────┐              ┌──────────────┐
 │             │              │              │
-│    TX   ●───┼──────────────┼──● D0 (RX1)  │
+│    RX   ●───┼──────────────┼──● D0 (RX1)  │
 │         │   │              │              │
-│    RX   ●───┼────[1kΩ]─────┼──● D1 (TX1)  │
+│    TX   ●───┼────[1kΩ]─────┼──● D1 (TX1)  │
 │         │   │   weerstand  │              │
 │   GND   ●───┼──────────────┼──● GND       │
 │             │              │              │
@@ -197,10 +204,10 @@ Controlbox                    Arduino UNO R4
 
 1. **Identificeer Controlbox Terminals:**
 ```
-Op controlbox PCB zoek:
-- TX terminal (vaak label "TX" of "SEND")
-- RX terminal (vaak label "RX" of "RECV")  
-- GND terminal (vaak label "GND" of "-")
+Op controlbox PCB zoek (bij het 28-pins IC-voetje, zie foto verderop):
+- TX pad (label "TX")  — was de uitgang van de verwijderde chip richting pomp
+- RX pad (label "RX")  — was de ingang van de verwijderde chip vanaf de pomp
+- GND pad (label "GND" of "-")
 ```
 
 2. **Soldeer Weerstand:**
@@ -211,9 +218,15 @@ Dit beschermt controlbox tegen overbelasting
 
 3. **Aansluitingen:**
 ```
-Controlbox TX  →  Arduino D0 (RX1)  [Direct]
-Controlbox RX  →  Arduino D1 (TX1)  [Via 1kΩ weerstand!]
-Controlbox GND →  Arduino GND       [Direct]
+Pad "RX"  →  Arduino D0 (RX1)  [Direct]       (pomp → Arduino)
+Pad "TX"  →  Arduino D1 (TX1)  [Via 1kΩ!]     (Arduino → pomp)
+GND       →  Arduino GND       [Direct]
+```
+
+4. **Verificatie:**
+```
+Goed om:    binnen ~2s 0x91-frames terug van de pomp
+Verkeerd om: herhaald "JGC timeout: geen frame >2s, stuur TX" → draai D0/D1 om
 ```
 
 ### Bill of Materials (BOM)
@@ -274,20 +287,23 @@ Foto van https://gathering.tweakers.net/forum/view_message/84924782
 ```
 Multimeter op DC voltage (20V range)
 
-Tussen controlbox TX en GND:
+Tussen pad "TX" en GND:
 Expected: 0V (geen spanning zonder stroom)
 
-Tussen controlbox RX en GND:
+Tussen pad "RX" en GND:
 Expected: 0V
 ```
 
 **Controlbox aan, Arduino uit:**
 ```
-Tussen controlbox TX en GND:
-Expected: 0-5V (idle state)
+Tussen pad "RX" en GND (lijn vanaf de pomp):
+Expected: ~5V in rust (pomp-zender idle high)
 
 Meet ook op Arduino D0 (RX1) (moet zelfde zijn)
 ```
+
+> **Let op (chip verwijderd):** de pomp antwoordt alleen op geldige polls.
+> Zonder pollende Arduino kan de lijn stil zijn — dat is normaal, geen defect.
 
 ### Stap 3: Data Verificatie (Serial Monitor)
 
@@ -342,12 +358,15 @@ Check:
 
 **Oplossingen:**
 ```
-1. Check bekabeling (controlbox TX → Arduino D0)
+1. Check bekabeling (pad "RX" → Arduino D0, pad "TX" → Arduino D1 via 1kΩ)
+   LET OP: labels zijn vanuit de verwijderde chip — Arduino TX op pad "TX"!
 2. Verify controlbox heeft stroom
 3. Check GND verbonden (gemeenschappelijke ground!)
-4. Test met multimeter: spanning op TX pin van controlbox?
-5. Wissel RX/TX (verkeerd om aangesloten?)
+4. Test met multimeter: ~5V rust op pad "RX"?
+5. "JGC timeout: geen frame >2s" in de log = TX werkt maar geen antwoord
+   → meestal D0/D1 verkeerd om: wissel de draden
 6. Check dat je D0/D1 gebruikt (hardware UART), niet pin 2/3
+7. Check parser: moet "jgc" zijn (chofu/cmd/parser), klassiek krijgt geen antwoord
 ```
 
 ### Garbage Data
@@ -358,7 +377,7 @@ Check:
 
 **Oplossingen:**
 ```
-1. Check baud rate (moet 9600 zijn)
+1. Check baud rate (moet 666 zijn)
 2. EMI interferentie? (gebruik kortere wires)
 3. Ground loop? (check GND verbinding)
 4. Gebruik shielded cable voor lange afstanden
