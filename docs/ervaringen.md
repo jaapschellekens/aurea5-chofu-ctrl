@@ -79,6 +79,15 @@ Met de chip verwijderd is de lijn stil totdat de Arduino correcte JGC-telegramme
 ### `chofu/cmd/parser` wordt niet in EEPROM bewaard
 Na een herstart geldt weer de compile-time default. Niet via MQTT op "jgc" zetten en denken dat het blijft staan.
 
+### De "eindnul" bestaat niet op de UNO R4 (~100% RX-verlies)
+De afsluitende `0x00` die `jgc.ino` per frame verwacht is **geen protocolbyte maar een AVR-artefact**: na het laatste frame-byte laat de pomp de lijn los (break-conditie), en de AVR-UART van de Mega levert dat af als databyte `0x00`. De Renesas-UART van de UNO R4 filtert framing-errors weg — die byte komt dus nooit aan, waardoor de parser eeuwig op de terminator wachtte (eerst eindnul-fouten + TX dwars door frames, na de wachtfix mid-frame aborts). Bewijs via `sniffer/sniffer.ino` (pollen + hex-dump zonder WiFi): elk pompframe is exact `lenbyte` bytes lang, nooit een trailing `00`, ook niet na 270 ms stilte. Fix: payload = `msg_len − 4` bytes (incl. 2 CRC-bytes), frame is compleet na de payload, geen terminator-state. NB: `jgc.ino` leest door een index-quirk (`index++` na de header) feitelijk ook maar `DataLength−1` payloadbytes — de wire-layout is dus in beide implementaties gelijk.
+
+### Half-duplex lijn met TX-echo
+Alle eigen TX-bytes komen als echo terug op RX (zichtbaar in de sniffer-dump). De parser negeert ze doordat ze geen `0x91` bevatten, maar: `jgc_is_ontvangend` moet waar blijven zolang de parser mid-frame zit (zoals `IsReceiving` in jgc.ino), TX wacht ≥99 ms na de laatste ontvangen byte, en een mid-frame timeout (600 ms) voorkomt permanente TX-blokkade bij een gestoord frame.
+
+### Spike-guard deadlock op buitentemperatuur
+De pomp stuurt bij koude start 0,0 °C buiten. Dat werd geaccepteerd (|0−5| = 5, net niet > 5), waarna de echte waarde (bijv. 21,6) voor eeuwig als spike werd afgewezen omdat `prev_t_outside` bij afwijzing niet werd bijgewerkt. Symptoom: `chofu/outside` blijft op 0 staan + herhaalde `JGC spike buiten`-alerts. Fix: `prev` wordt nu óók bij afwijzing bijgewerkt — een eenmalige glitch wordt nog steeds gefilterd, een aanhoudende waarde wordt bij het tweede frame geaccepteerd.
+
 ---
 
 ## MQTT-valkuilen
