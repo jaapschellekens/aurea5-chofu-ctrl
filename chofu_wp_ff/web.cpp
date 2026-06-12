@@ -37,7 +37,7 @@ void handle_web_client(){
     v = parse_param("kd_water");   if(v.length()){ Kd_water = v.toFloat(); eeprom_save(); }
     v = parse_param("modus");      if(v.length() && (v=="auto"||v=="water"||v=="ff_auto"||v=="ff_water"||v=="handmatig")){
       modus = str_naar_modus(v); if(modus != Modus::HANDMATIG){ ctrl.reset_pid(); ctrl.reset_ff(); } }
-    v = parse_param("water_setpoint"); if(v.length()){ float f=v.toFloat(); if(f>=25&&f<=55) t_water_gewenst=f; }
+    v = parse_param("water_setpoint"); if(v.length()){ float f=v.toFloat(); if(f>=16&&f<=55) t_water_gewenst=f; }
     v = parse_param("stooklijn_aan");  if(v.length()){ float f=v.toFloat(); if(f>=0&&f<=25&&f<STOOKLIJN_UIT_GRENS){ STOOKLIJN_AAN_GRENS=f; eeprom_save(); } }
     v = parse_param("ff_ua_house");    if(v.length()){ float f=v.toFloat(); if(f>=50&&f<=500){ ff_UA_house=f; eeprom_save(); } }
     v = parse_param("ff_ua_emitter");  if(v.length()){ float f=v.toFloat(); if(f>=50&&f<=500){ ff_UA_emitter=f; eeprom_save(); } }
@@ -82,7 +82,7 @@ void handle_web_client(){
     client.print(">"); client.print(m); client.println("</option>");
   }
   client.println("</select></div>");
-  client.print("<div>Water setpoint: <input type='number' name='water_setpoint' value='"); client.print(t_water_gewenst,1); client.println("' step='0.1' min='25' max='55'> °C</div>");
+  client.print("<div>Water setpoint: <input type='number' name='water_setpoint' value='"); client.print(t_water_gewenst,1); client.println("' step='0.1' min='16' max='55'> °C</div>");
   client.print("<div>Stooklijn aan (&lt; uit): <input type='number' name='stooklijn_aan' value='"); client.print(STOOKLIJN_AAN_GRENS,1); client.println("' step='0.5' min='0' max='25'> °C</div>");
   client.println("<h3>PID Parameters — AUTO modus</h3>");
   client.print("<div>Kp: <input type='number' name='kp' value='"); client.print(Kp,2); client.println("' step='0.5' min='0' max='500'></div>");

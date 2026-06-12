@@ -12,11 +12,11 @@
 
 ## Over Dit Project
 
-Dit is een test versie gebaseerd op de originele kromhout code. Het is zo aangepast dat het bij mij werkt (de hardware connectie werkt nog niet!)
+Dit is een versie gebaseerd op de originele kromhout code, aangepast en werkend op echte hardware (UNO R4 WiFi, chip-vervanging in de Aurea controlbox).
 
 Hoewel ik uiteindelijk veel handmatig heb gedaan is dit voor een groot deel met behulp van claude code en copilot gemaakt. 
 
-De controller spreekt het Chofu 0x19/0x91 serieel protocol, regelt het compressorvermogen in standen 0–8 (handmatig tot 12), en integreert volledig met Home Assistant via MQTT auto-discovery.
+De controller spreekt het Chofu 0x19/0x91 serieel protocol op **666 baud** (JGC multi-frame formaat, CRC-CCITT — zie [Protocol](#protocol)), regelt het compressorvermogen in standen 0–8 (handmatig tot 12), en integreert volledig met Home Assistant via MQTT auto-discovery.
 
 
 
@@ -29,7 +29,7 @@ De controller spreekt het Chofu 0x19/0x91 serieel protocol, regelt het compresso
 - **Anna thermostaat support** — leest setpoint en kamertemperatuur via MQTT
 - **Stooklijn compensatie** — aanvoertemperatuur omhoog bij vorst
 - **Vorstbeveiliging** — automatisch bij instelbare grens
-- **Koelmodus** — protocol byte 19-2,3 = 2, PID draait automatisch om
+- **Koelmodus** — telegram 19-2 byte 3 = 0x02 (bevestigd door JGC-auteur), regelaar draait automatisch om
 - **MQTT Auto-Discovery** — entities verschijnen automatisch in Home Assistant
 - **LCD display** — 16x2 I2C statusscherm (optioneel)
 - **EEPROM opslag** — instellingen blijven na herstart
@@ -133,7 +133,7 @@ Stand 12 = 1800 W
 
 ---
 
-### Koelmodus (nog niet getest)
+### Koelmodus
 
 Activeer via `chofu/cmd/koeling = "1"`. Koeling is **alleen beschikbaar** in `ff_auto`, `ff_water` en `handmatig` — niet in `auto` of `water`.
 
@@ -157,6 +157,28 @@ Regelt de aanvoertemperatuur op `t_water_gewenst` (bijv. 18°C).
 
 ---
 
+## Protocol
+
+De firmware praat rechtstreeks met de warmtepomp via `Serial1` (D0/D1) op **666 baud, 8N1**. De Arduino vervangt de uitgelezen chip in de Aurea controlbox en is **master**: hij stuurt 4 roterende 0x19-polltelegrammen; de pomp antwoordt per poll met een 0x91-frame.
+
+```
+TX (Arduino → pomp):  [0x19][ID 0-3][lenbyte][data...][CRC hi][CRC lo]
+RX (pomp → Arduino):  [0x91][ID 0-3][lenbyte][data...][CRC hi][CRC lo]
+                      framelengte = lenbyte bytes, GEEN terminator
+                      CRC-CCITT (init 0xFFFF, poly 0x1021), residu 0 over heel frame
+```
+
+Belangrijke bevindingen (juni 2026, zie [docs/ervaringen.md](docs/ervaringen.md)):
+
+- De lijn is **half-duplex met echo**: eigen TX-bytes komen terug op RX.
+- De "eindnul" uit de oorspronkelijke JGC-code is een **AVR-artefact** (break → 0x00); de Renesas-UART van de UNO R4 filtert die weg. Frames zijn exact `lenbyte` bytes.
+- ID=2 bevat de temperaturen (aanvoer/retour/buiten, little-endian ×0,1 °C), ID=3 compressor-Hz en pompsnelheid, ID=1 defrost.
+- De JGC-parser is de **default** (`parser_jgc = true`); de "klassieke" 25-byte parser is legacy en werkt niet met deze pomp.
+
+Voor busdiagnose zonder WiFi/MQTT: flash `sniffer/sniffer.ino` (pollt zelf en dumpt alle bytes als hex op USB-serial). Met `chofu/cmd/proto_log = 1` publiceert de firmware hex-frames op `chofu/proto/rx|tx` en elke 30 s een foutensamenvatting (`JGC (30s): CRC +x abort +y ok +z`).
+
+---
+
 ## Hardware
 
 ### Vereist
@@ -177,12 +199,12 @@ Regelt de aanvoertemperatuur op `t_water_gewenst` (bijv. 18°C).
 
 
 ```
-Arduino D0 (RX1) ←── Controlbox TX (pin 26)
-Arduino D1 (TX1) ──→ Controlbox RX  (pin 27 via transistor/level shifter!)
-Arduino GND      ───  Controlbox GND (pin 22)
+Arduino D0 (RX1) ←── pad "RX" op IC-voetje (pomp → Arduino)
+Arduino D1 (TX1) ──→ pad "TX" op IC-voetje (Arduino → pomp, via 1kΩ!)
+Arduino GND      ───  GND controlbox
 ```
 
-> De transistor is nodig omdat de Chofu controlbox 5V logica gebruikt. Zie [WIRING.md](WIRING.md) voor het schema.
+> **Let op:** de RX/TX-labels op het IC-voetje zijn vanuit de *verwijderde chip* gezien — de Arduino vervangt die chip en stuurt dus pad "TX" met zijn eigen TX aan. Verkeerd om aangesloten = polls gaan uit maar de pomp antwoordt nooit. Zie [docs/WIRING.md](docs/WIRING.md).
 
 ### LCD Display (optioneel)
 ```
@@ -223,7 +245,7 @@ Open `chofu_wp_ff/chofu_wp_ff.ino` en upload naar Arduino UNO R4 WiFi.
 ### 3. Home Assistant
 Entities verschijnen automatisch via MQTT discovery zodra de Arduino verbonden is. Geen YAML configuratie nodig.
 
-Zie [INSTALLATION.md](INSTALLATION.md) voor uitgebreide stap-voor-stap instructies.
+Zie [docs/INSTALLATION.md](docs/INSTALLATION.md) voor uitgebreide stap-voor-stap instructies.
 
 ---
 
@@ -263,11 +285,14 @@ Zie [INSTALLATION.md](INSTALLATION.md) voor uitgebreide stap-voor-stap instructi
 |-------|-------------|---------|
 | `chofu/cmd/modus` | Selecteer modus | `auto` / `ff_auto` / `water` / `ff_water` / `handmatig` |
 | `chofu/cmd/stand` | Vaste stand (→ handmatig) | 0–12 |
-| `chofu/cmd/water_setpoint` | Aanvoer setpoint water modus | 25–55°C |
+| `chofu/cmd/water_setpoint` | Aanvoer setpoint water modus (koeling: ~16–20) | 16–55°C |
 | `chofu/cmd/setpoint` | Aanvoer setpoint auto stooklijn | 20–45°C |
 | `chofu/cmd/koeling` | Koelmodus aan/uit | 0/1 |
+| `chofu/cmd/koeling_min_buiten` | Min. buitentemp voor koeling (EEPROM) | 0–30°C |
 | `chofu/cmd/supply_min` | Condensatiebescherming koeling (EEPROM) | 10–25°C |
 | `chofu/cmd/koeling_afschakel` | Afschakeldrempel koeling | 0.1–5.0°C |
+| `chofu/cmd/proto_log` | Protocol hex-logging aan/uit | 0/1 |
+| `chofu/cmd/parser` | Protocol parser (default jgc) | `jgc` / `klassiek` |
 | `chofu/cmd/power` | WP aan/uit | 0/1 |
 | `chofu/cmd/t_vorst` | Vorstgrens | −10 tot 10°C |
 | `chofu/cmd/kp` / `ki` / `kd` | PID parameters | getal |
@@ -340,6 +365,12 @@ De map `python/` bevat tools voor het optimaliseren en valideren van regelparame
 
 ### Arduino bevriest na enige tijd
 - Gebruik uitsluitend de hardware UART (Serial1, pins D0/D1) voor de WP-communicatie. SoftwareSerial conflicteert met de WiFi co-processor van de UNO R4 WiFi.
+
+### Geen of corrupte protocol-communicatie
+- Zet `chofu/cmd/proto_log = 1` en kijk naar de 30s-samenvatting: `JGC (30s): CRC +x abort +y ok +z`. Gezond is `ok` in de tientallen en CRC/abort ~0.
+- `JGC timeout: geen frame >2s` + geen antwoord → D0/D1 waarschijnlijk verwisseld (labels op IC-voetje zijn vanuit de verwijderde chip!)
+- Parser moet `jgc` zijn (`chofu/parser`); klassiek krijgt geen antwoord van de pomp
+- Voor diagnose op byte-niveau: flash `sniffer/sniffer.ino` (geen WiFi, hex-dump op USB-serial)
 
 ---
 

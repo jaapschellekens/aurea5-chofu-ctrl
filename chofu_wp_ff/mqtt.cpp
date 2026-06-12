@@ -156,7 +156,7 @@ void mqtt_ontvang(int len){
   else if(topic == "chofu/cmd/water_setpoint"){
     float val = payload.toFloat();
     // 0 = geen warmtevraag (Adam); 25–55 = geldig setpoint
-    if(val == 0.0f || (val >= 25 && val <= 55)){ t_water_gewenst = val;
+    if(val == 0.0f || (val >= 16 && val <= 55)){ t_water_gewenst = val;  // min 16: koelmodus (SUPPLY_MIN blijft de vloer)
       mqtt_log("Water SP: " + String(t_water_gewenst,1) + "C", "INFO"); }
   }
   else if(topic == "chofu/cmd/supply_max"){
@@ -270,7 +270,7 @@ void mqtt_ontvang(int len){
   }
   else if(topic == "chofu/sim/water_setpoint"){
     if(payload.length() == 0 || payload == "reset") sim_t_water_gewenst = NAN;
-    else { float v = payload.toFloat(); if(v >= 25 && v <= 55) sim_t_water_gewenst = v; }
+    else { float v = payload.toFloat(); if(v >= 16 && v <= 55) sim_t_water_gewenst = v; }
   }
   else if(topic == "chofu/sim/kamer"){
     if(payload.length() == 0 || payload == "reset") sim_t_kamer = NAN;
@@ -358,7 +358,7 @@ void discovery_fase2(){
   disco_pub("homeassistant/sensor/chofu_hp/doel_setpoint/config", pl);
   pl = "{\"name\":\"Chofu Vorstgrens\",\"uniq_id\":\"chofu_hp_t_vorst\",\"cmd_t\":\"chofu/cmd/t_vorst\",\"stat_t\":\"chofu/t_vorst\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":-10,\"max\":10,\"step\":0.5," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/chofu_hp/t_vorst/config", pl);
-  pl = "{\"name\":\"Chofu Water SP\",\"uniq_id\":\"chofu_hp_water_setpoint\",\"cmd_t\":\"chofu/cmd/water_setpoint\",\"stat_t\":\"chofu/water_setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":25,\"max\":55,\"step\":0.5," + avty + "," + dev + "}";
+  pl = "{\"name\":\"Chofu Water SP\",\"uniq_id\":\"chofu_hp_water_setpoint\",\"cmd_t\":\"chofu/cmd/water_setpoint\",\"stat_t\":\"chofu/water_setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":16,\"max\":55,\"step\":0.5," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/chofu_hp/water_setpoint/config", pl);
   pl = "{\"name\":\"Chofu Stooklijn Grens\",\"uniq_id\":\"chofu_hp_stooklijn_grens\",\"cmd_t\":\"chofu/cmd/stooklijn_grens\",\"stat_t\":\"chofu/stooklijn_grens\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":0,\"max\":25,\"step\":0.5," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/chofu_hp/stooklijn_grens/config", pl);

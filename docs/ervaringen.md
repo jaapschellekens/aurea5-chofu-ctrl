@@ -49,10 +49,10 @@ De ESP32 toolchain behandelt `#pragma once` niet altijd correct bij `.cpp`-besta
 ### Serial1 op ESP32 vereist expliciete pinnen
 ```cpp
 // UNO R4:
-chofuSerial.begin(9600);
+chofuSerial.begin(666);
 
 // ESP32:
-chofuSerial.begin(9600, SERIAL_8N1, CHOFU_RX_PIN, CHOFU_TX_PIN);
+chofuSerial.begin(666, SERIAL_8N1, CHOFU_RX_PIN, CHOFU_TX_PIN);
 // standaard: CHOFU_RX_PIN=16, CHOFU_TX_PIN=17 (UART2)
 ```
 
@@ -148,9 +148,10 @@ De ringbuffer in `ControllerState` (21 slots × 60s) slaat kamertemperatuur op v
 - Geen PSRAM op dit board
 
 ### Chofu/Atlantic Aurea 5
-- Seriele communicatie: 9600 baud, 8N1
-- Telegram: 25 bytes, checksum = som bytes 0–22 mod 256
-- Command byte: `0x19`, Status byte: `0x91`
+- Seriele communicatie: **666 baud**, 8N1, half-duplex met TX-echo
+- JGC multi-frame formaat (default): frames exact `lenbyte` bytes, 4 IDs, CRC-CCITT (residu 0), GEEN terminator
+- Klassiek formaat (legacy, werkt niet met deze pomp): 25 bytes, checksum = som bytes 0–22 mod 256
+- Command byte: `0x19`, Status byte: `0x91`; koeling: telegram 19-2 byte 3 = 0x02
 - Vermogensreeks standen 0–12: `{0, 240, 420, 640, 850, 1050, 1250, 1450, 1550, 1650, 1700, 1750, 1800}` W
 
 ### I2C LCD (alleen UNO R4)

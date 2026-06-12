@@ -324,7 +324,7 @@ void loop() {
 }
 ```
 
-> **ESP32:** gebruik `Serial1.begin(9600, SERIAL_8N1, 16, 17)` en pas pinnen aan voor jouw board.
+> **ESP32:** gebruik `Serial1.begin(666, SERIAL_8N1, 16, 17)` en pas pinnen aan voor jouw board.
 
 **Verwacht:**
 ```
@@ -397,74 +397,9 @@ Check:
 4. Gebruik optocoupler (galvanische scheiding)
 ```
 
----
 
-## PCB Design (Optioneel)
 
-Voor permanente installatie kan je een custom PCB laten maken:
 
-### Gerber Files
-
-**Coming soon:** PCB design met:
-- Arduino header pinnen
-- LCD I2C connector
-- Optocoupler circuit
-- Terminal blocks voor controlbox
-- Status LED's
-- Power indicator
-
-**Features:**
-- Compacte afmetingen (5x7cm)
-- Schroefgaten voor montage
-- Labeled terminals
-- Professional finish
-
----
-
-## Best Practices
-
-### DO's 
-```
-✓ Test op breadboard eerst
-✓ Gebruik verschillende kleuren per functie
-✓ Label alle wires (masking tape + marker)
-✓ Maak foto's tijdens installatie
-✓ Document je specifieke bekabeling
-✓ Gebruik krimptang connectors
-✓ Verifieer met multimeter
-```
-
-### DON'Ts 
-```
-✗ Direct solderen zonder test
-✗ Te lange wires (EMI gevoelig)
-✗ Vergeet GND gemeenschappelijk
-✗ Skip weerstand op TX pin
-✗ Gebruik slechte jumper wires
-✗ Forceer verbindingen
-✗ Werk onder spanning
-```
-
----
-
-## Complete BOM (Bill of Materials)
-
-| Item | Aantal | Prijs | Optioneel |
-|------|--------|-------|-----------|
-| Arduino UNO R4 WiFi | 1 | €30,00 | ❌ |
-| LCD 16x2 I2C | 1 | €5,00 | ❌ |
-| Jumper Wires F-F | 4 | €1,00 | ❌ |
-| 1kΩ Weerstand | 1 | €0,10 | ❌ |
-| 16mm paneel drukknop NO | 2 | €3,00 | ✅ |
-| PC817 Optocoupler | 2 | €0,40 | ✅ |
-| IC voetje 28-pins DIP | 1 | €0,30 | ✅ |
-| 220Ω Weerstand | 2 | €0,20 | ✅ |
-| Breadboard | 1 | €2,50 | ✅ |
-| USB-C kabel | 1 | €5,00 | ❌ |
-| 5V Power supply | 1 | €8,00 | ✅ |
-| Krimptang connectors | 10 | €1,00 | ✅ |
-| **Totaal (basis)** | | **€41,10** | |
-| **Totaal (volledig)** | | **€56,20** | |
 
 ---
 
@@ -476,4 +411,4 @@ Voor permanente installatie kan je een custom PCB laten maken:
 3. Multimeter - Voltage/continuity checks
 4. GitHub Issues - Community hulp
 
-**Veiligheid eerst!** Bij twijfel: vraag hulp! 🔧
+

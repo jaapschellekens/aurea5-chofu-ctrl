@@ -449,21 +449,20 @@ GEVAAR: Verkeerde aansluiting kan hardware beschadigen!
 - 3x Jumper wire
 - Schroevendraaier (voor controlbox terminals)
 
-**Aansluiting:**
+**Aansluiting (op het IC-voetje van de verwijderde chip):**
 ```
 Controlbox          Arduino UNO R4 WiFi
 ─────────────       ───────────────────
-TX (Terminal 1) →   D0 (RX1)
-RX (Terminal 2) →   D1 (TX1)  ← Via 1kΩ weerstand!
-GND               →   GND
+Pad "RX"        →   D0 (RX1)              (pomp → Arduino)
+Pad "TX"        →   D1 (TX1)              (Arduino → pomp, via 1kΩ weerstand!)
+GND             →   GND
 ```
 
 **BELANGRIJK:**
-- **D1 (TX1) MOET via 1kΩ weerstand!**
+- **De RX/TX-labels op het IC-voetje zijn vanuit de verwijderde chip gezien!** De Arduino vervangt die chip: Arduino-TX op pad "TX", Arduino-RX op pad "RX" — dus *niet* gekruist zoals tussen twee losse apparaten. Verkeerd om = polls gaan uit, pomp antwoordt nooit (`JGC timeout: geen frame >2s`).
+- **D1 (TX1) MOET via 1kΩ weerstand!** (beschermt de controlbox; zonder weerstand risico op beschadiging)
 - Gebruik **D0/D1** (hardware UART, Serial1) — **niet** pin 2/3 (SoftwareSerial crasht de WiFi co-processor)
 - Communicatie op **666 baud** (ongebruikelijk maar correct voor het Chofu protocol)
-- Dit beschermt controlbox tegen overbelasting
-- Zonder weerstand: risico op beschadiging!
 
 ### Optie B: Via Optocoupler (Veilig, aanbevolen)
 
@@ -488,18 +487,21 @@ TX: Stand 2 naar WP
 ✓ MQTT data verstuurd
 ```
 
-**Interval:**
-- RX (ontvangen): Elke 5 seconden
-- TX (versturen): Elke 5 seconden
+**Interval (JGC-protocol):**
+- TX (poll): elke ~300 ms, roterend over 4 telegrammen
+- RX (antwoord): binnen ~100 ms na elke geldige poll
 
 **Als geen data ontvangen:**
 ```
 Check:
+✓ D0/D1 niet verwisseld? (labels IC-voetje zijn vanuit de verwijderde chip!)
 ✓ Jumper wires goed aangesloten?
 ✓ Controlbox heeft stroom?
 ✓ Warmtepomp aan?
-✓ Juiste terminals gebruikt?
 ✓ GND gemeenschappelijk?
+✓ Parser = jgc? (chofu/parser — klassiek krijgt geen antwoord)
+✓ Diagnose: zet chofu/cmd/proto_log = 1 en check de 30s-samenvatting,
+  of flash sniffer/sniffer.ino voor een ruwe hex-dump zonder WiFi
 ```
 
 ---
@@ -591,10 +593,11 @@ Oorzaken:
 - Controlbox in verkeerde modus
 
 Oplossing:
-1. Check bekabeling (vooral TX pin!)
-2. Verifieer 1kΩ weerstand op Pin 2
-3. Check controlbox display (moet AUTO zijn)
-4. Test met handmatig commando (switch in HA)
+1. Check bekabeling: Arduino D1 → pad "TX", D0 → pad "RX" (labels zijn
+   vanuit de verwijderde chip gezien — bij twijfel: wissel D0/D1)
+2. Verifieer 1kΩ weerstand op D1 (TX1)
+3. Test met handmatig commando (chofu/cmd/stand)
+4. Zet chofu/cmd/proto_log = 1 en check chofu/proto/tx + 30s-samenvatting
 ```
 
 ---

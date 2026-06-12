@@ -121,7 +121,7 @@ Stand mapping:
 
 ```
 Topic:   chofu/cmd/water_setpoint
-Payload: "25.0" – "55.0"  (float, °C)
+Payload: "16.0" – "55.0"  (float, °C; onder ~20 alleen zinvol in koelmodus, SUPPLY_MIN is de vloer)
 
 Stel gewenste aanvoertemperatuur in (water modus).
 Tolerantie ±1°C:
@@ -379,7 +379,7 @@ Payload: float °C  (bereik -30 tot 50)
          leeg of "reset" → terug naar echte sensorwaarde
 
 Topic:   chofu/sim/water_setpoint
-Payload: float °C  (bereik 25 tot 55)
+Payload: float °C  (bereik 16 tot 55)
          leeg of "reset" → terug naar waarde van chofu/cmd/water_setpoint
 
 Topic:   chofu/sim/kamer
@@ -516,29 +516,40 @@ Payload: "1"  → aan
 State:   chofu/proto_log
 ```
 
-Bij ingeschakelde logging worden alle ontvangen (rx) en verzonden (tx) frames gepubliceerd op:
+Bij ingeschakelde logging worden ontvangen (rx) en verzonden (tx) frames gepubliceerd op:
 
 | Topic | Beschrijving |
 |-------|--------------|
 | `chofu/proto/tx` | Verzonden telegram (hex + decoded) |
 | `chofu/proto/rx` | Ontvangen telegram (hex + decoded) |
-| `chofu/proto/err` | Checksum-fout of ongeldig frame |
+| `chofu/proto/err` | Checksum-fout of ongeldig frame (alleen klassieke parser) |
+
+> De hex-dumps worden **uitgesteld** gepubliceerd (max 1 per seconde, buiten het tijdkritieke RX-pad) — een blokkerende MQTT-publish tijdens ontvangst verstoort anders de communicatie zelf.
+
+Daarnaast verschijnt elke 30 s een samenvatting op `chofu/log/WARNING` (met proto_log aan altijd, anders alleen bij nieuwe fouten):
+```
+JGC (30s): CRC +x abort +y ok +z (totaal CRC/abort/ok)
+```
+Gezond: `ok` in de tientallen per 30 s, CRC en abort ~0.
 
 ### Parser selectie
 
-De firmware heeft twee implementaties van het Chofu seriële protocol die je tijdens runtime kunt wisselen:
+De firmware heeft twee implementaties van het Chofu seriële protocol die je tijdens runtime kunt wisselen. **Default is `jgc`** — de klassieke parser is legacy en krijgt van deze pomp geen antwoord.
 
 ```
 Topic:   chofu/cmd/parser
-Payload: "klassiek"  → originele 25-byte vaste parser (byte-som checksum)
-         "jgc"       → JGC multi-frame parser (CRC-CCITT, variabele framelengte)
+Payload: "jgc"       → JGC multi-frame parser (CRC-CCITT, variabele framelengte) — DEFAULT
+         "klassiek"  → originele 25-byte vaste parser (byte-som checksum, legacy)
 State:   chofu/parser
+LET OP:  niet persistent — na herstart geldt weer de compile-time default (jgc)
 ```
 
 | Parser | Checksum | Frame-formaat | TX |
 |--------|----------|---------------|----|
-| `klassiek` | Byte-som mod 256 | Vaste 25 bytes, startbyte 0x91 | Één commando-telegram |
-| `jgc` | CRC-CCITT (0xFFFF, poly 0x1021) | Variabele lengte (13/14/19/21 bytes), 4 IDs | 4 telegrammen roterendheid (data0..data3) |
+| `jgc` (default) | CRC-CCITT (0xFFFF, poly 0x1021), residu 0 | Lengte = lenbyte (12/13/18/20 bytes), 4 IDs, **geen terminator** | 4 telegrammen roterend (tx0..tx3) |
+| `klassiek` (legacy) | Byte-som mod 256 | Vaste 25 bytes, startbyte 0x91 | Één commando-telegram |
+
+> De "eindnul" per frame uit de oorspronkelijke JGC-code (Mega 2560) is een AVR-artefact: een lijn-break komt daar als databyte 0x00 binnen. De Renesas-UART van de UNO R4 filtert die weg; frames zijn exact `lenbyte` bytes. Zie [ervaringen.md](ervaringen.md).
 
 **Teststrategie:**
 ```bash
@@ -547,16 +558,12 @@ BROKER="<YOUR_MQTT_BROKER_IP>"
 # Protocol logging aanzetten
 mosquitto_pub -h $BROKER -t "chofu/cmd/proto_log" -m "1"
 
-# Wissel naar JGC parser
-mosquitto_pub -h $BROKER -t "chofu/cmd/parser" -m "jgc"
-
-# Volg logs (RX-frames, CRC-fouten, TX-telegrammen)
+# Volg logs (RX-frames, TX-telegrammen, 30s-samenvatting)
 mosquitto_sub -h $BROKER -t "chofu/proto/#" -v
 mosquitto_sub -h $BROKER -t "chofu/log/#" -v
-
-# Terug naar klassieke parser
-mosquitto_pub -h $BROKER -t "chofu/cmd/parser" -m "klassiek"
 ```
+
+Voor diagnose op byte-niveau zonder WiFi/MQTT: flash `sniffer/sniffer.ino` (pollt zelf op 666 baud en dumpt alle bus-bytes als hex op USB-serial).
 
 > **Baudrate:** De warmtepomp communiceert op **666 baud** (hardware UART Serial1, pins D0/D1).  
 > **Serieel protocol:** Chofu 0x19 (commando) / 0x91 (status). Zie `WIRING.md` voor bekabeling.
@@ -631,7 +638,7 @@ chofu/
 ├── stooklijn_aan            16.0
 ├── sim_actief                0
 ├── proto_log                 0   ← protocol logging aan/uit
-├── parser               klassiek ← actieve parser (klassiek/jgc)
+├── parser               jgc      ← actieve parser (jgc=default/klassiek)
 ├── hyst_slow            600000   ← simulatie timing (niet EEPROM)
 ├── hyst_fast            120000
 ├── hyst_down             60000
@@ -676,7 +683,7 @@ chofu/
     ├── lcd
     ├── force_start
     ├── proto_log           ← protocol logging aan/uit
-    ├── parser              ← "klassiek" of "jgc"
+    ├── parser              ← "jgc" (default) of "klassiek"
     ├── hyst_slow           ← simulatie timing (niet EEPROM)
     ├── hyst_fast
     ├── hyst_down
