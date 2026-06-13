@@ -298,4 +298,4 @@ De stooklijnparameters verschijnen automatisch als *number*-entiteiten in Home A
 → Stuur `ff_UA_house` bij via `chofu/cmd/ff_ua_house` — het feedforwardmodel is directer en leert zichzelf bij.
 
 **`FF_WATER` volgt een verkeerde watertemperatuur:**
-→ Controleer het setpoint dat de Plugwise Adam publiceert op `chofu/water_setpoint`. De controller neemt dit setpoint volledig over.
+→ Controleer wat de Plugwise Adam publiceert naar `chofu/cmd/water_setpoint` (het command-topic). De huidige waarde die de controller gebruikt is zichtbaar op `chofu/water_setpoint` (state-topic).
