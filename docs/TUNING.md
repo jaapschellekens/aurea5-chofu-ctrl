@@ -1,4 +1,4 @@
-# Parameter Tuning Gids — Kromhout WP Controller
+# Parameter Tuning Gids — ChofuCtrl
 
 Deze gids beschrijft hoe je de PID- en feedforward-parameters aanpast, wat elk parameter doet en hoe je symptomen koppelt aan correcties. Alle parameters zijn instelbaar via MQTT zonder herflashen.
 

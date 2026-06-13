@@ -1,4 +1,4 @@
-# Hardware Bekabeling - Kromhout Warmtepomp Controller
+# Hardware Bekabeling - ChofuCtrl
 
 Complete bekabeling schemas en aansluitingen.
 

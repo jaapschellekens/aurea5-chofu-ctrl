@@ -1,4 +1,4 @@
-# MQTT Referentie - Kromhout Warmtepomp Controller
+# MQTT Referentie - ChofuCtrl
 
 Complete overzicht van alle MQTT topics, commando's en HA discovery entiteiten.
 

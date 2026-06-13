@@ -1,7 +1,7 @@
 
 /*
  * ╔═══════════════════════════════════════════════════════════════╗
- * ║  Kromhout WP Controller v2.0 — FF modus                     ║
+ * ║  ChofuCtrl v2.0 — FF modus                                  ║
  * ╚═══════════════════════════════════════════════════════════════╝
  *
  * Arduino UNO R4 WiFi
@@ -51,7 +51,7 @@
 void setup(){
   Serial.begin(115200);
   delay(2000);
-  Serial.println("\n\nKromhout WP v2.0 — FF modus");
+  Serial.println("\n\nChofuCtrl v2.0 — FF modus");
   EEPROM_BEGIN();
   eeprom_init();
   knoppen_init();
@@ -63,7 +63,7 @@ void setup(){
 
   if(USE_LCD){
     lcd.init(); lcd.init(); lcd.backlight();
-    lcd.print("Kromhout WP"); lcd.setCursor(0,1); lcd.print("v2.0 FF");
+    lcd.print("ChofuCtrl"); lcd.setCursor(0,1); lcd.print("v2.0 FF");
     delay(2000);
   }
 

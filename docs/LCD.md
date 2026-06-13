@@ -1,4 +1,4 @@
-# LCD Schermen — Kromhout WP Controller
+# LCD Schermen — ChofuCtrl
 
 De LCD 16×2 roteert elke **6 seconden** door 4 schermen.  
 **Scherm 0 en 3 zijn altijd gelijk. Schermen 1 en 2 zijn mode-specifiek.**

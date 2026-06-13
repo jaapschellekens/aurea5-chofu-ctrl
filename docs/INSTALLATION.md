@@ -1,4 +1,4 @@
-# Installatie Handleiding - Kromhout Warmtepomp Controller
+# Installatie Handleiding - ChofuCtrl
 
 Complete stap-voor-stap guide van hardware tot werkend systeem.
 
@@ -157,7 +157,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print("LCD Test OK!");
   lcd.setCursor(0, 1);
-  lcd.print("Kromhout WP");
+  lcd.print("ChofuCtrl");
 }
 
 void loop() {}
@@ -167,7 +167,7 @@ void loop() {}
 ```
 ╔════════════════╗
 ║LCD Test OK!    ║
-║Kromhout WP     ║
+║ChofuCtrl     ║
 ╚════════════════╝
 ```
 
@@ -287,7 +287,7 @@ Na een succesvolle upload verbindt de Arduino direct met jouw WiFi en MQTT broke
 2. Baud rate: 115200 (onderaan rechts)
 3. Moet zien:
 
-Kromhout WP v2.0 — FF modus
+ChofuCtrl v2.0 — FF modus
 EEPROM: lees opgeslagen settings
   FF UA huis:272 emitter:267
 
@@ -392,14 +392,14 @@ De LCD roteert elke 6 seconden door 4 schermen. **Scherm 0 en 3 zijn altijd geli
 Wacht 2-3 minuten...
 
 Settings → Devices & Services → MQTT → Devices
-Moet zien: "Kromhout WP" (of jouw gekozen naam)
+Moet zien: "ChofuCtrl" (of jouw gekozen naam)
 
 Klik erop → Zie 16+ entities:
-✓ Kromhout WP Aanvoer (sensor)
-✓ Kromhout WP Retour (sensor)
-✓ Kromhout WP Kamer (sensor)
-✓ Kromhout WP Stand (sensor)
-✓ Kromhout WP Power (switch)
+✓ ChofuCtrl Aanvoer (sensor)
+✓ ChofuCtrl Retour (sensor)
+✓ ChofuCtrl Kamer (sensor)
+✓ ChofuCtrl Stand (sensor)
+✓ ChofuCtrl Power (switch)
 ✓ ... etc
 ```
 
@@ -419,12 +419,12 @@ Klik erop → Zie 16+ entities:
 1. Overview → Edit Dashboard
 2. Add Card → Entities
 3. Selecteer entities:
-   - sensor.kromhout_wp_kamer
-   - sensor.kromhout_wp_aanvoer
-   - sensor.kromhout_wp_retour
-   - sensor.kromhout_wp_stand
-   - sensor.kromhout_wp_vermogen
-   - switch.kromhout_wp_power
+   - sensor.chofu_ctrl_kamer
+   - sensor.chofu_ctrl_aanvoer
+   - sensor.chofu_ctrl_retour
+   - sensor.chofu_ctrl_stand
+   - sensor.chofu_ctrl_vermogen
+   - switch.chofu_ctrl_power
 4. Save
 ```
 
@@ -535,7 +535,7 @@ Check:
 
 **2. Handmatige Controle:**
 ```
-1. Home Assistant → switch.kromhout_wp_power → Turn On
+1. Home Assistant → switch.chofu_ctrl_power → Turn On
 2. Check Serial Monitor: "Handmatig: Stand 1"
 3. Warmtepomp moet starten
 4. Turn Off → Warmtepomp moet stoppen

@@ -12,7 +12,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print("LCD Test OK!");
   lcd.setCursor(0, 1);
-  lcd.print("Kromhout WP");
+  lcd.print("ChofuCtrl");
 }
 
 void loop() {}

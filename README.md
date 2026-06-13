@@ -4,6 +4,8 @@
 
 > Fork van [kromhoutmaarten-sys/Aurea-5-hybrid_uno4](https://github.com/kromhoutmaarten-sys/Aurea-5-hybrid_uno4)
 
+> Protocol en low level besturing gebaseerd op het werk van WackoH , \_JCG\_ en anderen in tweakers (https://gathering.tweakers.net/forum/list_messages/2220972/0) 
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Arduino](https://img.shields.io/badge/Arduino-UNO%20R4%20WiFi-00979D?logo=arduino)](https://www.arduino.cc/)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-Compatible-41BDF5?logo=home-assistant)](https://www.home-assistant.io/)
@@ -12,7 +14,7 @@
 
 ## Over Dit Project
 
-Dit is een versie gebaseerd op de originele kromhout code, aangepast en werkend op echte hardware (UNO R4 WiFi, chip-vervanging in de Aurea controlbox).
+Dit is een versie gebaseerd op de geforkte code, aaangevuld met een andere versie van het protocol dat door WackoH en \_JCG\_ is gepubliceerd op de genoemde tweakers thread.
 
 Hoewel ik uiteindelijk veel handmatig heb gedaan is dit voor een groot deel met behulp van claude code en copilot gemaakt. 
 
@@ -26,10 +28,10 @@ De controller spreekt het Chofu 0x19/0x91 serieel protocol op **666 baud** (JGC 
 
 - **Vijf regelingsmodi** — Auto PID, Auto FF (feedforward), Water PID, Water FF, Handmatig
 - **Feedforward controller** — model-gebaseerde stooklijn met online leren van UA_house en UA_emitter
-- **Anna thermostaat support** — leest setpoint en kamertemperatuur via MQTT
+- **Anna/Adam thermostaat support** — leest setpoint en kamertemperatuur via MQTT
 - **Stooklijn compensatie** — aanvoertemperatuur omhoog bij vorst
 - **Vorstbeveiliging** — automatisch bij instelbare grens
-- **Koelmodus** — telegram 19-2 byte 3 = 0x02 (bevestigd door JGC-auteur), regelaar draait automatisch om
+- **Koelmodus** — telegram 19-2 byte 3 = 0x02, regelaar draait automatisch om
 - **MQTT Auto-Discovery** — entities verschijnen automatisch in Home Assistant
 - **LCD display** — 16x2 I2C statusscherm (optioneel)
 - **EEPROM opslag** — instellingen blijven na herstart
@@ -389,7 +391,7 @@ De map `python/` bevat tools voor het optimaliseren en valideren van regelparame
 ## Credits
 
 Protocol reverse engineering: WackoH (Tweakers.net) — [Tweakers topic](https://gathering.tweakers.net/forum/list_messages/2220972/0)
-Fork van kromhoutmaarten-sys/Aurea-5-hybrid_uno4
+Fork van [kromhoutmaarten-sys/Aurea-5-hybrid_uno4](https://github.com/kromhoutmaarten-sys/Aurea-5-hybrid_uno4)
 
 **Bibliotheken:**
 - ArduinoMqttClient (Arduino)
