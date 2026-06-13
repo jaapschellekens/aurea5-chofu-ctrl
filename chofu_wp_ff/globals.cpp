@@ -125,6 +125,7 @@ uint32_t vorige_pid_ms = 0;
 uint32_t vorige_telegram_ms = 0;
 uint32_t vorige_web_check_ms = 0;
 uint32_t vorige_mqtt_rx_ms = 0;
+uint32_t boot_ms = 0;
 
 // ═══════════════════════════════════════════════════════════════
 //  MQTT LOGGING STATE

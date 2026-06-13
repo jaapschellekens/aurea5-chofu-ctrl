@@ -317,6 +317,8 @@ Alle safeguard meldingen verschijnen op `chofu/alert` (retained) en `chofu/log/W
 
 De Arduino publiceert alle HA discovery configs automatisch bij opstart (retained). Handmatige YAML configuratie is **niet** nodig.
 
+> **⏱ Koude-start vertraging:** Na elke (her)start blijft `ctrl.stand` geforceerd op 0 gedurende **5 minuten** (`BOOT_DELAY_MS`). De WP communiceert normaal maar draait niet. Na afloop verschijnt `"Koude-start vertraging afgelopen — regelaar actief"` op `chofu/log/INFO`.
+
 **Entiteiten (26 totaal):**
 
 | Entiteit | Type | Topic |

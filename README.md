@@ -244,6 +244,8 @@ const char* MQTT_PASS   = "";
 ### 3. Firmware uploaden
 Open `chofu_wp_ff/chofu_wp_ff.ino` en upload naar Arduino UNO R4 WiFi.
 
+> **⏱ Koude-start vertraging:** Na elke upload of stroomonderbreking blijft de WP **5 minuten** op stand 0 voordat de regelaar ingrijpt. Na 5 minuten verschijnt `"Koude-start vertraging afgelopen"` op `chofu/log/INFO`.
+
 ### 3. Home Assistant
 Entities verschijnen automatisch via MQTT discovery zodra de Arduino verbonden is. Geen YAML configuratie nodig.
 

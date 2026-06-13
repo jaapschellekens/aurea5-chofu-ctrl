@@ -127,6 +127,8 @@ void setup(){
     Serial.print("LED matrix begin(): "); Serial.println(ok ? "OK" : "MISLUKT");
   }
 #endif
+  boot_ms = millis();
+  Serial.println("Koude-start vertraging: 5 min stand=0");
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -174,6 +176,19 @@ void loop(){
   mqttClient.poll();
   check_knoppen();
   check_mqtt_watchdog();
+
+  // Koude-start vertraging: eerste 5 min na boot altijd stand=0
+  static bool boot_delay_afgelopen = false;
+  if(!boot_delay_afgelopen){
+    if(millis() - boot_ms < BOOT_DELAY_MS){
+      ctrl.stand = 0;
+      ctrl.wp_aan = false;
+    } else {
+      boot_delay_afgelopen = true;
+      mqtt_log("Koude-start vertraging afgelopen — regelaar actief", "INFO");
+    }
+  }
+
   lees_warmtepomp_data();
   pas_sim_toe();
   pas_pid_aan();

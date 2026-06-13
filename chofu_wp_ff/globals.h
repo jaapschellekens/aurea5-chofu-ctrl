@@ -150,6 +150,9 @@ extern uint32_t vorige_pid_ms;
 extern uint32_t vorige_telegram_ms;
 extern uint32_t vorige_web_check_ms;
 extern uint32_t vorige_mqtt_rx_ms;
+extern uint32_t boot_ms;            // tijdstip einde setup() — voor koude-start vertraging
+
+constexpr uint32_t BOOT_DELAY_MS = 300000UL; // 5 min: WP op stand 0 na koude start
 
 // ═══════════════════════════════════════════════════════════════
 //  MQTT LOGGING

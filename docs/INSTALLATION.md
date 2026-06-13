@@ -276,6 +276,8 @@ WiFi- en MQTT-credentials worden ingesteld via `config.h` — **niet** via een c
 
 Na een succesvolle upload verbindt de Arduino direct met jouw WiFi en MQTT broker. Er is geen extra configuratiestap nodig.
 
+> **⏱ Koude-start vertraging:** Na elke upload (of stroomonderbreking) wacht de controller **5 minuten** voordat de warmtepomp op vermogen mag komen. De WP communiceert normaal (JGC-frames), maar staat altijd op stand 0. Na 5 minuten verschijnt `"Koude-start vertraging afgelopen — regelaar actief"` op `chofu/log/INFO` en start de regelaar normaal. Dit voorkomt dat de WP direct op vol vermogen aanslaat na een herstart.
+
 ---
 
 ## FASE 5: Verificatie
@@ -298,7 +300,10 @@ Discovery F1
 Discovery F2
 Discovery F3
 Systeem operationeel
+Koude-start vertraging: 5 min stand=0
 ```
+
+> Na 5 minuten verschijnt op `chofu/log/INFO`: `"Koude-start vertraging afgelopen — regelaar actief"`
 
 **Als WiFi niet verbindt:**
 ```
