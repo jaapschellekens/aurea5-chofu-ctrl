@@ -4,6 +4,141 @@ De stooklijn verhoogt automatisch de aanvoerwatertemperatuur naarmate het buiten
 
 ---
 
+## Temperatuurschema — overzicht alle grenzen
+
+### Aanvoertemperatuur (verticale as)
+
+```
+Aanvoer (°C)
+    │
+ 60 ┤━━━━ SUPPLY_MAX ─────────────── veiligheidsplafond (alle modi)
+    │      cmd: chofu/cmd/supply_max       nooit overschreden
+    │
+ 45 ┤━━━━ Stooklijn cap ──────────── doel_setpoint nooit hoger (AUTO/FF_AUTO)
+    │
+    │      ↑ stooklijn actief gebied (t_buiten < STOOKLIJN_GRENS)
+    │      doel = stooklijn_basis + (grens − buiten) × factor
+    │
+ ~38┤──── doel_setpoint bij 0°C buiten (standaardinstellingen)
+    │
+ 32 ┤──── t_water_gewenst ────────── WATER / FF_WATER setpoint
+    │      cmd: chofu/cmd/water_setpoint   (Adam of handmatig)
+    │
+ 28 ┤━━━━ stooklijn_basis ────────── vlak deel stooklijn (AUTO/FF_AUTO)
+    │      cmd: chofu/cmd/stooklijn_basis  (bij buiten ≥ STOOKLIJN_GRENS)
+    │
+ 17 ┤━━━━ SUPPLY_MIN ─────────────── condensatiebescherming (koelmodus)
+    │      cmd: chofu/cmd/supply_min       aanvoer nooit lager in koeling
+    │
+  0 ┤
+```
+
+### Buitentemperatuur — wanneer draait de WP?
+
+```
+Buiten (°C)
+    │
++18 ┤━━━━ STOOKLIJN_UIT_GRENS ───── WP uit: stookseizoen voorbij (AUTO/FF_AUTO)
+    │      cmd: chofu/cmd/stooklijn_uit
++16 ┤━━━━ STOOKLIJN_AAN_GRENS ───── WP hervat na uitschakelstop (AUTO/FF_AUTO)
+    │      cmd: chofu/cmd/stooklijn_aan    2°C hysteresis → geen pendelen
+    │
++15 ┤━━━━ STOOKLIJN_GRENS ─────────stooklijn begint aanvoer verhogen
+    │      cmd: chofu/cmd/stooklijn_grens  (boven deze grens: vlak)
+    │
+    │      (stooklijn actief gebied)
+    │
+ +2 ┤━━━━ T_VORST ─────────────────vorstbeveiliging: WP verplicht op stand 1
+    │      cmd: chofu/cmd/t_vorst          ook als kamer al op temp
+    │
+  0 ┤
+    │
+-10 ┤──── stooklijn max ──────────── doel_setpoint = 45°C (begrensd)
+    │
+```
+
+### Water setpoint validatie (WATER / FF_WATER)
+
+```
+water_setpoint (°C)
+    │
+ 55 ┤━━━━ maximum ──────── boven 55: genegeerd
+    │
+    │      (geldig gebied: 16–55°C)
+    │
+ 16 ┤━━━━ WATER_SP_MIN ─── onder min én ≠ 0: genegeerd
+    │      cmd: chofu/cmd/water_sp_min     (beschermt tegen Adam-glitches)
+    │
+  1 ┤──── GENEGEERD ─────── 1 t/m (min-1): ongeldig, geen effect
+    │
+  0 ┤━━━━ Geen warmtevraag ─ WP uit (vorstbeveiliging blijft)
+    │      bijv. Adam stuurt 0 bij geen warmtevraag
+```
+
+---
+
+## Welke parameters gelden per modus?
+
+| Parameter | AUTO | FF_AUTO | WATER | FF_WATER | HAND |
+|-----------|:----:|:-------:|:-----:|:--------:|:----:|
+| `stooklijn_basis` (basis aanvoer) | ✅ | ✅ | — | — | — |
+| `STOOKLIJN_GRENS` (curve start) | ✅ | ✅ | — | — | — |
+| `STOOKLIJN_FACTOR` (hellingshoek) | ✅ | ✅ | — | — | — |
+| `STOOKLIJN_UIT_GRENS` (seizoensstop) | ✅ | ✅ | — | — | — |
+| `STOOKLIJN_AAN_GRENS` (hervat) | ✅ | ✅ | — | — | — |
+| `T_VORST` (vorstbeveiliging) | ✅ | ✅ | — | — | — |
+| `t_water_gewenst` (water setpoint) | — | — | ✅ | ✅ | — |
+| `WATER_SP_MIN` (min. water setpoint) | — | — | ✅ | ✅ | — |
+| `SUPPLY_MAX` (max. aanvoer) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `SUPPLY_MIN` (min. aanvoer koeling) | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+---
+
+## Instellen: beslisboom per modus
+
+### AUTO / FF_AUTO
+
+```
+Stap 1: Stel STOOKLIJN_UIT_GRENS in
+  → Boven welke buitentemperatuur heeft het huis geen verwarming nodig?
+     Typisch 15–18°C. Zet STOOKLIJN_AAN_GRENS ~2°C lager.
+
+Stap 2: Stel stooklijn_basis in
+  → Welke aanvoertemperatuur is nodig bij mild weer (10–15°C buiten)?
+     Bij vloerverwarming typisch 25–32°C, bij radiatoren 35–45°C.
+
+Stap 3: Stel STOOKLIJN_GRENS in
+  → Onder welke buitentemperatuur moet de aanvoer omhoog?
+     Typisch 10–15°C (= zachtste dag waarop je merkt dat het te koud is).
+
+Stap 4: Stel STOOKLIJN_FACTOR in
+  → Hoeveel graden aanvoer extra per °C buiten koeler?
+     Begin met 0.68; verhoog (bijv. 0.85) als het huis koud blijft bij vorst,
+     verlaag als de aanvoer te snel stijgt.
+
+Stap 5: Stel T_VORST in
+  → Onder welke buitentemperatuur moet de WP altijd aan (vorstbescherming)?
+     Default 2°C is veilig voor de meeste installaties.
+```
+
+### WATER / FF_WATER
+
+```
+Stap 1: Stel WATER_SP_MIN in
+  → Wat is de laagste zinnige aanvoertemperatuur voor je installatie?
+     Typisch 16–20°C. Waarden van de Adam tussen 1 en deze grens worden genegeerd.
+
+Stap 2: Configureer de Adam
+  → Stuur 0 bij geen warmtevraag (WP uit) en een geldig setpoint (≥ WATER_SP_MIN)
+     bij warmtevraag. De controller neemt het setpoint direct over.
+
+Stap 3: SUPPLY_MAX eventueel aanpassen
+  → Stel in op de maximale aanvoertemperatuur die je installatie verdraagt.
+     Default 60°C is veilig voor de meeste warmtepompen.
+```
+
+---
+
 ## Hoe het werkt
 
 De controller berekent een **doel-aanvoertemperatuur** (`doel_setpoint`) op basis van de buitentemperatuur:
