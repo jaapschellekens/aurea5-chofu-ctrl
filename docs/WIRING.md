@@ -10,7 +10,7 @@ Complete bekabeling schemas en aansluitingen.
 1. Arduino UNO R4 WiFi
 2. LCD 16x2 I2C Display
 3. Warmtepomp Protocol Interface
-4. *(Optioneel)* 2 drukknopjes voor handmatige standbediening
+4. *(Optioneel)* Drukknopjes voor handmatige standbediening
 
 ---
 
@@ -84,77 +84,6 @@ void loop() {}
 
 ---
 
-## Handmatige Bediening — Knoppen
-
-Twee drukknopjes maken het mogelijk de WP-stand direct in te stellen, zonder WiFi of MQTT. Indrukken zet de modus automatisch op HANDMATIG; MQTT-commando's kunnen daarna nog steeds overschrijven.
-
-### Aanbevolen knoppen
-
-| Situatie | Type | Formaat | Prijs | Tip |
-|----------|------|---------|-------|-----|
-| Testen / breadboard | Tactile push button | 6×6mm of 12×12mm | €0,10 | Zit in elk Arduino starterskit |
-| Permanente montage | Paneel-montage drukknop (NO) | 16mm of 22mm | €1–3 | Roestvrij staal, rood/groen |
-
-**Zoekterm**: `"16mm momentary push button NO"` of `"22mm panel mount momentary"`  
-**Verkrijgbaar bij**: Okaphone, Conrad, AliExpress, Farnell
-
-> Kies voor de NO-uitvoering (Normally Open). LED-verlichting in de knop is optioneel — sluit de LED dan gewoon niet aan.
-
-### Bedrading
-
-```
-Arduino D5 ●────┤  ▲ BTN UP   ├──── GND     (stand omhoog)
-Arduino D6 ●────┤  ▼ BTN DOWN ├──── GND     (stand omlaag)
-```
-
-Geen externe weerstand nodig — de firmware activeert de interne pull-up (`INPUT_PULLUP`).
-
-### Pin Mapping
-
-| Functie | Arduino Pin | Knop-aansluiting |
-|---------|-------------|------------------|
-| Stand omhoog | D5 | NO contact → GND |
-| Stand omlaag | D6 | NO contact → GND |
-
-### Schema
-
-```
-┌──────────────────────────────────────────┐
-│ Arduino UNO R4                           │
-│                                          │
-│   D5 ●──────────────┐                   │
-│                      │  ╔════════╗       │
-│                      └──║ BTN UP ║──┐   │
-│                         ╚════════╝  │   │
-│                                     │   │
-│   D6 ●──────────────┐               │   │
-│                      │  ╔══════════╗│   │
-│                      └──║ BTN DOWN ║│   │
-│                         ╚══════════╝│   │
-│                                     │   │
-│  GND ●──────────────────────────────┘   │
-└──────────────────────────────────────────┘
-```
-
-### Gedrag
-
-| Actie | Effect |
-|-------|--------|
-| Kort drukken | Stand ±1, modus → HANDMATIG, LCD en MQTT direct bijgewerkt |
-| Ingehouden houden | Auto-repeat elke 200 ms (handig voor snel naar stand 0 of 12) |
-| MQTT-commando daarna | Overschrijft de handmatige stand gewoon |
-
-### Bill of Materials — Knoppen
-
-| Item | Aantal | Prijs (schatting) |
-|------|--------|-------------------|
-| 16mm paneel drukknop NO (rood) | 1 | €1,50 |
-| 16mm paneel drukknop NO (groen) | 1 | €1,50 |
-| Jumper wires (M-F) | 2 | €0,20 |
-| **Totaal** | | **€3,20** |
-
----
-
 ## Warmtepomp Protocol Interface
 
 ### BELANGRIJKE VEILIGHEID
@@ -170,11 +99,7 @@ LET OP:
 
 ---
 
-## Optie A: Directe Verbinding (Simpel)
-
-**Voor:** Snel te bouwen, weinig onderdelen  
-**Tegen:** Geen galvanische scheiding  
-**Aanbevolen voor:** Test setup, tijdelijk gebruik
+## Directe Verbinding
 
 > **Let op:** De firmware gebruikt de hardware UART (`Serial1`, pins D0/D1), **niet** SoftwareSerial op pin 2/3. Sluit de controlbox daarom aan op D0 en D1.
 
@@ -236,20 +161,6 @@ Verkeerd om: herhaald "JGC timeout: geen frame >2s, stuur TX" → draai D0/D1 om
 | 1kΩ Weerstand (1/4W) | 1 | €0.10 | - |
 | Jumper Wires (F-F) | 3 | €1.00 | - |
 | Krimptang connectors | 6 | €0.50 | - |
-
----
-
-
-
-
-### Bill of Materials (BOM)
-
-| Item | Aantal | Prijs | Link |
-|------|--------|-------|------|
-| PC817 Optocoupler | 2 | €0.40 | - |
-| 1kΩ Weerstand (1/4W) | 2 | €0.20 | - |
-| Jumper Wires (M-M) | 10 | €1.50 | - |
-| **Totaal** | - | **€4.80** | - |
 
 ---
 
@@ -403,7 +314,78 @@ Check:
 
 ---
 
-## Hulp Nodig?
+## Handmatige Bediening — Knoppen (optioneel, niet goed getest)
+
+Twee drukknopjes maken het mogelijk de WP-stand direct in te stellen, zonder WiFi of MQTT. Indrukken zet de modus automatisch op HANDMATIG; MQTT-commando's kunnen daarna nog steeds overschrijven.
+
+### Aanbevolen knoppen
+
+| Situatie | Type | Formaat | Prijs | Tip |
+|----------|------|---------|-------|-----|
+| Testen / breadboard | Tactile push button | 6×6mm of 12×12mm | €0,10 | Zit in elk Arduino starterskit |
+| Permanente montage | Paneel-montage drukknop (NO) | 16mm of 22mm | €1–3 | Roestvrij staal, rood/groen |
+
+**Zoekterm**: `"16mm momentary push button NO"` of `"22mm panel mount momentary"`  
+**Verkrijgbaar bij**: Okaphone, Conrad, AliExpress, Farnell
+
+> Kies voor de NO-uitvoering (Normally Open). LED-verlichting in de knop is optioneel — sluit de LED dan gewoon niet aan.
+
+### Bedrading
+
+```
+Arduino D5 ●────┤  ▲ BTN UP   ├──── GND     (stand omhoog)
+Arduino D6 ●────┤  ▼ BTN DOWN ├──── GND     (stand omlaag)
+```
+
+Geen externe weerstand nodig — de firmware activeert de interne pull-up (`INPUT_PULLUP`).
+
+### Pin Mapping
+
+| Functie | Arduino Pin | Knop-aansluiting |
+|---------|-------------|------------------|
+| Stand omhoog | D5 | NO contact → GND |
+| Stand omlaag | D6 | NO contact → GND |
+
+### Schema
+
+```
+┌──────────────────────────────────────────┐
+│ Arduino UNO R4                           │
+│                                          │
+│   D5 ●──────────────┐                   │
+│                      │  ╔════════╗       │
+│                      └──║ BTN UP ║──┐   │
+│                         ╚════════╝  │   │
+│                                     │   │
+│   D6 ●──────────────┐               │   │
+│                      │  ╔══════════╗│   │
+│                      └──║ BTN DOWN ║│   │
+│                         ╚══════════╝│   │
+│                                     │   │
+│  GND ●──────────────────────────────┘   │
+└──────────────────────────────────────────┘
+```
+
+### Gedrag
+
+| Actie | Effect |
+|-------|--------|
+| Kort drukken | Stand ±1, modus → HANDMATIG, LCD en MQTT direct bijgewerkt |
+| Ingehouden houden | Auto-repeat elke 200 ms (handig voor snel naar stand 0 of 12) |
+| MQTT-commando daarna | Overschrijft de handmatige stand gewoon |
+
+### Bill of Materials — Knoppen
+
+| Item | Aantal | Prijs (schatting) |
+|------|--------|-------------------|
+| 16mm paneel drukknop NO (rood) | 1 | €1,50 |
+| 16mm paneel drukknop NO (groen) | 1 | €1,50 |
+| Jumper wires (M-F) | 2 | €0,20 |
+| **Totaal** | | **€3,20** |
+
+---
+
+## Het werkt niet?
 
 **Check:**
 1. INSTALLATION.md - Stap-voor-stap guide
