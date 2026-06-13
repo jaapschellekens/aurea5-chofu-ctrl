@@ -269,7 +269,7 @@ Zie [docs/INSTALLATION.md](docs/INSTALLATION.md) voor uitgebreide stap-voor-stap
 | `chofu/comp_hz` | Compressorfrequentie | Hz |
 | `chofu/delta_t` | Aanvoer − retour | °C |
 | `chofu/modus` | Huidige modus | auto/ff_auto/water/ff_water/handmatig |
-| `chofu/setpoint` | Actief aanvoer setpoint | °C |
+| `chofu/stooklijn_basis` | Actief aanvoer setpoint | °C |
 | `chofu/doel_setpoint` | Actief regelsetpoint (stooklijn bij verwarming, kamer/water bij koeling) | °C |
 | `chofu/water_setpoint` | Water modus setpoint | °C |
 | `chofu/pid` | PID uitvoer | % |
@@ -290,7 +290,7 @@ Zie [docs/INSTALLATION.md](docs/INSTALLATION.md) voor uitgebreide stap-voor-stap
 | `chofu/cmd/modus` | Selecteer modus | `auto` / `ff_auto` / `water` / `ff_water` / `handmatig` |
 | `chofu/cmd/stand` | Vaste stand (→ handmatig) | 0–12 |
 | `chofu/cmd/water_setpoint` | Aanvoer setpoint water modus (koeling: ~16–20) | 16–55°C |
-| `chofu/cmd/setpoint` | Aanvoer setpoint auto stooklijn | 20–45°C |
+| `chofu/cmd/stooklijn_basis` | Aanvoer setpoint auto stooklijn | 20–45°C |
 | `chofu/cmd/koeling` | Koelmodus aan/uit | 0/1 |
 | `chofu/cmd/koeling_min_buiten` | Min. buitentemp voor koeling (EEPROM) | 0–30°C |
 | `chofu/cmd/supply_min` | Condensatiebescherming koeling (EEPROM) | 10–25°C |

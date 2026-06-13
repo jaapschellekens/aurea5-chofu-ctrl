@@ -35,6 +35,7 @@ void eeprom_save(){
   EEPROM.put(ADDR_KD_WATER, Kd_water);
   EEPROM.put(ADDR_STOOKLIJN_AAN, STOOKLIJN_AAN_GRENS);
   EEPROM.put(ADDR_SUPPLY_MIN, SUPPLY_MIN);
+  EEPROM.put(ADDR_WATER_SP_MIN, WATER_SP_MIN);
   Serial.println("EEPROM: settings opgeslagen");
 }
 
@@ -70,6 +71,8 @@ void eeprom_load(){
   if(STOOKLIJN_AAN_GRENS < 0 || STOOKLIJN_AAN_GRENS > 25) STOOKLIJN_AAN_GRENS = 13.0f;
   EEPROM.get(ADDR_SUPPLY_MIN, SUPPLY_MIN);
   if(isnan(SUPPLY_MIN) || SUPPLY_MIN < 10 || SUPPLY_MIN > 25) SUPPLY_MIN = 17.0f;
+  EEPROM.get(ADDR_WATER_SP_MIN, WATER_SP_MIN);
+  if(isnan(WATER_SP_MIN) || WATER_SP_MIN < 10 || WATER_SP_MIN > 30) WATER_SP_MIN = 16.0f;
   Serial.print("EEPROM: geladen - SP:"); Serial.print(setpoint,1);
   Serial.print(" PID:"); Serial.print(Kp,2); Serial.print("/"); Serial.print(Ki,3); Serial.print("/"); Serial.println(Kd,2);
   Serial.print("  FF UA huis:"); Serial.print(ff_UA_house,0);

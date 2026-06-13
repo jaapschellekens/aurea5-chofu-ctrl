@@ -63,6 +63,7 @@ float T_VORST          = 2.0;
 
 float SUPPLY_MAX           = 60.0;
 float SUPPLY_MIN           = 17.0;  // condensatiebescherming koeling (°C)
+float WATER_SP_MIN         = 16.0;  // minimaal geldig water setpoint (°C); 1–(min-1) wordt genegeerd
 float KOELING_MIN_BUITEN   = 18.0;
 float KOELING_AFSCHAKEL    = 0.5f;  // °C ónder setpoint → koeling terugschakelen (niet EEPROM)
 float STOOKLIJN_UIT_GRENS  = 18.0;  // WP uit bij >18°C buiten (huis heeft dan nog ~500W warmtevraag)

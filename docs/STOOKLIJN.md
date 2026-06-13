@@ -127,7 +127,7 @@ Alle parameters worden **direct in EEPROM opgeslagen** na een wijziging — ze o
 
 | MQTT-commandotopic | Parameter | Standaard | Bereik | Wat het bepaalt |
 |--------------------|-----------|-----------|--------|-----------------|
-| `chofu/cmd/setpoint` | `setpoint` | 28°C | — | Basis-aanvoertemperatuur (vlak deel van de curve, bij en boven `STOOKLIJN_GRENS`) |
+| `chofu/cmd/stooklijn_basis` | `setpoint` | 28°C | — | Basis-aanvoertemperatuur (vlak deel van de curve, bij en boven `STOOKLIJN_GRENS`) |
 | `chofu/cmd/stooklijn_grens` | `STOOKLIJN_GRENS` | 15°C | 0–25°C | Buitentemperatuur waaronder de verhoging begint |
 | `chofu/cmd/stooklijn_factor` | `STOOKLIJN_FACTOR` | 0.68 | 0.1–5.0 | °C aanvoerverhoging per °C onder de drempel |
 | `chofu/cmd/stooklijn_uit` | `STOOKLIJN_UIT_GRENS` | 18°C | 5–30°C | Buitentemperatuur waarboven de verwarming stopt |

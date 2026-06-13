@@ -321,7 +321,7 @@ FF_KI_WATER = 0.017        FF_COAST_WATER = 2.5°C
 | `chofu/cmd/hyst_down` | ms | 100–3 600 000 | Hysteresis omlaag |
 | `chofu/cmd/pid_interval` | ms | 100–60 000 | PID/FF berekeningsinterval |
 | `chofu/cmd/water_setpoint` | °C | 25–55 | Vast water setpoint (WATER-modus) |
-| `chofu/cmd/setpoint` | °C | — | Basis stooklijn setpoint |
+| `chofu/cmd/stooklijn_basis` | °C | — | Basis stooklijn setpoint |
 | `chofu/cmd/stooklijn_grens` | °C | 0–25 | Stooklijn startpunt buiten |
 | `chofu/cmd/stooklijn_factor` | °C/°C | 0.1–5.0 | Stooklijn helling |
 | `chofu/cmd/stooklijn_uit` | °C | 5–30 | Buitentemp waarbij WP seizoensstop |

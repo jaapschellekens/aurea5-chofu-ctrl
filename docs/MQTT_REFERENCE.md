@@ -21,8 +21,9 @@ Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt a
 | `chofu/delta_t` | float | °C | Delta T (aanvoer − retour) |
 | `chofu/kamer` | float | °C | Kamer temperatuur (van Anna) |
 | `chofu/kamer_gewenst` | float | °C | Gewenste kamer temperatuur (van Anna) |
-| `chofu/setpoint` | float | °C | Aanvoer setpoint (auto modus stooklijn) |
-| `chofu/water_setpoint` | float | °C | Gewenste aanvoertemperatuur (water modus) |
+| `chofu/stooklijn_basis` | float | °C | Aanvoer setpoint (auto modus stooklijn) |
+| `chofu/water_setpoint` | float | °C | Gewenste aanvoertemperatuur (water modus); 0 = geen warmtevraag |
+| `chofu/water_sp_min` | float | °C | Minimaal geldig water setpoint (exclusief 0) |
 | `chofu/t_vorst` | float | °C | Actieve vorstgrens |
 
 ### Status
@@ -120,14 +121,29 @@ Stand mapping:
 
 ```
 Topic:   chofu/cmd/water_setpoint
-Payload: "16.0" – "55.0"  (float, °C; onder ~20 alleen zinvol in koelmodus, SUPPLY_MIN is de vloer)
+Payload: "0"              → geen warmtevraag: WP uit (vorstbeveiliging blijft actief)
+         "<WATER_SP_MIN>"–"55.0" → gewenste aanvoertemperatuur (float, °C)
+         Waarden tussen 1 en WATER_SP_MIN worden genegeerd.
 
-Stel gewenste aanvoertemperatuur in (water modus).
+Stel gewenste aanvoertemperatuur in (WATER / FF_WATER modus).
+Waarde 0 wordt gebruikt door externe regelaars (bijv. Plugwise Adam) om aan te geven
+dat er geen warmtevraag is — de WP wordt dan uitgeschakeld.
 Tolerantie ±1°C:
   setpoint + 1°C → UIT
   setpoint − 1°C → AAN
 
-Niet opgeslagen in EEPROM (reset naar 40°C na herstart).
+Niet opgeslagen in EEPROM (reset naar standaardwaarde na herstart).
+```
+
+```
+Topic:   chofu/cmd/water_sp_min
+Payload: "10.0"–"30.0"  (float, °C)
+State:   chofu/water_sp_min
+
+Minimale geldige waarde voor chofu/cmd/water_setpoint (exclusief 0).
+Waarden tussen 1 en water_sp_min worden genegeerd — handig om per ongeluk
+te lage setpoints van een externe regelaar te blokkeren.
+Opgeslagen in EEPROM. Default: 16°C.
 ```
 
 **Regelgedrag water modus (voorbeeld setpoint 40°C):**
@@ -190,7 +206,7 @@ Niet opgeslagen in EEPROM. Default: 0.5°C
 ### Stooklijn Parameters
 
 ```
-Topic:   chofu/cmd/setpoint
+Topic:   chofu/cmd/stooklijn_basis
 Payload: "20.0" – "45.0"  (float, °C)
 Opgeslagen in EEPROM. Default: 28.0°C
 
@@ -327,9 +343,9 @@ De Arduino publiceert alle HA discovery configs automatisch bij opstart (retaine
 | Chofu Retour | sensor (°C) | `chofu/return` |
 | Chofu Buiten | sensor (°C) | `chofu/outside` |
 | Chofu Delta T | sensor (°C) | `chofu/delta_t` |
-| Chofu Kamer | sensor (°C) | `chofu/kamer` |
+| Chofu Kamer | number (°C) | `chofu/cmd/kamer` |
 | Chofu Kamer Gewenst | sensor (°C) | `chofu/kamer_gewenst` |
-| Chofu Setpoint | sensor (°C) | `chofu/setpoint` |
+| Chofu Stooklijn Basis | number (°C) | `chofu/cmd/stooklijn_basis` |
 | Chofu Doel Setpoint | sensor (°C) | `chofu/doel_setpoint` |
 | Chofu Stand | sensor | `chofu/stand` |
 | Chofu Vermogen | sensor (W) | `chofu/vermogen` |
@@ -347,6 +363,7 @@ De Arduino publiceert alle HA discovery configs automatisch bij opstart (retaine
 | Chofu Koeling Afschakeldrempel | number (°C) | `chofu/cmd/koeling_afschakel` |
 | Chofu Modus Select | select | `chofu/cmd/modus` |
 | Chofu Water SP | number (°C) | `chofu/cmd/water_setpoint` |
+| Chofu Water SP Min | number (°C) | `chofu/cmd/water_sp_min` |
 | Chofu Vorstgrens | number (°C) | `chofu/cmd/t_vorst` |
 | Chofu Stand (handmatig) | number | `chofu/cmd/stand` |
 | Chofu Aanvoer Max | number (°C) | `chofu/cmd/supply_max` |
@@ -568,12 +585,15 @@ Voor diagnose op byte-niveau zonder WiFi/MQTT: flash `sniffer/sniffer.ino` (poll
 | Topic | Richting | Beschrijving |
 |-------|----------|--------------|
 | `chofu/cmd/kamer_setpoint` | Thermostaat → Arduino | Gewenste kamertemperatuur (14–30°C) |
-| `chofu/cmd/kamer` | Thermostaat → Arduino | Werkelijke kamertemperatuur (5–35°C) |
+| `chofu/cmd/kamer` | Thermostaat/HA → Arduino | Werkelijke kamertemperatuur (5–35°C) |
 
-> **Simulatie:** Gebruik `chofu/sim/kamer` en `chofu/sim/kamer_gewenst` in plaats van
-> de cmd-topics. Zo overschrijft de echte Zigbee-sensor de simulatiewaarden niet.
+De waarde van `chofu/cmd/kamer` is ook rechtstreeks instelbaar via het **"Chofu Kamer"** number-entity in Home Assistant (verschijnt automatisch via discovery).
 
-**Home Assistant Automatisering:**
+Voor automatische koppeling met een thermostaat: voeg onderstaande automatisering toe in HA zodat de thermostaat-waarden worden doorgestuurd naar de Arduino.
+
+> **Simulatie:** Gebruik `chofu/sim/kamer` en `chofu/sim/kamer_gewenst` in plaats van de cmd-topics. Zo overschrijft de echte sensor de simulatiewaarden niet.
+
+**Home Assistant Automatisering (optioneel — alleen nodig bij externe thermostaat):**
 ```yaml
 automation:
   - alias: "Thermostaat Setpoint naar MQTT"
@@ -609,7 +629,7 @@ chofu/
 ├── delta_t                   5.1
 ├── kamer                    20.5
 ├── kamer_gewenst            21.0
-├── setpoint                 28.0
+├── stooklijn_basis                 28.0
 ├── doel_setpoint            34.8
 ├── water_setpoint           32.0
 ├── t_vorst                   2.0
@@ -659,7 +679,7 @@ chofu/
     ├── water_setpoint
     ├── kamer_setpoint
     ├── koeling
-    ├── setpoint
+    ├── stooklijn_basis
     ├── t_vorst
     ├── supply_max
     ├── koeling_min_buiten
@@ -778,7 +798,7 @@ Volgende parameters blijven bewaard na herstart:
 
 | Parameter | Default | Commando |
 |-----------|---------|---------|
-| Setpoint (stooklijn) | 28.0°C | `chofu/cmd/setpoint` |
+| Stooklijn Basis | 28.0°C | `chofu/cmd/stooklijn_basis` |
 | Kp (auto) | 75.0 | `chofu/cmd/kp` |
 | Ki (auto) | 0.800 | `chofu/cmd/ki` |
 | Kd (auto) | 0.010 | `chofu/cmd/kd` |
