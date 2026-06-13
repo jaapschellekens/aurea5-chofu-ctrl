@@ -382,15 +382,15 @@ Payload: float °C  (bereik 16 tot 55)
 
 Topic:   chofu/sim/kamer
 Payload: float °C  (bereik 5 tot 40)
-         Overschrijft anna/temperatuur in de PID-regeling.
+         Overschrijft chofu/cmd/kamer in de PID-regeling.
          Gebruik dit in simulatie zodat de echte Zigbee-sensor
-         (die ook naar anna/temperatuur publiceert) niet interfereert.
-         leeg of "reset" → terug naar anna/temperatuur
+         (die ook naar chofu/cmd/kamer publiceert) niet interfereert.
+         leeg of "reset" → terug naar chofu/cmd/kamer
 
 Topic:   chofu/sim/kamer_gewenst
 Payload: float °C  (bereik 14 tot 30)
-         Overschrijft anna/setpoint in de PID-regeling.
-         leeg of "reset" → terug naar anna/setpoint
+         Overschrijft chofu/cmd/kamer_setpoint in de PID-regeling.
+         leeg of "reset" → terug naar chofu/cmd/kamer_setpoint
 
 Topic:   chofu/sim/reset
 Payload: willekeurig
@@ -561,37 +561,37 @@ Voor diagnose op byte-niveau zonder WiFi/MQTT: flash `sniffer/sniffer.ino` (poll
 
 ---
 
-## Anna Thermostaat Topics
+## Kamertemperatuur Topics
 
 | Topic | Richting | Beschrijving |
 |-------|----------|--------------|
-| `anna/setpoint` | Anna → Arduino | Gewenste kamertemperatuur (14–30°C) |
-| `anna/temperatuur` | Anna → Arduino | Werkelijke kamertemperatuur (5–35°C) |
+| `chofu/cmd/kamer_setpoint` | Thermostaat → Arduino | Gewenste kamertemperatuur (14–30°C) |
+| `chofu/cmd/kamer` | Thermostaat → Arduino | Werkelijke kamertemperatuur (5–35°C) |
 
 > **Simulatie:** Gebruik `chofu/sim/kamer` en `chofu/sim/kamer_gewenst` in plaats van
-> de Anna-topics. Zo overschrijft de echte Zigbee-sensor de simulatiewaarden niet.
+> de cmd-topics. Zo overschrijft de echte Zigbee-sensor de simulatiewaarden niet.
 
 **Home Assistant Automatisering:**
 ```yaml
 automation:
-  - alias: "Anna Setpoint naar MQTT"
+  - alias: "Thermostaat Setpoint naar MQTT"
     trigger:
       platform: state
       entity_id: climate.anna
     action:
       service: mqtt.publish
       data:
-        topic: "anna/setpoint"
+        topic: "chofu/cmd/kamer_setpoint"
         payload: "{{ state_attr('climate.anna', 'temperature') }}"
 
-  - alias: "Anna Temperatuur naar MQTT"
+  - alias: "Kamertemperatuur naar MQTT"
     trigger:
       platform: state
       entity_id: sensor.anna_temperature
     action:
       service: mqtt.publish
       data:
-        topic: "anna/temperatuur"
+        topic: "chofu/cmd/kamer"
         payload: "{{ states('sensor.anna_temperature') }}"
 ```
 
@@ -647,8 +647,8 @@ chofu/
 │   ├── return              (schrijf alleen, geen state)
 │   ├── outside             (schrijf alleen, geen state)
 │   ├── water_setpoint      (schrijf alleen, geen state)
-│   ├── kamer               (schrijf alleen — overschrijft anna/temperatuur)
-│   ├── kamer_gewenst       (schrijf alleen — overschrijft anna/setpoint)
+│   ├── kamer               (schrijf alleen — overschrijft chofu/cmd/kamer)
+│   ├── kamer_gewenst       (schrijf alleen — overschrijft chofu/cmd/kamer_setpoint)
 │   └── reset               (schrijf alleen, geen state)
 └── cmd/
     ├── modus
@@ -677,10 +677,6 @@ chofu/
     ├── hyst_fast
     ├── hyst_down
     └── pid_interval
-
-anna/
-├── setpoint                 21.0
-└── temperatuur              20.3
 ```
 
 ---
@@ -724,8 +720,8 @@ mosquitto_pub -h $BROKER -t "chofu/cmd/kd" -m "0.3"
 mosquitto_pub -h $BROKER -t "chofu/cmd/force_start" -m "1"
 
 # Anna simuleren
-mosquitto_pub -h $BROKER -t "anna/setpoint" -m "21.0"
-mosquitto_pub -h $BROKER -t "anna/temperatuur" -m "20.3"
+mosquitto_pub -h $BROKER -t "chofu/cmd/kamer_setpoint" -m "21.0"
+mosquitto_pub -h $BROKER -t "chofu/cmd/kamer" -m "20.3"
 
 # Monitoring
 mosquitto_sub -h $BROKER -t "chofu/#" -v

@@ -101,7 +101,7 @@ Gebruik `"°C"` (UTF-8 graadbool, 2 bytes) niet `"C"`. HA valideert de unit tege
 | `homeassistant/*/config` (discovery) | `true` |
 | `chofu/status = "online"` | `true` |
 | LWT `chofu/status = "offline"` | `true` (via `beginWill`) |
-| `chofu/sim/*` en `anna/temperatuur` (simulator) | `true` — anders verliest Arduino de waarden na MQTT reconnect |
+| `chofu/sim/*` en `chofu/cmd/kamer` (simulator) | `true` — anders verliest Arduino de waarden na MQTT reconnect |
 
 ---
 

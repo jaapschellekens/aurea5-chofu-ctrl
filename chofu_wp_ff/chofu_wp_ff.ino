@@ -99,11 +99,9 @@ void setup(){
   Serial.println("MQTT: connect()...");
   if(mqttClient.connect(MQTT_BROKER, MQTT_PORT)){
     Serial.println("MQTT OK!");
-    Serial.println("MQTT: abonneren op chofu/cmd/#, chofu/sim/#, anna/setpoint, anna/temperatuur");
+    Serial.println("MQTT: abonneren op chofu/cmd/#, chofu/sim/#");
     mqttClient.subscribe("chofu/cmd/#");
     mqttClient.subscribe("chofu/sim/#");
-    mqttClient.subscribe("anna/setpoint");
-    mqttClient.subscribe("anna/temperatuur");
     Serial.println("MQTT: publiceren chofu/status = online");
     mqttClient.beginMessage("chofu/status", true, 1);
     mqttClient.print("online");
@@ -160,8 +158,6 @@ void mqtt_herverbind(){
     Serial.println("MQTT: herverbonden");
     mqttClient.subscribe("chofu/cmd/#");
     mqttClient.subscribe("chofu/sim/#");
-    mqttClient.subscribe("anna/setpoint");
-    mqttClient.subscribe("anna/temperatuur");
     mqttClient.beginMessage("chofu/status", true, 1);
     mqttClient.print("online");
     mqttClient.endMessage();

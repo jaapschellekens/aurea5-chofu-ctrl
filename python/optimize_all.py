@@ -195,9 +195,9 @@ def main():
         print("Geen data!")
         sys.exit(1)
 
-    kamer_sp = (float(pivot["anna/setpoint"].mean())
-                if "anna/setpoint" in pivot.columns else 20.0)
-    print(f"Kamer setpoint: {kamer_sp:.1f}°C (gemiddelde anna/setpoint)")
+    kamer_sp = (float(pivot["chofu/cmd/kamer_setpoint"].mean())
+                if "chofu/cmd/kamer_setpoint" in pivot.columns else 20.0)
+    print(f"Kamer setpoint: {kamer_sp:.1f}°C (gemiddelde chofu/cmd/kamer_setpoint)")
 
     rows = []
 

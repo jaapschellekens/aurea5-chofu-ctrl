@@ -37,7 +37,7 @@ VERMOGEN = [0, 240, 420, 640, 850, 1050, 1250, 1450, 1550, 1650, 1700, 1750, 180
 # CSV-kolommen formaat v1 (history.csv)
 ENTITY_MAP = {
     "sensor.cresta_4802_temp":                      "chofu/sim/outside",
-    "sensor.anna_setpoint":                         "anna/setpoint",
+    "sensor.anna_setpoint":                         "chofu/cmd/kamer_setpoint",
     "sensor.opentherm_intended_boiler_temperature": "chofu/sim/water_setpoint",
 }
 REFERENCE_MAP = {
@@ -53,8 +53,8 @@ OBSERVE_MAP = {
 # climate.woonkamer heeft current_temperature en temperature als aparte kolommen
 ENTITY_MAP_V2 = {
     "sensor.cresta_4802_temp":                      "chofu/sim/outside",
-    "sensor.anna_setpoint":                         "anna/setpoint",
-    "climate.woonkamer_setpoint":                   "anna/setpoint",
+    "sensor.anna_setpoint":                         "chofu/cmd/kamer_setpoint",
+    "climate.woonkamer_setpoint":                   "chofu/cmd/kamer_setpoint",
     "sensor.opentherm_intended_boiler_temperature": "chofu/sim/water_setpoint",
 }
 REFERENCE_MAP_V2 = {
@@ -612,7 +612,7 @@ def parse_args():
                    help="Regelstrategie")
     p.add_argument("--kamer-setpoint", type=float, default=20.0,
                    help="Kamertemperatuur setpoint voor auto-modus als CSV geen "
-                        "anna/setpoint bevat [°C]")
+                        "chofu/cmd/kamer_setpoint bevat [°C]")
     p.add_argument("--water-setpoint", type=float, default=None,
                    help="Vaste water setpoint voor water-modus [°C]; "
                         "standaard: stooklijn (28°C base, 0.68/°C, grens 15°C)")
@@ -717,7 +717,7 @@ def load_csv(path, start=None, end=None):
     print(f"  Buitentemperatuur:      "
           f"{'ja' if 'chofu/sim/outside' in pivot.columns else 'ONTBREEKT'}")
     print(f"  Kamer setpoint (auto):  "
-          f"{'ja (anna/setpoint)' if 'anna/setpoint' in pivot.columns else 'niet in CSV → gebruik --kamer-setpoint'}")
+          f"{'ja (chofu/cmd/kamer_setpoint)' if 'chofu/cmd/kamer_setpoint' in pivot.columns else 'niet in CSV → gebruik --kamer-setpoint'}")
     print(f"  Water setpoint (water): "
           f"{'ja' if 'chofu/sim/water_setpoint' in pivot.columns else 'niet in CSV → stooklijn of --water-setpoint'}")
     if not ref.empty:
@@ -786,7 +786,7 @@ def run_replay(pivot, model, controller, modus="auto", kamer_sp=20.0,
                 t_outside = model.t_kamer - 5.0
 
             if modus == "auto":
-                sp_csv = row.get("anna/setpoint")
+                sp_csv = row.get("chofu/cmd/kamer_setpoint")
                 sp = sp_csv if (sp_csv is not None and not pd.isna(sp_csv)) else kamer_sp
                 t_water_gewenst = 40.0
             else:  # water

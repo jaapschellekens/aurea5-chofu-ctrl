@@ -219,18 +219,14 @@ void mqtt_ontvang(int len){
     eeprom_save();
     mqtt_log("FF UA opgeslagen: huis=" + String(ff_UA_house,0) + " emitter=" + String(ff_UA_emitter,0), "INFO");
   }
-  else if(topic == "anna/setpoint"){
-    float val = payload.toFloat();
-    if(val >= 14 && val <= 30) t_kamer_gewenst = val;
-  }
   else if(topic == "chofu/cmd/kamer_setpoint"){
     float val = payload.toFloat();
-    if(val >= 14 && val <= 25){
+    if(val >= 14 && val <= 30){
       t_kamer_gewenst = val;
       mqttClient.beginMessage("chofu/kamer_gewenst"); mqttClient.print(t_kamer_gewenst, 1); mqttClient.endMessage();
     }
   }
-  else if(topic == "anna/temperatuur"){
+  else if(topic == "chofu/cmd/kamer"){
     float val = payload.toFloat();
     if(val >= 5 && val <= 35) t_kamer = val;
   }
@@ -345,7 +341,7 @@ void discovery_fase2(){
   disco_pub("homeassistant/sensor/chofu_hp/delta_t/config", pl);
   pl = "{\"name\":\"Chofu Kamer\",\"uniq_id\":\"chofu_hp_kamer\",\"stat_t\":\"chofu/kamer\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/sensor/chofu_hp/kamer/config", pl);
-  pl = "{\"name\":\"Chofu Kamer Gewenst\",\"uniq_id\":\"chofu_hp_kamer_gewenst\",\"cmd_t\":\"chofu/cmd/kamer_setpoint\",\"stat_t\":\"chofu/kamer_gewenst\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":14,\"max\":25,\"step\":0.5," + avty + "," + dev + "}";
+  pl = "{\"name\":\"Chofu Kamer Gewenst\",\"uniq_id\":\"chofu_hp_kamer_gewenst\",\"cmd_t\":\"chofu/cmd/kamer_setpoint\",\"stat_t\":\"chofu/kamer_gewenst\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":14,\"max\":30,\"step\":0.5," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/chofu_hp/kamer_gewenst/config", pl);
   pl = "{\"name\":\"Chofu Setpoint\",\"uniq_id\":\"chofu_hp_setpoint\",\"stat_t\":\"chofu/setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/sensor/chofu_hp/setpoint/config", pl);

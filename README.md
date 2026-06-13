@@ -310,8 +310,8 @@ Zie [docs/INSTALLATION.md](docs/INSTALLATION.md) voor uitgebreide stap-voor-stap
 
 | Topic | Omschrijving |
 |-------|-------------|
-| `anna/setpoint` | Anna thermostaat setpoint |
-| `anna/temperatuur` | Anna kamertemperatuur |
+| `chofu/cmd/kamer_setpoint` | Anna thermostaat setpoint |
+| `chofu/cmd/kamer` | Anna kamertemperatuur |
 
 ### Log
 

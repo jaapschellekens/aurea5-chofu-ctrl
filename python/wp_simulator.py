@@ -5,11 +5,11 @@ wp_simulator.py — Hardware-in-the-loop WP simulatie
 De Arduino draait echte firmware maar is NIET verbonden met de echte WP.
 Dit script simuleert het huis en de warmtepomp en koppelt via MQTT:
 
-  Arduino leest  ←  anna/temperatuur       (gesimuleerde kamertemperatuur)
+  Arduino leest  ←  chofu/cmd/kamer       (gesimuleerde kamertemperatuur)
                  ←  chofu/sim/supply        (gesimuleerde aanvoertemperatuur)
                  ←  chofu/sim/return        (gesimuleerde retourtemperatuur)
                  ←  chofu/sim/outside       (gesimuleerde buitentemperatuur)
-                 ←  anna/setpoint           (gewenste kamertemperatuur)
+                 ←  chofu/cmd/kamer_setpoint           (gewenste kamertemperatuur)
 
   Arduino stuurt →  chofu/stand            (compressorstand 0-12)
 
@@ -112,8 +112,8 @@ class Simulator:
         print(f"MQTT verbonden met {self.args.host}:{self.args.port}")
         client.subscribe("chofu/stand")
         client.subscribe("chofu/modus")
-        client.subscribe("anna/setpoint")
-        print("Subscribed: chofu/stand, chofu/modus, anna/setpoint")
+        client.subscribe("chofu/cmd/kamer_setpoint")
+        print("Subscribed: chofu/stand, chofu/modus, chofu/cmd/kamer_setpoint")
         client.publish("chofu/cmd/sim", "1", retain=False)
         print("Simulatie ingeschakeld op Arduino")
         if self.args.modus:
@@ -129,7 +129,7 @@ class Simulator:
                 self.stand = int(float(payload))
             elif topic == "chofu/modus":
                 self.modus = payload
-            elif topic == "anna/setpoint":
+            elif topic == "chofu/cmd/kamer_setpoint":
                 self.kamer_sp = float(payload)
         except ValueError:
             pass
@@ -192,8 +192,8 @@ class Simulator:
 
     def _publish_all(self):
         t_water_sp = self._water_setpoint()
-        self._pub("anna/temperatuur",        self.model.t_kamer,   retain=True)
-        self._pub("anna/setpoint",           self.kamer_sp,        retain=True)
+        self._pub("chofu/cmd/kamer",        self.model.t_kamer,   retain=True)
+        self._pub("chofu/cmd/kamer_setpoint",           self.kamer_sp,        retain=True)
         self._pub("chofu/sim/supply",        self.model.t_supply,  retain=True)
         self._pub("chofu/sim/return",        self.model.t_supply - 3.0, retain=True)
         self._pub("chofu/sim/outside",       self.t_outside,       retain=True)
@@ -246,7 +246,7 @@ class Simulator:
                 t_water_sp = self._water_setpoint()
 
                 # Publiceer naar Arduino (retain=True zodat waarden na reconnect bewaard blijven)
-                self._pub("anna/temperatuur",         t_k,              retain=True)
+                self._pub("chofu/cmd/kamer",         t_k,              retain=True)
                 self._pub("chofu/sim/supply",         t_s,              retain=True)
                 self._pub("chofu/sim/return",         t_r,              retain=True)
                 self._pub("chofu/sim/outside",        self.t_outside,   retain=True)
