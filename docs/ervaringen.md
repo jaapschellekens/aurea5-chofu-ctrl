@@ -74,10 +74,7 @@ Gebruik uitsluitend `Serial1` (hardware UART, pinnen D0/D1) voor Chofu-communica
 De Arduino *vervangt* de chip en moet pad "TX" met zijn eigen TX (D1) aansturen en pad "RX" op D0 lezen — omgekeerd aan de gebruikelijke TX→RX conventie tussen twee apparaten. Verkeerd om = TX gaat uit maar de pomp antwoordt nooit (herhaald `JGC timeout: geen frame >2s, stuur TX`).
 
 ### De pomp antwoordt alleen op geldige JGC-polls (master/slave)
-Met de chip verwijderd is de lijn stil totdat de Arduino correcte JGC-telegrammen (CRC-CCITT) stuurt. De "klassieke" 25-byte poll wordt genegeerd → totale stilte. Daarom staat `parser_jgc = true` als default in `globals.cpp`. Een passieve sniffer ziet dan ook níets — dat is geen defect.
-
-### `chofu/cmd/parser` wordt niet in EEPROM bewaard
-Na een herstart geldt weer de compile-time default. Niet via MQTT op "jgc" zetten en denken dat het blijft staan.
+Met de chip verwijderd is de lijn stil totdat de Arduino correcte JGC-telegrammen (CRC-CCITT) stuurt. Een passieve sniffer ziet daardoor ook níets — dat is geen defect.
 
 ### De "eindnul" bestaat niet op de UNO R4 (~100% RX-verlies)
 De afsluitende `0x00` die `jgc.ino` per frame verwacht is **geen protocolbyte maar een AVR-artefact**: na het laatste frame-byte laat de pomp de lijn los (break-conditie), en de AVR-UART van de Mega levert dat af als databyte `0x00`. De Renesas-UART van de UNO R4 filtert framing-errors weg — die byte komt dus nooit aan, waardoor de parser eeuwig op de terminator wachtte (eerst eindnul-fouten + TX dwars door frames, na de wachtfix mid-frame aborts). Bewijs via `sniffer/sniffer.ino` (pollen + hex-dump zonder WiFi): elk pompframe is exact `lenbyte` bytes lang, nooit een trailing `00`, ook niet na 270 ms stilte. Fix: payload = `msg_len − 4` bytes (incl. 2 CRC-bytes), frame is compleet na de payload, geen terminator-state. NB: `jgc.ino` leest door een index-quirk (`index++` na de header) feitelijk ook maar `DataLength−1` payloadbytes — de wire-layout is dus in beide implementaties gelijk.
@@ -149,8 +146,7 @@ De ringbuffer in `ControllerState` (21 slots × 60s) slaat kamertemperatuur op v
 
 ### Chofu/Atlantic Aurea 5
 - Seriele communicatie: **666 baud**, 8N1, half-duplex met TX-echo
-- JGC multi-frame formaat (default): frames exact `lenbyte` bytes, 4 IDs, CRC-CCITT (residu 0), GEEN terminator
-- Klassiek formaat (legacy, werkt niet met deze pomp): 25 bytes, checksum = som bytes 0–22 mod 256
+- JGC multi-frame formaat: frames exact `lenbyte` bytes, 4 IDs, CRC-CCITT (residu 0), GEEN terminator
 - Command byte: `0x19`, Status byte: `0x91`; koeling: telegram 19-2 byte 3 = 0x02
 - Vermogensreeks standen 0–12: `{0, 240, 420, 640, 850, 1050, 1250, 1450, 1550, 1650, 1700, 1750, 1800}` W
 

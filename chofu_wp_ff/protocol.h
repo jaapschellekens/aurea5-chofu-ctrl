@@ -2,9 +2,7 @@
 #define CHOFU_PROTOCOL_H
 #include "globals.h"
 
-uint8_t bereken_checksum(uint8_t *buf, uint8_t len);
-void    stuur_stand_telegram();   // dispatcher: klassiek of JGC afhankelijk van parser_jgc
-void    verwerk_telegram_0x91();
-void    lees_warmtepomp_data();   // dispatcher: klassiek of JGC afhankelijk van parser_jgc
-void    pas_sim_toe();
+void stuur_stand_telegram();   // JGC multi-frame TX
+void lees_warmtepomp_data();   // JGC multi-frame RX + TX timing
+void pas_sim_toe();
 #endif // CHOFU_PROTOCOL_H

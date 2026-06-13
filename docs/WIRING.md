@@ -366,7 +366,7 @@ Check:
 5. "JGC timeout: geen frame >2s" in de log = TX werkt maar geen antwoord
    → meestal D0/D1 verkeerd om: wissel de draden
 6. Check dat je D0/D1 gebruikt (hardware UART), niet pin 2/3
-7. Check parser: moet "jgc" zijn (chofu/cmd/parser), klassiek krijgt geen antwoord
+7. Check protocol: JGC frames ontvangen op chofu/proto/rx? (proto_log aanzetten)
 ```
 
 ### Garbage Data

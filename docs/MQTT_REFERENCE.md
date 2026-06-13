@@ -44,7 +44,6 @@ Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt a
 | `chofu/lcd` | string | 0/1 | LCD backlight status |
 | `chofu/sim_actief` | string | 0/1 | Simulatiemodus actief |
 | `chofu/proto_log` | string | 0/1 | Protocol logging actief |
-| `chofu/parser` | string | klassiek/jgc | Actieve protocol parser |
 
 ### Safeguard Grenzen (instelbaar)
 
@@ -345,7 +344,6 @@ De Arduino publiceert alle HA discovery configs automatisch bij opstart (retaine
 | Chofu Koeling Aanvoer Min | number (°C) | `chofu/cmd/supply_min` |
 | Chofu Koeling Afschakeldrempel | number (°C) | `chofu/cmd/koeling_afschakel` |
 | Chofu Modus Select | select | `chofu/cmd/modus` |
-| Chofu Parser | select | `chofu/cmd/parser` |
 | Chofu Water SP | number (°C) | `chofu/cmd/water_setpoint` |
 | Chofu Vorstgrens | number (°C) | `chofu/cmd/t_vorst` |
 | Chofu Stand (handmatig) | number | `chofu/cmd/stand` |
@@ -522,7 +520,7 @@ Bij ingeschakelde logging worden ontvangen (rx) en verzonden (tx) frames gepubli
 |-------|--------------|
 | `chofu/proto/tx` | Verzonden telegram (hex + decoded) |
 | `chofu/proto/rx` | Ontvangen telegram (hex + decoded) |
-| `chofu/proto/err` | Checksum-fout of ongeldig frame (alleen klassieke parser) |
+| `chofu/proto/err` | Checksum-fout of ongeldig frame (CRC-CCITT residu ≠ 0) |
 
 > De hex-dumps worden **uitgesteld** gepubliceerd (max 1 per seconde, buiten het tijdkritieke RX-pad) — een blokkerende MQTT-publish tijdens ontvangst verstoort anders de communicatie zelf.
 
@@ -532,26 +530,19 @@ JGC (30s): CRC +x abort +y ok +z (totaal CRC/abort/ok)
 ```
 Gezond: `ok` in de tientallen per 30 s, CRC en abort ~0.
 
-### Parser selectie
+### Protocol parser
 
-De firmware heeft twee implementaties van het Chofu seriële protocol die je tijdens runtime kunt wisselen. **Default is `jgc`** — de klassieke parser is legacy en krijgt van deze pomp geen antwoord.
+De firmware gebruikt uitsluitend de **JGC multi-frame parser** (CRC-CCITT, variabele framelengte). De pomp antwoordt alleen op geldige JGC-polls; het oudere 25-byte formaat wordt genegeerd.
 
-```
-Topic:   chofu/cmd/parser
-Payload: "jgc"       → JGC multi-frame parser (CRC-CCITT, variabele framelengte) — DEFAULT
-         "klassiek"  → originele 25-byte vaste parser (byte-som checksum, legacy)
-State:   chofu/parser
-LET OP:  niet persistent — na herstart geldt weer de compile-time default (jgc)
-```
-
-| Parser | Checksum | Frame-formaat | TX |
-|--------|----------|---------------|----|
-| `jgc` (default) | CRC-CCITT (0xFFFF, poly 0x1021), residu 0 | Lengte = lenbyte (12/13/18/20 bytes), 4 IDs, **geen terminator** | 4 telegrammen roterend (tx0..tx3) |
-| `klassiek` (legacy) | Byte-som mod 256 | Vaste 25 bytes, startbyte 0x91 | Één commando-telegram |
+| Eigenschap | Waarde |
+|-----------|--------|
+| Checksum | CRC-CCITT (0xFFFF, poly 0x1021), residu 0 |
+| Frame-formaat | Lengte = lenbyte (12/13/18/20 bytes), 4 IDs, geen terminator |
+| TX | 4 telegrammen roterend (tx0..tx3) |
 
 > De "eindnul" per frame uit de oorspronkelijke JGC-code (Mega 2560) is een AVR-artefact: een lijn-break komt daar als databyte 0x00 binnen. De Renesas-UART van de UNO R4 filtert die weg; frames zijn exact `lenbyte` bytes. Zie [ervaringen.md](ervaringen.md).
 
-**Teststrategie:**
+**Diagnose:**
 ```bash
 BROKER="<YOUR_MQTT_BROKER_IP>"
 
@@ -638,7 +629,6 @@ chofu/
 ├── stooklijn_aan            16.0
 ├── sim_actief                0
 ├── proto_log                 0   ← protocol logging aan/uit
-├── parser               jgc      ← actieve parser (jgc=default/klassiek)
 ├── hyst_slow            600000   ← simulatie timing (niet EEPROM)
 ├── hyst_fast            120000
 ├── hyst_down             60000
@@ -683,7 +673,6 @@ chofu/
     ├── lcd
     ├── force_start
     ├── proto_log           ← protocol logging aan/uit
-    ├── parser              ← "jgc" (default) of "klassiek"
     ├── hyst_slow           ← simulatie timing (niet EEPROM)
     ├── hyst_fast
     ├── hyst_down

@@ -499,7 +499,7 @@ Check:
 ✓ Controlbox heeft stroom?
 ✓ Warmtepomp aan?
 ✓ GND gemeenschappelijk?
-✓ Parser = jgc? (chofu/parser — klassiek krijgt geen antwoord)
+✓ JGC frames ontvangen? (chofu/proto/rx zichtbaar na chofu/cmd/proto_log = 1)
 ✓ Diagnose: zet chofu/cmd/proto_log = 1 en check de 30s-samenvatting,
   of flash sniffer/sniffer.ino voor een ruwe hex-dump zonder WiFi
 ```

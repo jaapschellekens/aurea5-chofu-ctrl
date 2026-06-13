@@ -175,7 +175,7 @@ Belangrijke bevindingen (juni 2026, zie [docs/ervaringen.md](docs/ervaringen.md)
 - De lijn is **half-duplex met echo**: eigen TX-bytes komen terug op RX.
 - De "eindnul" uit de oorspronkelijke JGC-code is een **AVR-artefact** (break → 0x00); de Renesas-UART van de UNO R4 filtert die weg. Frames zijn exact `lenbyte` bytes.
 - ID=2 bevat de temperaturen (aanvoer/retour/buiten, little-endian ×0,1 °C), ID=3 compressor-Hz en pompsnelheid, ID=1 defrost.
-- De JGC-parser is de **default** (`parser_jgc = true`); de "klassieke" 25-byte parser is legacy en werkt niet met deze pomp.
+- De JGC-parser (CRC-CCITT) is de enige ondersteunde parser; de pomp antwoordt niet op het oudere 25-byte formaat.
 
 Voor busdiagnose zonder WiFi/MQTT: flash `sniffer/sniffer.ino` (pollt zelf en dumpt alle bytes als hex op USB-serial). Met `chofu/cmd/proto_log = 1` publiceert de firmware hex-frames op `chofu/proto/rx|tx` en elke 30 s een foutensamenvatting (`JGC (30s): CRC +x abort +y ok +z`).
 
@@ -294,7 +294,6 @@ Zie [docs/INSTALLATION.md](docs/INSTALLATION.md) voor uitgebreide stap-voor-stap
 | `chofu/cmd/supply_min` | Condensatiebescherming koeling (EEPROM) | 10–25°C |
 | `chofu/cmd/koeling_afschakel` | Afschakeldrempel koeling | 0.1–5.0°C |
 | `chofu/cmd/proto_log` | Protocol hex-logging aan/uit | 0/1 |
-| `chofu/cmd/parser` | Protocol parser (default jgc) | `jgc` / `klassiek` |
 | `chofu/cmd/power` | WP aan/uit | 0/1 |
 | `chofu/cmd/t_vorst` | Vorstgrens | −10 tot 10°C |
 | `chofu/cmd/kp` / `ki` / `kd` | PID parameters | getal |
@@ -371,7 +370,6 @@ De map `python/` bevat tools voor het optimaliseren en valideren van regelparame
 ### Geen of corrupte protocol-communicatie
 - Zet `chofu/cmd/proto_log = 1` en kijk naar de 30s-samenvatting: `JGC (30s): CRC +x abort +y ok +z`. Gezond is `ok` in de tientallen en CRC/abort ~0.
 - `JGC timeout: geen frame >2s` + geen antwoord → D0/D1 waarschijnlijk verwisseld (labels op IC-voetje zijn vanuit de verwijderde chip!)
-- Parser moet `jgc` zijn (`chofu/parser`); klassiek krijgt geen antwoord van de pomp
 - Voor diagnose op byte-niveau: flash `sniffer/sniffer.ino` (geen WiFi, hex-dump op USB-serial)
 
 ---

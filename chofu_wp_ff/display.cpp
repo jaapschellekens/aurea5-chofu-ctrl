@@ -162,12 +162,11 @@ void update_lcd(){
       break;
     // ── Scherm 4: Protocol debug (alleen als proto_logging aan) ──
     case 4: {
-      // r0: "DBG klas  OK" of "DBG jgc TOUT"
+      // r0: "DBG jgc OK" of "DBG jgc TOUT"
       // r1: "A:35.2 Err:0"
       bool timeout = (millis() - vorige_telegram_ms > 5000);
-      lcd.print("DBG ");
-      lcd.print(parser_jgc ? "jgc " : "klas");
-      lcd.print(timeout ? " TOUT" : " OK  ");
+      lcd.print("DBG jgc ");
+      lcd.print(timeout ? "TOUT" : "OK  ");
       lcd.setCursor(0, 1);
       lcd.print("A:"); lcd.print(t_supply, 1);
       lcd.print(" Err:"); lcd.print(proto_crc_fouten);

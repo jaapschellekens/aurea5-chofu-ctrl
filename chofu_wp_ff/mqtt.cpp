@@ -242,11 +242,6 @@ void mqtt_ontvang(int len){
     proto_logging = (payload == "1");
     mqtt_log(proto_logging ? "Protocol logging AAN" : "Protocol logging UIT", "INFO");
   }
-  else if(topic == "chofu/cmd/parser"){
-    parser_jgc = (payload == "jgc");
-    proto_crc_fouten = 0;
-    mqtt_log(parser_jgc ? "Parser: JGC (multi-frame CRC-CCITT)" : "Parser: klassiek (25-byte som)", "INFO");
-  }
   // Simulatie topics
   else if(topic == "chofu/cmd/sim"){
     sim_enabled = (payload == "1");
@@ -451,8 +446,6 @@ void discovery_fase3(){
   disco_pub("homeassistant/sensor/chofu_hp/proto_err/config", pl);
   pl = "{\"name\":\"Chofu Protocol Log\",\"uniq_id\":\"chofu_hp_proto_log\",\"cmd_t\":\"chofu/cmd/proto_log\",\"stat_t\":\"chofu/proto_log\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/switch/chofu_hp/proto_log/config", pl);
-  pl = "{\"name\":\"Chofu Parser\",\"uniq_id\":\"chofu_hp_parser\",\"cmd_t\":\"chofu/cmd/parser\",\"stat_t\":\"chofu/parser\",\"options\":[\"klassiek\",\"jgc\"]," + avty + "," + dev + "}";
-  disco_pub("homeassistant/select/chofu_hp/parser/config", pl);
 
   stuur_data();
 }
@@ -489,7 +482,6 @@ void stuur_data(){
   mqttClient.beginMessage("chofu/comp_hz");mqttClient.print(comp_hz);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/sim_actief");mqttClient.print(sim_actief()?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage("chofu/proto_log");mqttClient.print(proto_logging?"1":"0");mqttClient.endMessage();
-  mqttClient.beginMessage("chofu/parser");mqttClient.print(parser_jgc?"jgc":"klassiek");mqttClient.endMessage();
   mqttClient.beginMessage("chofu/supply_max");mqttClient.print(SUPPLY_MAX,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/koeling_min_buiten");mqttClient.print(KOELING_MIN_BUITEN,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/supply_min");mqttClient.print(SUPPLY_MIN,1);mqttClient.endMessage();
