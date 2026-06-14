@@ -74,6 +74,12 @@ void setup(){
   lcd.clear(); lcd.print("WiFi...");
   #endif
   WiFi.begin(SSID, PASS);
+#if !defined(ARDUINO_UNOR4_WIFI)
+  // ESP32: modem-sleep (power save) UIT — anders wordt het bord na enkele
+  // minuten onbereikbaar (verbinding/webserver valt weg). Plus auto-reconnect.
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
+#endif
   int attempts = 0;
   while(WiFi.status() != WL_CONNECTED && attempts < 20){ Serial.print("."); delay(500); attempts++; }
   if(WiFi.status() == WL_CONNECTED){
@@ -163,6 +169,9 @@ void mqtt_herverbind(){
     Serial.println("WiFi: herverbinden...");
     WiFi.disconnect();
     WiFi.begin(SSID, PASS);
+#if !defined(ARDUINO_UNOR4_WIFI)
+    WiFi.setSleep(false);   // power save opnieuw uitzetten na reconnect
+#endif
     uint32_t t = millis();
     while(WiFi.status() != WL_CONNECTED && millis() - t < 10000) delay(500);
     if(WiFi.status() != WL_CONNECTED){
