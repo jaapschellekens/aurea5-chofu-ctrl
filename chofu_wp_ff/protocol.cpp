@@ -90,7 +90,7 @@ static void jgc_verwerk_frames(){
     stuur_alert("JGC ongeldige buitentemp: " + String(new_outside, 1));
   } else {
     if(abs(new_outside - prev_t_outside) > 5.0) stuur_alert("JGC spike buiten: " + String(new_outside, 1));
-    else t_outside = new_outside;
+    else if(bron != Bron::ADAM) t_outside = new_outside;   // in adam-modus levert Adam de buitentemp
     prev_t_outside = new_outside;
   }
 

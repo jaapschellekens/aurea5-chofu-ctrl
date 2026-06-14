@@ -16,13 +16,13 @@
 // .cpp-bestanden gezien. Kan ook globaal via build-flag: -DMQTT_PREFIX="\"...\"".
 // De #ifndef-guards laten zo'n build-flag de defaults overschrijven.
 #ifndef MQTT_PREFIX
-  #define MQTT_PREFIX  "chofu"
+  #define MQTT_PREFIX  "CF"
 #endif
 #ifndef HA_NODE
-  #define HA_NODE      "chofu_hp"
+  #define HA_NODE      "CF_hp"
 #endif
 #ifndef HA_DEV_NAME
-  #define HA_DEV_NAME  "Chofu WP"
+  #define HA_DEV_NAME  "CF WP"
 #endif
 
 // ═══════════════════════════════════════════════════════════════

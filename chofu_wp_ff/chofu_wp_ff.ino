@@ -100,8 +100,9 @@ void setup(){
   Serial.print(":"); Serial.println(MQTT_PORT);
   Serial.print("MQTT: gebruiker="); Serial.println(MQTT_USER);
   mqttClient.setUsernamePassword(MQTT_USER, MQTT_PASS);
+  mqttClient.setId(HA_NODE);   // unieke client-ID per device (prod vs test) — voorkomt reconnect-storm
   mqttClient.onMessage(mqtt_ontvang);
-  Serial.println("MQTT: LWT instellen (chofu/status = offline)");
+  Serial.println("MQTT: LWT instellen (" MQTT_PREFIX "/status = offline)");
   mqttClient.beginWill(MQTT_PREFIX "/status", true, 1);
   mqttClient.print("offline");
   mqttClient.endWill();
@@ -109,10 +110,10 @@ void setup(){
   Serial.println("MQTT: connect()...");
   if(mqttClient.connect(MQTT_BROKER, MQTT_PORT)){
     Serial.println("MQTT OK!");
-    Serial.println("MQTT: abonneren op chofu/cmd/#, chofu/sim/#");
+    Serial.println("MQTT: abonneren op " MQTT_PREFIX "/cmd/#, " MQTT_PREFIX "/sim/#");
     mqttClient.subscribe(MQTT_PREFIX "/cmd/#");
     mqttClient.subscribe(MQTT_PREFIX "/sim/#");
-    Serial.println("MQTT: publiceren chofu/status = online");
+    Serial.println("MQTT: publiceren " MQTT_PREFIX "/status = online");
     mqttClient.beginMessage(MQTT_PREFIX "/status", true, 1);
     mqttClient.print("online");
     mqttClient.endMessage();

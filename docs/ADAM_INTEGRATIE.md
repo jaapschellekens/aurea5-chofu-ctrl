@@ -35,6 +35,7 @@ lokale REST API halen, zodat hij minder afhankelijk is van Home Assistant (MQTT)
 | Water-setpoint (`intended_boiler_temperature`) → `t_water_gewenst` | `auto` / `ff_auto` / `water` / `handmatig` met Adam-bron |
 | Kamer-setpoint (zone `thermostat`) → `t_kamer_gewenst` | Automatische fallback Adam→MQTT |
 | Actuele kamertemp (zone `temperature`) → `t_kamer`, via **leidende zone** (§4b) | Schrijven náár Adam (alleen lezen) |
+| Buitentemperatuur (`outdoor_temperature`) → `t_outside` | |
 | **Alleen `ff_water`-modus** gebruikt de Adam-bron | Onafhankelijk regelen per zone |
 | Bron-keuze MQTT (default) ↔ Adam, **handmatig** schakelbaar | |
 
@@ -252,6 +253,7 @@ modus == FF_WATER && bron == ADAM:
     [poll elke 30 s, niet mid-frame]
     GET /core/domain_objects  (HTTP/1.1, Basic smile:ADAM_PASS)
       -> intended_boiler_temperature       -> t_water_gewenst
+      -> outdoor_temperature               -> t_outside  (JGC laat t_outside dan met rust)
       -> lees ALLE zones (temp, SP, vraag)
       -> kies leidende zone (§4b)
            leidende zone temperature       -> t_kamer

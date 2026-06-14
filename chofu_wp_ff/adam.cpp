@@ -39,6 +39,7 @@ struct AdamZone {
 
 struct AdamData {
   float    water_sp;                 // intended_boiler_temperature (NAN = niet gevonden)
+  float    outside;                  // outdoor_temperature (NAN = niet gevonden)
   AdamZone zones[ADAM_MAX_ZONES];
   uint8_t  n;
 };
@@ -107,6 +108,7 @@ static bool tag_is(const char* tag, const char* naam){
 
 static bool adam_fetch(AdamData& out){
   out.water_sp = NAN;
+  out.outside  = NAN;
   out.n = 0;
 
   WiFiClient cl;
@@ -197,6 +199,8 @@ static bool adam_fetch(AdamData& out){
       float v = atof(txt);
       if(boiler_pending){
         out.water_sp = v; boiler_pending = false;
+      } else if(strcmp(last_type, "outdoor_temperature") == 0){
+        out.outside = v;                       // buitentemperatuur (gateway/Smile)
       } else if(in_loc && cur.cfg_idx >= 0){
         if(strcmp(last_type, "temperature") == 0) cur.temp = v;
         else if(strcmp(last_type, "thermostat") == 0 && isnan(cur.sp)) cur.sp = v;
@@ -211,8 +215,8 @@ static bool adam_fetch(AdamData& out){
       if(in_loc && cur.cfg_idx >= 0) cur.vraagt = (strcmp(txt, "heating") == 0) ? 1 : 0;
     }
 
-    // 4) klaar zodra alles binnen is
-    if(!isnan(out.water_sp) && out.n >= s_zone_count){ break; }
+    // 4) klaar zodra alles binnen is (water-SP, buitentemp én alle zones)
+    if(!isnan(out.water_sp) && !isnan(out.outside) && out.n >= s_zone_count){ break; }
   }
 
   cl.stop();
@@ -289,6 +293,12 @@ void adam_poll(){
     if(d.water_sp == 0.0f)                      t_water_gewenst = 0.0f;
     else if(d.water_sp >= WATER_SP_MIN && d.water_sp <= 55.0f)
                                                 t_water_gewenst = d.water_sp;
+  }
+
+  // Buitentemperatuur uit Adam — overschrijft de pomp-sensor in adam-modus.
+  // De JGC-parser laat t_outside met rust zolang bron==ADAM (zie protocol.cpp).
+  if(!isnan(d.outside) && d.outside > -40.0f && d.outside < 50.0f){
+    t_outside = d.outside;
   }
 
   // Leidende zone → t_kamer / t_kamer_gewenst
