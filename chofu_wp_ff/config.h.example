@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CHOFU_CONFIG_H
+#define CHOFU_CONFIG_H
 
 // WiFi
 const char* SSID        = "jouw-netwerk";
@@ -18,3 +19,5 @@ const char* MQTT_PASS   = "";
 //
 // LCD I2C: op ESP32 zijn SDA=21, SCL=22 de standaard Wire-pinnen.
 // Afwijkend board: voeg Wire.begin(SDA, SCL) toe in setup() vóór lcd.init().
+
+#endif // CHOFU_CONFIG_H
