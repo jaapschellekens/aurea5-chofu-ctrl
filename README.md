@@ -20,7 +20,9 @@ Hoewel ik uiteindelijk veel handmatig heb gedaan is dit voor een groot deel met 
 
 De controller spreekt het Chofu 0x19/0x91 serieel protocol op **666 baud** (JGC multi-frame formaat, CRC-CCITT — zie [Protocol](#protocol)), regelt het compressorvermogen in standen 0–8 (handmatig tot 12), en integreert volledig met Home Assistant via MQTT auto-discovery.
 
-
+- Dit is geen simpele oplossing, het is beperkt getest en kan de boel kapot maken
+- Door de chip eruit te halen gaan de controlbox in storing (rode licht op de knop brand). Het gevolg is dat als je anna warmtevraag geeft de controlbox de gasketel aanzet. Mijn oplossing is de ketel in te stellen op tapwater alleen. Je kan de ketel ook op een aparte thermosthaat aansluiten
+- De aansturing gaat via MQTT, het makkelijkste is om dat via Home assistant te doen
 
 ---
 
