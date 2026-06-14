@@ -122,6 +122,10 @@ static uint32_t jgc_laatste_rx_einde_ms    = 0;     // tijdstip einde laatste on
 static uint32_t jgc_laatste_send_ms        = 0;     // tijdstip laatste TX
 static bool     jgc_is_ontvangend          = false; // blokkeer TX tijdens ontvangst
 
+// Accessor voor andere modules (bv. Adam-poll): true = parser zit mid-frame,
+// dan geen trage taken starten die de 666-baud RX kunnen verstoren.
+bool jgc_ontvangend(){ return jgc_is_ontvangend; }
+
 static void lees_warmtepomp_data_jgc(){
   while(chofuSerial.available()){
     jgc_is_ontvangend = true;

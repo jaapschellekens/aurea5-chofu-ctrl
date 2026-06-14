@@ -32,6 +32,9 @@ float t_kamer_gewenst = 19.0;
 float t_water_gewenst = 32.0;
 bool  koeling_modus = false;
 
+Bron  bron = Bron::MQTT;          // default: HA/MQTT
+bool  adam_leer_emitter_ok = true;
+
 // ═══════════════════════════════════════════════════════════════
 //  REGELPARAMETERS
 // ═══════════════════════════════════════════════════════════════

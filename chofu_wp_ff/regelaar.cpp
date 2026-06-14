@@ -289,10 +289,14 @@ void pas_ff_aan(){
   // het model de thermische-massa term (C_th × dT/dt) als extra UA.
   float leer_drempel = is_water ? 2.0f : 0.5f;
   float P_hp_est = VERMOGEN[ctrl.stand] * ff_cop(t_supply, t_outside);
+  // Leer-gate multizone: bij bron==ADAM mag ff_UA_emitter alleen leren als de
+  // leidende Adam-zone stabiel is (anders koppelt het een water-SP van zone B
+  // aan de temperatuur van zone A → vervuilde UA). Zie docs/ADAM_INTEGRATIE.md §4b.
+  bool emitter_leren_ok = (bron != Bron::ADAM) || adam_leer_emitter_ok;
   if(ctrl.stand > 0 && P_hp_est > 50.0f && fabsf(regel_fout) < leer_drempel){
     if(is_water){
       float dt_sup = t_supply - t_kamer;
-      if(dt_sup > 2.0f){
+      if(dt_sup > 2.0f && emitter_leren_ok){
         float meting = P_hp_est / dt_sup;
         ff_UA_emitter = (1.0f - FF_LEARN_RATE) * ff_UA_emitter + FF_LEARN_RATE * meting;
         ff_UA_emitter = constrain(ff_UA_emitter, 50.0f, 500.0f);

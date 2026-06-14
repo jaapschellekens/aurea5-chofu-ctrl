@@ -36,6 +36,7 @@ void eeprom_save(){
   EEPROM.put(ADDR_STOOKLIJN_AAN, STOOKLIJN_AAN_GRENS);
   EEPROM.put(ADDR_SUPPLY_MIN, SUPPLY_MIN);
   EEPROM.put(ADDR_WATER_SP_MIN, WATER_SP_MIN);
+  EEPROM.write(ADDR_BRON, (uint8_t)bron);
   Serial.println("EEPROM: settings opgeslagen");
 }
 
@@ -73,6 +74,8 @@ void eeprom_load(){
   if(isnan(SUPPLY_MIN) || SUPPLY_MIN < 10 || SUPPLY_MIN > 25) SUPPLY_MIN = 17.0f;
   EEPROM.get(ADDR_WATER_SP_MIN, WATER_SP_MIN);
   if(isnan(WATER_SP_MIN) || WATER_SP_MIN < 10 || WATER_SP_MIN > 30) WATER_SP_MIN = 16.0f;
+  uint8_t opgeslagen_bron = EEPROM.read(ADDR_BRON);
+  bron = (opgeslagen_bron == (uint8_t)Bron::ADAM) ? Bron::ADAM : Bron::MQTT;
   Serial.print("EEPROM: geladen - SP:"); Serial.print(setpoint,1);
   Serial.print(" PID:"); Serial.print(Kp,2); Serial.print("/"); Serial.print(Ki,3); Serial.print("/"); Serial.println(Kd,2);
   Serial.print("  FF UA huis:"); Serial.print(ff_UA_house,0);
@@ -120,6 +123,7 @@ void eeprom_save(){
   prefs.putFloat("Kd_water",   Kd_water);
   prefs.putFloat("sl_aan",     STOOKLIJN_AAN_GRENS);
   prefs.putFloat("supply_min", SUPPLY_MIN);
+  prefs.putUChar("bron",       (uint8_t)bron);
   prefs.end();
   Serial.println("NVS: settings opgeslagen");
 }
@@ -146,6 +150,8 @@ void eeprom_load(){
   Kd_water           = prefs.getFloat("Kd_water",    0.010f);
   STOOKLIJN_AAN_GRENS= prefs.getFloat("sl_aan",     13.0f);
   SUPPLY_MIN         = prefs.getFloat("supply_min", 17.0f);
+  bron = (prefs.getUChar("bron", (uint8_t)Bron::MQTT) == (uint8_t)Bron::ADAM)
+         ? Bron::ADAM : Bron::MQTT;
   prefs.end();
   Serial.print("NVS: geladen - SP:"); Serial.print(setpoint,1);
   Serial.print(" PID:"); Serial.print(Kp,2); Serial.print("/"); Serial.print(Ki,3); Serial.print("/"); Serial.println(Kd,2);

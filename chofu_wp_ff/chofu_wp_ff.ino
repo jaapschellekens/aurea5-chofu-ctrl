@@ -43,6 +43,9 @@
 #include "display.h"
 #include "web.h"
 #include "knoppen.h"
+#if USE_ADAM
+  #include "adam.h"
+#endif
 
 // ═══════════════════════════════════════════════════════════════
 //  SETUP
@@ -83,6 +86,13 @@ void setup(){
   }
 
   webServer.begin();
+
+#if USE_ADAM
+  static const char* adam_zone_lijst[] = ADAM_ZONES;
+  adam_init(ADAM_IP, ADAM_PASS, adam_zone_lijst,
+            sizeof(adam_zone_lijst) / sizeof(adam_zone_lijst[0]));
+#endif
+
   #if USE_LCD
   lcd.clear(); lcd.print("MQTT...");
   #endif
@@ -191,6 +201,9 @@ void loop(){
 
   lees_warmtepomp_data();
   pas_sim_toe();
+#if USE_ADAM
+  adam_poll();   // haalt (in ff_water + bron=adam) setpoints/t_kamer uit de Adam
+#endif
   pas_pid_aan();
   update_lcd();
   update_matrix();

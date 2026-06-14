@@ -47,6 +47,12 @@ extern float t_kamer_gewenst;
 extern float t_water_gewenst;
 extern bool  koeling_modus;
 
+// Bron van setpoints/temperaturen: MQTT (HA, default) of ADAM (direct).
+extern Bron  bron;
+// Door de Adam-laag gezet: mag ff_UA_emitter nu leren? (stabiele leidende zone)
+// Default true; alleen relevant als bron==ADAM. Bij bron==MQTT genegeerd.
+extern bool  adam_leer_emitter_ok;
+
 // ═══════════════════════════════════════════════════════════════
 //  REGELPARAMETERS (instelbaar via MQTT, opgeslagen in EEPROM)
 // ═══════════════════════════════════════════════════════════════

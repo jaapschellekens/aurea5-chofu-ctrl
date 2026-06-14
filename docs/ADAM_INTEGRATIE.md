@@ -1,8 +1,29 @@
 # Ontwerp — Optionele directe Plugwise Adam-integratie
 
-Status: **ontwerp / ter review** (nog geen code)
+Status: **geïmplementeerd** op branch `feature/plugwise-adam-integratie` (te testen op hardware)
 Doel: de firmware kan setpoints en kamertemperatuur direct uit de Plugwise Adam
 lokale REST API halen, zodat hij minder afhankelijk is van Home Assistant (MQTT).
+
+> **Voor inschakelen op hardware:** draai eerst `adam_api_test/adam_discover.py`
+> (evt. `--raw`) en (1) vul de exacte zonenamen in `config.h` (`ADAM_ZONES`),
+> (2) verifieer of er een per-zone `control_state`/call-for-heat-veld bestaat —
+> de parser-hook gebruikt nu de deficit-methode (`SP − temp`) als dat veld er niet
+> is. De streaming-parser in `adam.cpp` is geschreven op de structuur uit
+> `adam_discover.py` maar nog niet tegen een echte XML-dump gevalideerd.
+
+### Bestanden (implementatie)
+
+| Bestand | Wijziging |
+|---|---|
+| `adam.h` / `adam.cpp` | Nieuw: streaming pull-parser, leidende-zone, leer-gate, status |
+| `config.h.example` | `USE_ADAM`, `ADAM_IP`, `ADAM_PASS`, `ADAM_ZONES` |
+| `types.h` | `enum class Bron` + `bron_naar_str`/`str_naar_bron` |
+| `globals.h/.cpp` | `bron`, `adam_leer_emitter_ok` |
+| `protocol.h/.cpp` | `jgc_ontvangend()` accessor (mid-frame-guard) |
+| `eeprom.h/.cpp` | `bron` persistent; `EEPROM_MAGIC` 0xB4→0xB5 |
+| `mqtt.cpp` | `chofu/cmd/bron`, guards, modus-consistentie, status-publish |
+| `regelaar.cpp` | leer-gate `ff_UA_emitter` bij bron==ADAM |
+| `chofu_wp_ff.ino` | `adam_init()` in setup, `adam_poll()` in loop (beide `#if USE_ADAM`) |
 
 ---
 

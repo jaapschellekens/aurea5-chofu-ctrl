@@ -1,6 +1,7 @@
 #include "mqtt.h"
 #include "eeprom.h"   // voor eeprom_save()
 #include "regelaar.h" // voor ctrl.reset_pid() / reset_ff() / koude_start()
+#include "adam.h"     // voor adam_beschikbaar() / status
 
 // ═══════════════════════════════════════════════════════════════
 //  LOGGING
@@ -120,6 +121,12 @@ void mqtt_ontvang(int len){
       bool modus_gewijzigd = (nieuwe_modus != modus);
       modus = nieuwe_modus;
       if(modus_gewijzigd && modus != Modus::HANDMATIG){ ctrl.koude_start(millis()); }
+      // Adam-bron is alleen geldig in ff_water — forceer terug naar MQTT bij andere modus.
+      if(bron == Bron::ADAM && modus != Modus::FF_WATER){
+        bron = Bron::MQTT;
+        mqtt_log("Bron→mqtt (adam alleen in ff_water)", "WARNING");
+        mqttClient.beginMessage("chofu/bron", true); mqttClient.print("mqtt"); mqttClient.endMessage();
+      }
       eeprom_save();
       mqtt_log("Modus: " + String(modus_naar_str(modus)), "INFO");
     }
@@ -154,10 +161,27 @@ void mqtt_ontvang(int len){
     if(val >= 0.1f && val <= 5.0f){ KOELING_AFSCHAKEL = val; }
   }
   else if(topic == "chofu/cmd/water_setpoint"){
+    if(bron == Bron::ADAM) return;   // Adam is bron: HA mag niet overschrijven
     float val = payload.toFloat();
     if(val != 0.0f && val < WATER_SP_MIN){ return; }   // 1..(min-1)°C: ongeldig, negeer
     if(val >= 0 && val <= 55){ t_water_gewenst = val;
       mqtt_log("Water SP: " + String(t_water_gewenst,1) + "C (0=geen warmtevraag)", "INFO"); }
+  }
+  else if(topic == "chofu/cmd/bron"){
+    if(payload == "adam"){
+      if(!adam_beschikbaar()){
+        mqtt_log("Bron adam genegeerd: USE_ADAM uit", "WARNING");
+      } else if(modus != Modus::FF_WATER){
+        mqtt_log("Bron adam alleen in ff_water — eerst modus=ff_water", "WARNING");
+      } else {
+        bron = Bron::ADAM; eeprom_save();
+        mqtt_log("Bron: adam", "INFO");
+      }
+    } else if(payload == "mqtt"){
+      bron = Bron::MQTT; eeprom_save();
+      mqtt_log("Bron: mqtt", "INFO");
+    }
+    mqttClient.beginMessage("chofu/bron", true); mqttClient.print(bron_naar_str(bron)); mqttClient.endMessage();
   }
   else if(topic == "chofu/cmd/water_sp_min"){
     float val = payload.toFloat();
@@ -225,6 +249,7 @@ void mqtt_ontvang(int len){
     mqtt_log("FF UA opgeslagen: huis=" + String(ff_UA_house,0) + " emitter=" + String(ff_UA_emitter,0), "INFO");
   }
   else if(topic == "chofu/cmd/kamer_setpoint"){
+    if(bron == Bron::ADAM) return;   // Adam is bron: HA mag niet overschrijven
     float val = payload.toFloat();
     if(val >= 14 && val <= 30){
       t_kamer_gewenst = val;
@@ -232,6 +257,7 @@ void mqtt_ontvang(int len){
     }
   }
   else if(topic == "chofu/cmd/kamer"){
+    if(bron == Bron::ADAM) return;   // Adam is bron: HA mag niet overschrijven
     float val = payload.toFloat();
     if(val >= 5 && val <= 35) t_kamer = val;
   }
@@ -479,6 +505,9 @@ void stuur_data(){
   mqttClient.beginMessage("chofu/koeling");mqttClient.print(koeling_modus?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage("chofu/t_vorst");mqttClient.print(T_VORST,1);mqttClient.endMessage();
   mqttClient.beginMessage("chofu/modus");mqttClient.print(modus_naar_str(modus));mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/bron", true);mqttClient.print(bron_naar_str(bron));mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/adam/status");mqttClient.print(adam_status_str());mqttClient.endMessage();
+  mqttClient.beginMessage("chofu/adam/leider");mqttClient.print(adam_leider_naam());mqttClient.endMessage();
   mqttClient.beginMessage("chofu/lcd");mqttClient.print(lcd_enabled?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage("chofu/defrost");mqttClient.print(defrost?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage("chofu/pid");mqttClient.print(ctrl.pid_output,1);mqttClient.endMessage();

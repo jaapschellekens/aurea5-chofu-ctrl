@@ -51,6 +51,20 @@ inline Modus str_naar_modus(const String& s){
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  BRON (waar komen setpoints/temperaturen vandaan)
+// ═══════════════════════════════════════════════════════════════
+// MQTT  = via Home Assistant (default, ongewijzigd gedrag)
+// ADAM  = direct uit de Plugwise Adam (alleen zinvol in ff_water-modus)
+enum class Bron { MQTT, ADAM };
+
+inline const char* bron_naar_str(Bron b){
+  return (b == Bron::ADAM) ? "adam" : "mqtt";
+}
+inline Bron str_naar_bron(const String& s){
+  return (s == "adam") ? Bron::ADAM : Bron::MQTT;
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  CONTROLLER TOESTAND
 // ═══════════════════════════════════════════════════════════════
 

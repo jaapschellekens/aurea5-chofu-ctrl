@@ -18,3 +18,21 @@ const char* MQTT_PASS   = "";
 //
 // LCD I2C: op ESP32 zijn SDA=21, SCL=22 de standaard Wire-pinnen.
 // Afwijkend board: voeg Wire.begin(SDA, SCL) toe in setup() vóór lcd.init().
+
+// ── Plugwise Adam directe integratie (optioneel) ────────────────
+// Zet USE_ADAM op 1 om setpoints/temperaturen direct uit de Plugwise Adam
+// te halen i.p.v. via Home Assistant (MQTT). Default 0 = uit: de hele Adam-laag
+// blijft dan inert en het gedrag is identiek aan een build zonder Adam.
+//
+// De bron is daarnaast runtime schakelbaar via MQTT (chofu/cmd/bron = mqtt|adam);
+// 'adam' wordt alleen geaccepteerd in de ff_water-modus. MQTT blijft de default.
+//
+// Zonenamen exact zoals ze in de Adam staan (achterhaal met adam_discover.py).
+// De leidende zone (grootste warmtevraag) bepaalt t_kamer; volgorde hieronder
+// dient enkel als tie-break.
+#define USE_ADAM       0
+#if USE_ADAM
+  #define ADAM_IP      "192.168.1.x"
+  #define ADAM_PASS    "smile-ww"               // 8 tekens van de sticker
+  #define ADAM_ZONES   {"Woonkamer", "Studeer"} // pas aan per installatie
+#endif

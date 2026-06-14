@@ -21,14 +21,17 @@ Hoewel ik uiteindelijk veel handmatig heb gedaan is dit voor een groot deel met 
 De controller spreekt het Chofu 0x19/0x91 serieel protocol op **666 baud** (JGC multi-frame formaat, CRC-CCITT — zie [Protocol](#protocol)), regelt het compressorvermogen in standen 0–8 (handmatig tot 12), en integreert volledig met Home Assistant via MQTT auto-discovery.
 
 
+- Dit is geen simpele oplossing, het is beperkt getest en kan de boel kapot maken
+- Door de chip eruit te halen gaan de controlbox in storing (rode licht op de knop brand). Het gevolg is dat als je anna warmtevraag geeft de controlbox de gasketel aanzet. Mijn oplossing is de ketel in te stellen op tapwater alleen. Je kan de ketel ook op een aparte thermosthaat aansluiten
+- De aansturing gaat via MQTT, het makkelijkste is om dat via Home assistant te doen
 
 ---
 
 ## Features
 
-- **Vijf regelingsmodi** — Auto PID, Auto FF (feedforward), Water PID, Water FF, Handmatig
+- **Vijf regelingsmodi** — Auto PID, Auto FF (feedforward), Water PID, Water FF, Handmatig. De water modes zijn gemaakt op de aansturing met een plugwise Adam (zoneregeling) mogelijk te maken.
 - **Feedforward controller** — model-gebaseerde stooklijn met online leren van UA_house en UA_emitter
-- **Anna/Adam thermostaat support** — leest setpoint en kamertemperatuur via MQTT
+- **Anna/Adam thermostaat support** — leest setpoint (water of kamer) en kamertemperatuur via MQTT
 - **Stooklijn compensatie** — aanvoertemperatuur omhoog bij vorst
 - **Vorstbeveiliging** — automatisch bij instelbare grens
 - **Koelmodus** — telegram 19-2 byte 3 = 0x02, regelaar draait automatisch om
@@ -170,14 +173,6 @@ RX (pomp → Arduino):  [0x91][ID 0-3][lenbyte][data...][CRC hi][CRC lo]
                       CRC-CCITT (init 0xFFFF, poly 0x1021), residu 0 over heel frame
 ```
 
-Belangrijke bevindingen (juni 2026, zie [docs/ervaringen.md](docs/ervaringen.md)):
-
-- De lijn is **half-duplex met echo**: eigen TX-bytes komen terug op RX.
-- De "eindnul" uit de oorspronkelijke JGC-code is een **AVR-artefact** (break → 0x00); de Renesas-UART van de UNO R4 filtert die weg. Frames zijn exact `lenbyte` bytes.
-- ID=2 bevat de temperaturen (aanvoer/retour/buiten, little-endian ×0,1 °C), ID=3 compressor-Hz en pompsnelheid, ID=1 defrost.
-- De JGC-parser (CRC-CCITT) is de enige ondersteunde parser; de pomp antwoordt niet op het oudere 25-byte formaat.
-
-Voor busdiagnose zonder WiFi/MQTT: flash `sniffer/sniffer.ino` (pollt zelf en dumpt alle bytes als hex op USB-serial). Met `chofu/cmd/proto_log = 1` publiceert de firmware hex-frames op `chofu/proto/rx|tx` en elke 30 s een foutensamenvatting (`JGC (30s): CRC +x abort +y ok +z`).
 
 ---
 
@@ -198,7 +193,6 @@ Voor busdiagnose zonder WiFi/MQTT: flash `sniffer/sniffer.ino` (pollt zelf en du
 ## Bedrading
 
 ### Warmtepomp seriële verbinding
-
 
 ```
 Arduino D0 (RX1) ←── pad "RX" op IC-voetje (pomp → Arduino)
@@ -244,7 +238,7 @@ const char* MQTT_PASS   = "";
 ### 3. Firmware uploaden
 Open `chofu_wp_ff/chofu_wp_ff.ino` en upload naar Arduino UNO R4 WiFi.
 
-> **⏱ Koude-start vertraging:** Na elke upload of stroomonderbreking blijft de WP **5 minuten** op stand 0 voordat de regelaar ingrijpt. Na 5 minuten verschijnt `"Koude-start vertraging afgelopen"` op `chofu/log/INFO`.
+> **Koude-start vertraging:** Na elke upload of stroomonderbreking blijft de WP **5 minuten** op stand 0 voordat de regelaar ingrijpt. Na 5 minuten verschijnt `"Koude-start vertraging afgelopen"` op `chofu/log/INFO`.
 
 ### 3. Home Assistant
 Entities verschijnen automatisch via MQTT discovery zodra de Arduino verbonden is. Geen YAML configuratie nodig.
