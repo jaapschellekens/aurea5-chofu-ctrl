@@ -476,6 +476,16 @@ void discovery_fase3(){
   pl = "{\"name\":\"Chofu Protocol Log\",\"uniq_id\":\"chofu_hp_proto_log\",\"cmd_t\":\"chofu/cmd/proto_log\",\"stat_t\":\"chofu/proto_log\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/switch/chofu_hp/proto_log/config", pl);
 
+  // Bron (MQTT/Adam) + Adam-status — alleen zinvol als de Adam-laag meegecompileerd is
+  if(adam_beschikbaar()){
+    pl = "{\"name\":\"Chofu Bron\",\"uniq_id\":\"chofu_hp_bron\",\"cmd_t\":\"chofu/cmd/bron\",\"stat_t\":\"chofu/bron\",\"options\":[\"mqtt\",\"adam\"]," + avty + "," + dev + "}";
+    disco_pub("homeassistant/select/chofu_hp/bron/config", pl);
+    pl = "{\"name\":\"Chofu Adam Status\",\"uniq_id\":\"chofu_hp_adam_status\",\"stat_t\":\"chofu/adam/status\"," + avty + "," + dev + "}";
+    disco_pub("homeassistant/sensor/chofu_hp/adam_status/config", pl);
+    pl = "{\"name\":\"Chofu Adam Leider\",\"uniq_id\":\"chofu_hp_adam_leider\",\"stat_t\":\"chofu/adam/leider\"," + avty + "," + dev + "}";
+    disco_pub("homeassistant/sensor/chofu_hp/adam_leider/config", pl);
+  }
+
   stuur_data();
 }
 

@@ -1,5 +1,6 @@
 #include "web.h"
 #include "eeprom.h"  // voor eeprom_save()
+#include "adam.h"    // voor bron-status / adam_beschikbaar()
 
 void handle_web_client(){
   if(millis() - vorige_web_check_ms < 100) return;
@@ -37,7 +38,12 @@ void handle_web_client(){
     v = parse_param("kd_water");   if(v.length()){ Kd_water = v.toFloat(); eeprom_save(); }
     v = parse_param("modus");      if(v.length() && (v=="auto"||v=="water"||v=="ff_auto"||v=="ff_water"||v=="handmatig")){
       modus = str_naar_modus(v); if(modus != Modus::HANDMATIG){ ctrl.reset_pid(); ctrl.reset_ff(); } }
-    v = parse_param("water_setpoint"); if(v.length()){ float f=v.toFloat(); if(f>=16&&f<=55) t_water_gewenst=f; }
+    v = parse_param("bron"); if(v.length()){
+      // adam alleen geldig in ff_water én als de Adam-laag meegecompileerd is
+      if(v=="adam" && adam_beschikbaar() && modus==Modus::FF_WATER){ bron=Bron::ADAM; eeprom_save(); }
+      else if(v=="mqtt"){ bron=Bron::MQTT; eeprom_save(); }
+    }
+    v = parse_param("water_setpoint"); if(v.length() && bron!=Bron::ADAM){ float f=v.toFloat(); if(f>=16&&f<=55) t_water_gewenst=f; }
     v = parse_param("stooklijn_aan");  if(v.length()){ float f=v.toFloat(); if(f>=0&&f<=25&&f<STOOKLIJN_UIT_GRENS){ STOOKLIJN_AAN_GRENS=f; eeprom_save(); } }
     v = parse_param("ff_ua_house");    if(v.length()){ float f=v.toFloat(); if(f>=50&&f<=500){ ff_UA_house=f; eeprom_save(); } }
     v = parse_param("ff_ua_emitter");  if(v.length()){ float f=v.toFloat(); if(f>=50&&f<=500){ ff_UA_emitter=f; eeprom_save(); } }
@@ -56,6 +62,11 @@ void handle_web_client(){
   client.println("<div class='card'><h2>Status</h2>");
   client.print("<div><span class='status "); client.print(ctrl.wp_aan?"on":"off"); client.print("'></span>WP: <b>"); client.print(ctrl.wp_aan?"AAN":"UIT"); client.println("</b></div>");
   client.print("<div>Modus: <b>"); client.print(modus_naar_str(modus)); client.println("</b></div>");
+  client.print("<div>Bron: <b>"); client.print(bron_naar_str(bron)); client.println("</b></div>");
+  if(adam_beschikbaar()){
+    client.print("<div>Adam: <b>"); client.print(adam_status_str());
+    client.print("</b> (leider: "); client.print(adam_leider_naam()); client.println(")</div>");
+  }
   client.print("<div>Stand: <b>"); client.print(ctrl.stand); client.print("</b> ("); client.print(VERMOGEN[ctrl.stand]); client.println(" W)</div>");
   if(modus == Modus::FF_AUTO || modus == Modus::FF_WATER){
     client.print("<div>FF UA huis: <b>"); client.print(ff_UA_house,0); client.println(" W/K</b></div>");
@@ -82,6 +93,15 @@ void handle_web_client(){
     client.print(">"); client.print(m); client.println("</option>");
   }
   client.println("</select></div>");
+  if(adam_beschikbaar()){
+    client.print("<div>Bron: <select name='bron'>");
+    for(const char* b : {"mqtt","adam"}){
+      client.print("<option value='"); client.print(b); client.print("'");
+      if(strcmp(bron_naar_str(bron), b) == 0) client.print(" selected");
+      client.print(">"); client.print(b); client.println("</option>");
+    }
+    client.println("</select> <small>(adam alleen in ff_water)</small></div>");
+  }
   client.print("<div>Water setpoint: <input type='number' name='water_setpoint' value='"); client.print(t_water_gewenst,1); client.println("' step='0.1' min='16' max='55'> °C</div>");
   client.print("<div>Stooklijn aan (&lt; uit): <input type='number' name='stooklijn_aan' value='"); client.print(STOOKLIJN_AAN_GRENS,1); client.println("' step='0.5' min='0' max='25'> °C</div>");
   client.println("<h3>PID Parameters — AUTO modus</h3>");

@@ -21,7 +21,8 @@ lokale REST API halen, zodat hij minder afhankelijk is van Home Assistant (MQTT)
 | `globals.h/.cpp` | `bron`, `adam_leer_emitter_ok` |
 | `protocol.h/.cpp` | `jgc_ontvangend()` accessor (mid-frame-guard) |
 | `eeprom.h/.cpp` | `bron` persistent; `EEPROM_MAGIC` 0xB4→0xB5 |
-| `mqtt.cpp` | `chofu/cmd/bron`, guards, modus-consistentie, status-publish |
+| `mqtt.cpp` | `chofu/cmd/bron`, guards, modus-consistentie, status-publish, HA-discovery (bron-select + Adam-status sensoren) |
+| `web.cpp` | Bron-status + Adam-status weergave; bron-select in formulier |
 | `regelaar.cpp` | leer-gate `ff_UA_emitter` bij bron==ADAM |
 | `chofu_wp_ff.ino` | `adam_init()` in setup, `adam_poll()` in loop (beide `#if USE_ADAM`) |
 
