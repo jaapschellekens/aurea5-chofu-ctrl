@@ -10,6 +10,10 @@ const int   MQTT_PORT   = 1883;
 const char* MQTT_USER   = "";   // leeg als geen auth
 const char* MQTT_PASS   = "";
 
+// MQTT topic-prefix / HA-device: zie MQTT_PREFIX / HA_NODE / HA_DEV_NAME in
+// types.h. Pas die aan voor een testbord (bv. "chofu_test") zodat het
+// productiesysteem en zijn HA-entiteiten niet overschreven worden.
+
 // ── ESP32 specifiek ─────────────────────────────────────────────
 // Standaard CHOFU_RX_PIN=16, CHOFU_TX_PIN=17 (zie chofu_wp_ff.ino).
 // Overschrijf hier als jouw board andere pinnen gebruikt:

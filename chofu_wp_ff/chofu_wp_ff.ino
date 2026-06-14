@@ -102,7 +102,7 @@ void setup(){
   mqttClient.setUsernamePassword(MQTT_USER, MQTT_PASS);
   mqttClient.onMessage(mqtt_ontvang);
   Serial.println("MQTT: LWT instellen (chofu/status = offline)");
-  mqttClient.beginWill("chofu/status", true, 1);
+  mqttClient.beginWill(MQTT_PREFIX "/status", true, 1);
   mqttClient.print("offline");
   mqttClient.endWill();
 
@@ -110,10 +110,10 @@ void setup(){
   if(mqttClient.connect(MQTT_BROKER, MQTT_PORT)){
     Serial.println("MQTT OK!");
     Serial.println("MQTT: abonneren op chofu/cmd/#, chofu/sim/#");
-    mqttClient.subscribe("chofu/cmd/#");
-    mqttClient.subscribe("chofu/sim/#");
+    mqttClient.subscribe(MQTT_PREFIX "/cmd/#");
+    mqttClient.subscribe(MQTT_PREFIX "/sim/#");
     Serial.println("MQTT: publiceren chofu/status = online");
-    mqttClient.beginMessage("chofu/status", true, 1);
+    mqttClient.beginMessage(MQTT_PREFIX "/status", true, 1);
     mqttClient.print("online");
     mqttClient.endMessage();
     delay(1000);
@@ -163,14 +163,14 @@ void mqtt_herverbind(){
   if(mqttClient.connected()) return;
   Serial.print("MQTT: herverbinden met "); Serial.print(MQTT_BROKER);
   Serial.print(":"); Serial.println(MQTT_PORT);
-  mqttClient.beginWill("chofu/status", true, 1);
+  mqttClient.beginWill(MQTT_PREFIX "/status", true, 1);
   mqttClient.print("offline");
   mqttClient.endWill();
   if(mqttClient.connect(MQTT_BROKER, MQTT_PORT)){
     Serial.println("MQTT: herverbonden");
-    mqttClient.subscribe("chofu/cmd/#");
-    mqttClient.subscribe("chofu/sim/#");
-    mqttClient.beginMessage("chofu/status", true, 1);
+    mqttClient.subscribe(MQTT_PREFIX "/cmd/#");
+    mqttClient.subscribe(MQTT_PREFIX "/sim/#");
+    mqttClient.beginMessage(MQTT_PREFIX "/status", true, 1);
     mqttClient.print("online");
     mqttClient.endMessage();
     discovery_fase = 0; discovery_fase1();

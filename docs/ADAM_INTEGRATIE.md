@@ -266,6 +266,29 @@ anders (bron == MQTT, of modus != ff_water):
 
 ---
 
+## 8b. Testen op een tweede Arduino (MQTT-prefix)
+
+Om naast het draaiende productiesysteem te testen zonder topics/HA-entiteiten te
+overschrijven, zijn alle MQTT-topics en de HA-discovery geparametriseerd via drie
+compile-time macro's in `types.h`:
+
+| Macro | Productie | Test (voorbeeld) | Gebruikt voor |
+|---|---|---|---|
+| `MQTT_PREFIX` | `"chofu"` | `"chofu_test"` | alle state/cmd-topics (`<prefix>/...`) |
+| `HA_NODE` | `"chofu_hp"` | `"chofu_test_hp"` | HA device-id, `uniq_id`'s, discovery-node |
+| `HA_DEV_NAME` | `"Chofu WP"` | `"Chofu WP TEST"` | HA device-naam |
+
+Voor het testbord: wijzig deze drie in `types.h` (of globaal via build-flag
+`-DMQTT_PREFIX="\"chofu_test\""` etc.). Omdat `HA_NODE` óók de `uniq_id`'s en
+device-id verandert, ziet Home Assistant het testbord als een **apart device** —
+de productie-entiteiten blijven onaangeroerd.
+
+Let op: dit zit niet in `config.h` (dat wordt niet door alle `.cpp`-bestanden
+gezien → zou inconsistente topics geven). De NVS/EEPROM-namespace (`"chofu"`) is
+per fysiek bord en botst niet. De simulator (`wp_simulator.py`) heeft een
+`--prefix`-optie (default `chofu`); zet die gelijk aan `MQTT_PREFIX` om end-to-end
+met het testbord te simuleren, bv. `--prefix chofu_test`.
+
 ## 9. Open punten voor de bouw
 
 1. Discover via `adam_discover.py`: aantal zones, namen, en óf er een per-zone
