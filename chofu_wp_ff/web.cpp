@@ -54,9 +54,9 @@ void handle_web_client(){
   client.println();
   client.println("<!DOCTYPE html><html><head>");
   client.println("<meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>");
-  client.println("<title>Kromhout WP v2.0</title>");
+  client.println("<title>ChoFu WP v2.0</title>");
   client.println("<style>body{font-family:Arial;margin:20px;background:#f0f0f0}h1{color:#2c3e50}.card{background:white;padding:20px;margin:10px 0;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1)}.temp{font-size:24px;font-weight:bold;color:#e74c3c}input,select{padding:8px;margin:5px;border:1px solid #ccc;border-radius:4px}button{background:#3498db;color:white;padding:10px 20px;border:none;border-radius:4px;cursor:pointer}button:hover{background:#2980b9}.status{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:5px}.on{background:#27ae60}.off{background:#95a5a6}.ff{background:#8e44ad}</style></head><body>");
-  client.println("<h1>Kromhout Warmtepomp v2.0</h1>");
+  client.println("<h1>ChoFu Warmtepomp v2.0</h1>");
 
   // Status
   client.println("<div class='card'><h2>Status</h2>");
