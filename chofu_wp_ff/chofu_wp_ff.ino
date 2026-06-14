@@ -147,6 +147,17 @@ void setup(){
 // ═══════════════════════════════════════════════════════════════
 
 void mqtt_herverbind(){
+  // Snelpad: alles in orde → meteen terug, geen kosten in de hot loop.
+  if(WiFi.status() == WL_CONNECTED && mqttClient.connected()) return;
+
+  // Iets is down → niet-blokkerende backoff: hooguit 1 herstelpoging per
+  // RECONNECT_MS, zodat de regelaar/JGC-loop niet stilvalt (geen delay() meer
+  // in het pad) en we de WiFi/broker niet platslaan.
+  static uint32_t laatste_poging_ms = 0;
+  const uint32_t RECONNECT_MS = 5000;
+  if(laatste_poging_ms != 0 && millis() - laatste_poging_ms < RECONNECT_MS) return;
+  laatste_poging_ms = millis();
+
   // WiFi eerst: MQTT kan niet werken zonder WiFi
   if(WiFi.status() != WL_CONNECTED){
     Serial.println("WiFi: herverbinden...");
@@ -162,6 +173,12 @@ void mqtt_herverbind(){
   }
 
   if(mqttClient.connected()) return;
+
+  // Oude TCP-socket expliciet sluiten vóór een nieuwe poging. Op de ESP32 lekt
+  // ArduinoMqttClient anders sockets bij herhaalde reconnects → uiteindelijk
+  // 'connection refused' (-2).
+  wifiClient.stop();
+
   Serial.print("MQTT: herverbinden met "); Serial.print(MQTT_BROKER);
   Serial.print(":"); Serial.println(MQTT_PORT);
   mqttClient.beginWill(MQTT_PREFIX "/status", true, 1);
@@ -178,7 +195,6 @@ void mqtt_herverbind(){
     vorige_discovery_ms = millis(); discovery_fase = 1;
   } else {
     Serial.print("MQTT: herverbinden mislukt, foutcode="); Serial.println(mqttClient.connectError());
-    delay(5000);
   }
 }
 
