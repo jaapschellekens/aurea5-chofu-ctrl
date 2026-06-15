@@ -96,20 +96,21 @@ void setup(){
   Serial.print(":"); Serial.println(MQTT_PORT);
   Serial.print("MQTT: gebruiker="); Serial.println(MQTT_USER);
   mqttClient.setUsernamePassword(MQTT_USER, MQTT_PASS);
+  mqttClient.setId(HA_NODE);   // unieke client-ID per device — voorkomt reconnect-storm bij testbord naast productie
   mqttClient.onMessage(mqtt_ontvang);
-  Serial.println("MQTT: LWT instellen (chofu/status = offline)");
-  mqttClient.beginWill("chofu/status", true, 1);
+  Serial.println("MQTT: LWT instellen (" MQTT_PREFIX "/status = offline)");
+  mqttClient.beginWill(MQTT_PREFIX "/status", true, 1);
   mqttClient.print("offline");
   mqttClient.endWill();
 
   Serial.println("MQTT: connect()...");
   if(mqttClient.connect(MQTT_BROKER, MQTT_PORT)){
     Serial.println("MQTT OK!");
-    Serial.println("MQTT: abonneren op chofu/cmd/#, chofu/sim/#");
-    mqttClient.subscribe("chofu/cmd/#");
-    mqttClient.subscribe("chofu/sim/#");
-    Serial.println("MQTT: publiceren chofu/status = online");
-    mqttClient.beginMessage("chofu/status", true, 1);
+    Serial.println("MQTT: abonneren op " MQTT_PREFIX "/cmd/#, " MQTT_PREFIX "/sim/#");
+    mqttClient.subscribe(MQTT_PREFIX "/cmd/#");
+    mqttClient.subscribe(MQTT_PREFIX "/sim/#");
+    Serial.println("MQTT: publiceren " MQTT_PREFIX "/status = online");
+    mqttClient.beginMessage(MQTT_PREFIX "/status", true, 1);
     mqttClient.print("online");
     mqttClient.endMessage();
     delay(1000);
@@ -162,14 +163,14 @@ void mqtt_herverbind(){
   if(mqttClient.connected()) return;
   Serial.print("MQTT: herverbinden met "); Serial.print(MQTT_BROKER);
   Serial.print(":"); Serial.println(MQTT_PORT);
-  mqttClient.beginWill("chofu/status", true, 1);
+  mqttClient.beginWill(MQTT_PREFIX "/status", true, 1);
   mqttClient.print("offline");
   mqttClient.endWill();
   if(mqttClient.connect(MQTT_BROKER, MQTT_PORT)){
     Serial.println("MQTT: herverbonden");
-    mqttClient.subscribe("chofu/cmd/#");
-    mqttClient.subscribe("chofu/sim/#");
-    mqttClient.beginMessage("chofu/status", true, 1);
+    mqttClient.subscribe(MQTT_PREFIX "/cmd/#");
+    mqttClient.subscribe(MQTT_PREFIX "/sim/#");
+    mqttClient.beginMessage(MQTT_PREFIX "/status", true, 1);
     mqttClient.print("online");
     mqttClient.endMessage();
     discovery_fase = 0; discovery_fase1();
@@ -214,6 +215,12 @@ void loop(){
   if(data_sturen_gevraagd || millis() - vorige_data_ms > 10000){
     data_sturen_gevraagd = false;
     stuur_data();
+  }
+  // Serial-log batched naar MQTT (alleen indien aan), buiten het JGC-RX-pad.
+  static uint32_t vorige_seriallog_ms = 0;
+  if(seriallog_enabled && millis() - vorige_seriallog_ms > 30000){
+    vorige_seriallog_ms = millis();
+    seriallog_flush();
   }
   if(discovery_fase == 1 && millis() - vorige_discovery_ms > 30000){
     discovery_fase2(); vorige_discovery_ms = millis(); discovery_fase = 2;

@@ -3,7 +3,35 @@
 Complete overzicht van alle MQTT topics, commando's en HA discovery entiteiten.
 
 MQTT Broker: `<YOUR_MQTT_BROKER_IP>:1883`  
-Alle topics gebruiken het prefix `chofu/`
+Alle topics gebruiken het prefix `chofu/` (instelbaar — zie hieronder).
+
+---
+
+## MQTT-prefix / HA-device (testbord naast productie)
+
+De topic-prefix en de Home Assistant device-identiteit zijn **compile-time**
+instelbaar via drie macro's in `chofu_wp_ff/types.h`:
+
+| Macro | Default (productie) | Bepaalt |
+|-------|---------------------|---------|
+| `MQTT_PREFIX` | `chofu` | Prefix van álle topics (`<prefix>/...`) |
+| `HA_NODE` | `chofu_hp` | HA device-id, alle `unique_id`'s, discovery-node, **én de MQTT client-ID** |
+| `HA_DEV_NAME` | `Chofu WP` | Weergavenaam van het HA-device |
+
+In deze referentie staat overal `chofu/...`; lees dat als `<MQTT_PREFIX>/...`.
+
+**Tweede (test)bord naast het draaiende systeem:** zet op het testbord bv.
+`MQTT_PREFIX "chofu_test"`, `HA_NODE "chofu_test_hp"`, `HA_DEV_NAME "Chofu WP TEST"`.
+Omdat `HA_NODE` ook de `unique_id`'s, het device-id én de MQTT client-ID verandert,
+ziet HA een **apart apparaat** en botsen de broker-verbindingen niet (geen
+reconnect-storm). De productietopics/-entiteiten blijven onaangeroerd.
+
+> Niet in `config.h` zetten: dat bestand wordt niet door alle `.cpp`-bestanden
+> gezien → zou inconsistente topics geven. Kan ook globaal via build-flag,
+> bv. `-DMQTT_PREFIX="\"chofu_test\""`.
+
+De simulator `python/wp_simulator.py` heeft een bijpassende `--prefix`-optie
+(default `chofu`); zet die gelijk aan `MQTT_PREFIX`, bv. `--prefix chofu_test`.
 
 ---
 

@@ -160,6 +160,7 @@ constexpr uint32_t BOOT_DELAY_MS = 300000UL; // 5 min: WP op stand 0 na koude st
 // ═══════════════════════════════════════════════════════════════
 
 extern bool     mqtt_logging_enabled;
+extern bool     seriallog_enabled;   // batched serial-log naar chofu/seriallog (1×/30s)
 extern uint32_t laatste_log_ms;
 
 // Vlag: stuur_data() is aangevraagd vanuit de MQTT-callback maar wordt

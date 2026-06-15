@@ -3,6 +3,28 @@
 #include <Arduino.h>
 
 // ═══════════════════════════════════════════════════════════════
+//  MQTT TOPIC-PREFIX / HOME ASSISTANT DEVICE (compile-time)
+// ═══════════════════════════════════════════════════════════════
+// Pas deze drie aan voor een TEST-opstelling op een tweede Arduino, zodat het
+// productiesysteem niet overschreven wordt. Alle MQTT-topics en de HA-discovery
+// (device-id, unique_id's, discovery-node) gebruiken deze waarden.
+//
+// Productie : MQTT_PREFIX "chofu"      HA_NODE "chofu_hp"      HA_DEV_NAME "Chofu WP"
+// Test  bv. : MQTT_PREFIX "chofu_test" HA_NODE "chofu_test_hp" HA_DEV_NAME "Chofu WP TEST"
+//
+// Let op: hier wijzigen (niet in config.h) — config.h wordt niet door alle
+// .cpp-bestanden gezien. Kan ook globaal via build-flag: -DMQTT_PREFIX="\"...\"".
+#ifndef MQTT_PREFIX
+  #define MQTT_PREFIX  "chofu"
+#endif
+#ifndef HA_NODE
+  #define HA_NODE      "chofu_hp"
+#endif
+#ifndef HA_DEV_NAME
+  #define HA_DEV_NAME  "Chofu WP"
+#endif
+
+// ═══════════════════════════════════════════════════════════════
 //  HARDWARE / BOARD INSTELLINGEN
 // ═══════════════════════════════════════════════════════════════
 

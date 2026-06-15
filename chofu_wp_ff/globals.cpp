@@ -133,5 +133,6 @@ uint32_t boot_ms = 0;
 // ═══════════════════════════════════════════════════════════════
 
 bool     mqtt_logging_enabled = true;
+bool     seriallog_enabled = false;   // default uit (kost RAM/bandbreedte)
 uint32_t laatste_log_ms = 0;
 bool     data_sturen_gevraagd = false;
