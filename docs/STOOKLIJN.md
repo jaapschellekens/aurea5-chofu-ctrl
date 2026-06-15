@@ -91,6 +91,11 @@ water_setpoint (°C)
 | `WATER_SP_MIN` (min. water setpoint) | — | — | ✅ | ✅ | — |
 | `SUPPLY_MAX` (max. aanvoer) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `SUPPLY_MIN` (min. aanvoer koeling) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `koeling_modus` (koeling aan) | — | ✅ | — | ✅ | ✅ |
+| `KOELING_MIN_BUITEN` (koeling stop-grens) | — | ✅ | — | ✅ | ✅ |
+| `KOELING_AFSCHAKEL` (terugschakel-drempel koeling) | — | ✅ | — | ✅ | ✅ |
+
+> Koeling werkt alleen in `FF_AUTO`, `FF_WATER` en `HANDMATIG` — zie de sectie [Koeling](#koeling).
 
 ---
 
@@ -253,6 +258,100 @@ Niet van toepassing. De compressor draait op een vaste stand ingesteld via `chof
 | `WATER` | ❌ Nee | Vast `t_water_gewenst` |
 | `FF_WATER` | ❌ Nee | Extern Adam-setpoint (`t_water_gewenst`) |
 | `HANDMATIG` | ❌ Nee | — |
+
+---
+
+## Koeling
+
+In de zomer kan dezelfde warmtepomp **passief/actief koelen**: de aanvoer wordt
+nu juist kouder dan de kamer, en de regelfout draait om. De stooklijn speelt geen
+rol — koeling heeft een eigen feedforward-regelaar (`pas_ff_koel_aan`).
+
+> Dit is **niet-condenserende** koeling: de aanvoertemperatuur blijft bewust boven
+> het dauwpunt (zie `SUPPLY_MIN`), zodat er geen condens op leidingen/emitters
+> ontstaat. Daarom is een ondergrens van ~16–17 °C normaal en gewenst.
+
+### Wanneer is koeling actief?
+
+Koeling werkt **alleen** in `FF_AUTO`, `FF_WATER` en `HANDMATIG`. In `AUTO` en
+`WATER` wordt een koelverzoek automatisch geweigerd (en `koeling_modus` weer
+uitgezet) met een alert. Inschakelen gebeurt via `chofu/cmd/koeling = 1`.
+
+```
+Buiten (°C)
+    │
+    │      (koeling actief gebied — warm genoeg buiten)
+    │
++18 ┤━━━━ KOELING_MIN_BUITEN ─────── onder deze buitentemp: koeling STOPT
+    │      cmd: chofu/cmd/koeling_min_buiten   (WP uit + koeling_modus=false)
+    │
+  … ┤
+```
+
+```
+Aanvoer (°C)
+    │
+ 60 ┤━━━━ SUPPLY_MAX ─────────────── veiligheidsplafond (ook in koeling)
+    │
+    │      t_water_gewenst (koel-setpoint, FF_WATER) — typisch 16–20 °C
+ 18 ┤────  bijv. Adam-koelsetpoint
+    │
+ 17 ┤━━━━ SUPPLY_MIN ─────────────── dauwpunt/condensatiebescherming
+    │      cmd: chofu/cmd/supply_min   aanvoer nooit lager → stand omlaag
+    │
+  0 ┤──── 0 = GEEN vraag ─────────── WP uit (géén "koel naar 0 °C")
+```
+
+### Regelfout (omgekeerd t.o.v. verwarming)
+
+```
+FF_WATER : regel_fout = t_aanvoer − t_water_gewenst     (Adam-setpoint)
+FF_AUTO  : regel_fout = t_kamer   − t_kamer_gewenst
+           positief = nog te warm → méér koelen
+```
+
+### Benodigd koelvermogen (feedforward)
+
+```
+FF_WATER : P_nodig = UA_emitter × (t_kamer   − t_water_gewenst)
+FF_AUTO  : P_nodig = UA_house   × (t_buiten   − t_kamer_gewenst)
+COP      = ff_cop_koel(t_aanvoer, t_buiten)
+stand    = laagste stand waarbij VERMOGEN[stand] ≥ P_nodig / COP
+```
+
+De integraalcorrectie (±2 standen), hysteresis en het online leren van
+`UA_emitter` werken net als bij verwarming.
+
+### Veiligheden / terugschakelen (volgorde van afhandeling)
+
+1. **`t_buiten < KOELING_MIN_BUITEN`** (default 18 °C) → koeling stopt volledig,
+   WP uit, `koeling_modus = false` + alert. Koelen heeft geen zin als het buiten
+   al koel is.
+2. **`t_aanvoer ≤ SUPPLY_MIN + 0,2`** (default 17 °C) → stand omlaag
+   (dauwpunt/condensatiebescherming).
+3. **`regel_fout < −KOELING_AFSCHAKEL`** (default 0,5 °C onder setpoint) → te koud,
+   stand omlaag.
+4. **`t_water_gewenst == 0`** → géén koelvraag → WP uit. *Speciaal geval:* zonder
+   deze check zou de regelfout `t_aanvoer − 0` zijn en de regelaar maximaal koelen
+   naar 0 °C. (Adam stuurt 0 bij geen vraag.)
+5. **Herstart vanuit stand 0** vereist de minimale uit-tijd én voldoende
+   koelvraag (`regel_fout > FF_RESTART_COAST`).
+
+> Let op: `WATER_SP_MIN` (default 16 °C) geldt óók in koeling — een koel-setpoint
+> van de Adam onder 16 °C (en ≠ 0) wordt genegeerd. Voor niet-condenserende koeling
+> is dat de gewenste ondergrens.
+
+### Koeling — MQTT-parameters
+
+| MQTT-commandotopic | Parameter | Standaard | Bereik | Wat het bepaalt |
+|--------------------|-----------|-----------|--------|-----------------|
+| `chofu/cmd/koeling` | `koeling_modus` | 0 (uit) | 0/1 | Koeling aan/uit (alleen FF_AUTO/FF_WATER/HANDMATIG) |
+| `chofu/cmd/koeling_min_buiten` | `KOELING_MIN_BUITEN` | 18 °C | 0–30 °C | Buitentemp waaronder koeling stopt |
+| `chofu/cmd/supply_min` | `SUPPLY_MIN` | 17 °C | 10–25 °C | Laagste aanvoertemp (dauwpunt-/condensatiebescherming) |
+| `chofu/cmd/koeling_afschakel` | `KOELING_AFSCHAKEL` | 0,5 °C | 0,1–5 °C | °C onder setpoint waarbij teruggeschakeld wordt (niet in EEPROM) |
+
+Op de seriële/MQTT-log verschijnen koelacties als `FF-W koel` (FF_WATER) of
+`FF-A koel` (FF_AUTO) met regelfout, feedforward-stand en gekozen stand.
 
 ---
 

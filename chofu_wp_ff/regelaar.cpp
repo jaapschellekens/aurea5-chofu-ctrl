@@ -379,6 +379,21 @@ void pas_pid_aan(){
     uint32_t nu = millis();
     if(nu - vorige_pid_ms < (uint32_t)pid_interval_ms) return;
     vorige_pid_ms = nu;
+    // FF_WATER met extern setpoint 0 = GEEN vraag → WP uit. Speciaal geval:
+    // zonder deze check leest de koelregelaar 0°C als "koel maximaal" (regel_fout
+    // = t_supply − 0). Identiek aan de WATER-modus afhandeling.
+    if(modus == Modus::FF_WATER && t_water_gewenst == 0.0f){
+      if(!koeling_modus && t_outside < T_VORST){
+        if(ctrl.stand != 1 || !ctrl.wp_aan){
+          ctrl.stand = 1; ctrl.wp_aan = true; ctrl.vorige_stand_wijz_ms = nu;
+          mqtt_log("VORSTBEVEILIGING (SP=0): buiten " + String(t_outside,1) + "C", "WARNING");
+        }
+      } else if(ctrl.wp_aan){
+        ctrl.zet_uit();
+        mqtt_log("FF_WATER: geen vraag (SP=0) -> WP UIT", "INFO");
+      }
+      return;
+    }
     pas_ff_aan();
     return;
   }

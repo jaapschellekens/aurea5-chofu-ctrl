@@ -134,6 +134,16 @@ De ringbuffer in `ControllerState` (21 slots × 60s) slaat kamertemperatuur op v
 
 ---
 
+## Koeling
+
+### Koeling draait alleen in FF-modi
+Koeling (`chofu/cmd/koeling=1`) werkt uitsluitend in `FF_AUTO`, `FF_WATER` en `HANDMATIG`. In `AUTO`/`WATER` wordt het verzoek geweigerd en `koeling_modus` weer uitgezet. Onder `KOELING_MIN_BUITEN` (18°C) stopt koeling volledig. Eigen regelaar: `pas_ff_koel_aan()` (omgekeerde regelfout, dauwpuntgrens `SUPPLY_MIN`).
+
+### Water-setpoint 0 = geen vraag — óók in koeling expliciet afvangen
+In `FF_WATER`-koeling betekent `t_water_gewenst==0` "geen vraag" (Adam stuurt 0). Zonder expliciete check leest de koelregelaar dat als `regel_fout = t_aanvoer − 0` → maximaal koelen richting 0°C. De afvang zit nu in `pas_pid_aan()` vóór `pas_ff_aan()` (spiegelt de WATER-modus); een nieuwe FF-koel-tak moet dit speciale geval behouden. `WATER_SP_MIN` (16°C, niet-condenserend) geldt ook in koeling.
+
+---
+
 ## Hardware
 
 ### Otronic ESP32 DevKit V1 (AH313)
