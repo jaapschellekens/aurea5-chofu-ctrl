@@ -153,12 +153,20 @@ Stand mapping:
 ```
 Topic:   chofu/cmd/water_setpoint
 Payload: "0"              → geen warmtevraag: WP uit (vorstbeveiliging blijft actief)
-         "<WATER_SP_MIN>"–"55.0" → gewenste aanvoertemperatuur (float, °C)
-         Waarden tussen 1 en WATER_SP_MIN worden genegeerd.
+         "<WATER_SP_MIN>"–"55.0" → gewenste aanvoertemperatuur verwarming (float, °C)
+         "<SUPPLY_MIN>"–"55.0"   → gewenste aanvoertemperatuur koeling (float, °C)
 
 Stel gewenste aanvoertemperatuur in (WATER / FF_WATER modus).
 Waarde 0 wordt gebruikt door externe regelaars (bijv. Plugwise Adam) om aan te geven
 dat er geen warmtevraag is — de WP wordt dan uitgeschakeld.
+
+Clamp-logica (geen silent negeren):
+  Waarden onder SUPPLY_MIN (bijv. Adam koelsetpoint 10°C) → geclampt op SUPPLY_MIN
+    en alert gepubliceerd op chofu/alert.
+  Waarden tussen SUPPLY_MIN en WATER_SP_MIN in verwarmingsmodus → genegeerd
+    (onzinnige verwarmingsvraag).
+  Waarden boven WATER_SP_MIN → altijd geaccepteerd.
+
 Tolerantie ±1°C:
   setpoint + 1°C → UIT
   setpoint − 1°C → AAN

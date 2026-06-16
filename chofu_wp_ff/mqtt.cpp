@@ -189,9 +189,21 @@ void mqtt_ontvang(int len){
   }
   else if(topic == MQTT_PREFIX "/cmd/water_setpoint"){
     float val = payload.toFloat();
-    if(val != 0.0f && val < WATER_SP_MIN){ return; }   // 1..(min-1)°C: ongeldig, negeer
-    if(val >= 0 && val <= 55){ t_water_gewenst = val;
-      mqtt_log("Water SP: " + String(t_water_gewenst,1) + "C (0=geen warmtevraag)", "INFO"); }
+    if(val == 0.0f){
+      t_water_gewenst = 0.0f;
+      mqtt_log("Water SP: 0 (geen vraag)", "INFO");
+    } else if(val < SUPPLY_MIN){
+      // Te laag voor zowel verwarming als koeling: clamp op SUPPLY_MIN (condensatiebescherming)
+      stuur_alert("Water SP " + String(val,1) + "C < SUPPLY_MIN " + String(SUPPLY_MIN,1) + "C -> geclampt");
+      t_water_gewenst = SUPPLY_MIN;
+      mqtt_log("Water SP geclampt op SUPPLY_MIN: " + String(SUPPLY_MIN,1) + "C", "INFO");
+    } else if(!koeling_modus && val < WATER_SP_MIN){
+      // Verwarming: tussen SUPPLY_MIN en WATER_SP_MIN is ongeldig (bijv. 17-15°C = geen zinnige warmtevraag)
+      return;
+    } else if(val <= 55){
+      t_water_gewenst = val;
+      mqtt_log("Water SP: " + String(t_water_gewenst,1) + "C", "INFO");
+    }
   }
   else if(topic == MQTT_PREFIX "/cmd/water_sp_min"){
     float val = payload.toFloat();
