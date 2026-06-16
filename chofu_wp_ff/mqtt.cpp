@@ -267,11 +267,20 @@ void mqtt_ontvang(int len){
   }
   else if(topic == MQTT_PREFIX "/cmd/kamer"){
     float val = payload.toFloat();
-    if(val >= 5 && val <= 35) t_kamer = val;
+    if(val >= 5 && val <= 35){ t_kamer = val; kamer_geldig = true; }
   }
   else if(topic == MQTT_PREFIX "/cmd/force_start"){
     ctrl.vorige_stand_wijz_ms = 0;
     Serial.println("FORCE START - hysteresis gereset");
+  }
+  else if(topic == MQTT_PREFIX "/cmd/kamer_in_water"){
+    bool val = (payload == "1");
+    if(val != kamer_in_water){
+      kamer_in_water = val;
+      eeprom_save();
+      mqtt_log(kamer_in_water ? "Kamertemp IN water-modi: AAN" : "Kamertemp IN water-modi: UIT (alleen aanvoertemp)", "INFO");
+    }
+    mqttClient.beginMessage(MQTT_PREFIX "/kamer_in_water"); mqttClient.print(kamer_in_water ? "1" : "0"); mqttClient.endMessage();
   }
   else if(topic == MQTT_PREFIX "/cmd/proto_log"){
     proto_logging = (payload == "1");
@@ -412,6 +421,8 @@ void discovery_fase2(){
   disco_pub("homeassistant/number/" HA_NODE "/kamer/config", pl);
   pl = "{\"name\":\"Chofu Kamer Gewenst\",\"uniq_id\":\"" HA_NODE "_kamer_gewenst\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/kamer_setpoint\",\"stat_t\":\"" MQTT_PREFIX "/kamer_gewenst\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":14,\"max\":30,\"step\":0.5," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/" HA_NODE "/kamer_gewenst/config", pl);
+  pl = "{\"name\":\"Chofu Kamertemp in water-modi\",\"uniq_id\":\"" HA_NODE "_kamer_in_water\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/kamer_in_water\",\"stat_t\":\"" MQTT_PREFIX "/kamer_in_water\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/switch/" HA_NODE "/kamer_in_water/config", pl);
   pl = "{\"name\":\"Chofu Stooklijn Basis\",\"uniq_id\":\"" HA_NODE "_setpoint\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/stooklijn_basis\",\"stat_t\":\"" MQTT_PREFIX "/stooklijn_basis\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":20,\"max\":45,\"step\":0.5," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/" HA_NODE "/stooklijn_basis/config", pl);
   pl = "{\"name\":\"Chofu Doel Setpoint\",\"uniq_id\":\"" HA_NODE "_doel_setpoint\",\"stat_t\":\"" MQTT_PREFIX "/doel_setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
@@ -546,6 +557,8 @@ void stuur_data(){
   mqttClient.beginMessage(MQTT_PREFIX "/delta_t");mqttClient.print(delta_t,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/kamer");mqttClient.print(t_kamer,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/kamer_gewenst");mqttClient.print(t_kamer_gewenst,1);mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/kamer_geldig");mqttClient.print(kamer_geldig?"1":"0");mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/kamer_in_water");mqttClient.print(kamer_in_water?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/stooklijn_basis");mqttClient.print(setpoint,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/doel_setpoint");mqttClient.print(doel_setpoint,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/stooklijn_grens");mqttClient.print(STOOKLIJN_GRENS,1);mqttClient.endMessage();

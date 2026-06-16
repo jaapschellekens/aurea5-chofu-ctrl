@@ -49,6 +49,8 @@ Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt a
 | `chofu/delta_t` | float | °C | Delta T (aanvoer − retour) |
 | `chofu/kamer` | float | °C | Kamer temperatuur (van Anna) |
 | `chofu/kamer_gewenst` | float | °C | Gewenste kamer temperatuur (van Anna) |
+| `chofu/kamer_geldig` | string | 0/1 | Kamertemperatuur ooit ontvangen (0 = nog nooit via cmd/kamer) |
+| `chofu/kamer_in_water` | string | 0/1 | Kamertemp actief in ff_water/water-modi |
 | `chofu/stooklijn_basis` | float | °C | Aanvoer setpoint (auto modus stooklijn) |
 | `chofu/water_setpoint` | float | °C | Gewenste aanvoertemperatuur (water modus); 0 = geen warmtevraag |
 | `chofu/water_sp_min` | float | °C | Minimaal geldig water setpoint (exclusief 0) |
@@ -109,6 +111,7 @@ Payload: "auto"      → PID regeling op kamertemperatuur (Anna)
          "ff_auto"   → Feedforward op kamertemperatuur (leert UA_house)
          "water"     → PID regeling op aanvoertemperatuur
          "ff_water"  → Feedforward op aanvoertemperatuur (leert UA_emitter)
+                       Werkt ook zonder kamertemperatuur — zie kamer_in_water.
          "handmatig" → Vaste stand via chofu/cmd/stand
 ```
 
@@ -198,7 +201,8 @@ Koeling is alleen beschikbaar in ff_auto, ff_water en handmatig.
 In auto of water wordt het commando genegeerd met een alert.
 
 FF_AUTO:  P_nodig = UA_house × (t_outside − t_kamer_gewenst)
-FF_WATER: P_nodig = UA_emitter × (t_kamer − t_water_gewenst)
+FF_WATER: P_nodig = UA_emitter × (t_kamer − t_water_gewenst)   [met kamer]
+          P_nodig = UA_emitter × (t_outside − t_water_gewenst)  [zonder kamer]
 HANDMATIG: vaste stand, ongewijzigd.
 
 Zet protocol byte 19-2,3 op 2 (koeling) i.p.v. 1 (verwarming).
@@ -413,6 +417,7 @@ De Arduino publiceert alle HA discovery configs automatisch bij opstart (retaine
 | Chofu Delta T | sensor (°C) | `chofu/delta_t` |
 | Chofu Kamer | number (°C) | `chofu/cmd/kamer` |
 | Chofu Kamer Gewenst | sensor (°C) | `chofu/kamer_gewenst` |
+| Chofu Kamertemp in water-modi | switch | `chofu/cmd/kamer_in_water` |
 | Chofu Stooklijn Basis | number (°C) | `chofu/cmd/stooklijn_basis` |
 | Chofu Doel Setpoint | sensor (°C) | `chofu/doel_setpoint` |
 | Chofu Stand | sensor | `chofu/stand` |
@@ -654,8 +659,20 @@ Voor diagnose op byte-niveau zonder WiFi/MQTT: flash `sniffer/sniffer.ino` (poll
 |-------|----------|--------------|
 | `chofu/cmd/kamer_setpoint` | Thermostaat → Arduino | Gewenste kamertemperatuur (14–30°C) |
 | `chofu/cmd/kamer` | Thermostaat/HA → Arduino | Werkelijke kamertemperatuur (5–35°C) |
+| `chofu/cmd/kamer_in_water` | HA → Arduino | `1` = kamertemp gebruiken in ff_water (default); `0` = alleen aanvoertemp |
 
 De waarde van `chofu/cmd/kamer` is ook rechtstreeks instelbaar via het **"Chofu Kamer"** number-entity in Home Assistant (verschijnt automatisch via discovery).
+
+**`kamer_in_water` — ff_water zonder kamertemperatuur:**
+
+Wanneer `kamer_in_water = 0` (of wanneer nog nooit een kamertemperatuur ontvangen is), werkt `ff_water` volledig op aanvoertemperatuur. De feedforward gebruikt dan buitentemperatuur als benadering voor P_nodig:
+
+```
+Verwarmen: P_nodig = UA_emitter × max(0, t_water_gewenst − t_outside)
+Koelen:    P_nodig = UA_emitter × max(0, t_outside − t_water_gewenst)
+```
+
+De integraalcorrectie (op basis van aanvoer-regelafwijking) vangt de resterende modelfout op. Het online UA-leren wordt gepauzeerd zolang de kamertemperatuur niet beschikbaar is. Instelling wordt opgeslagen in EEPROM.
 
 Voor automatische koppeling met een thermostaat: voeg onderstaande automatisering toe in HA zodat de thermostaat-waarden worden doorgestuurd naar de Arduino.
 

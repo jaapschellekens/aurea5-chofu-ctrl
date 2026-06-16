@@ -234,12 +234,20 @@ De stooklijn wordt **niet gebruikt**. De PID regelt de aanvoertemperatuur op een
 De stooklijn wordt **niet gebruikt**. In plaats daarvan volgt de controller het **extern opgelegde watertemperatuursetpoint van de Plugwise Adam** (`t_water_gewenst`). De feedforward berekent het benodigde compressorvermogen op basis van het emittermodel:
 
 ```
-P_nodig = UA_emitter × (t_water_gewenst − t_kamer)
-COP     = ff_cop(t_water_gewenst, t_buiten)
-stand   = laagste stand waarbij VERMOGEN[stand] ≥ P_nodig / COP
+Met kamertemperatuur beschikbaar (kamer_in_water = 1, kamer_geldig = 1):
+  P_nodig = UA_emitter × (t_water_gewenst − t_kamer)
+  COP     = ff_cop(t_water_gewenst, t_buiten)
+
+Zonder kamertemperatuur (kamer_in_water = 0 of nog nooit ontvangen):
+  P_nodig = UA_emitter × max(0, t_water_gewenst − t_outside)
+  COP     = ff_cop(t_water_gewenst, t_buiten)
+
+stand = laagste stand waarbij VERMOGEN[stand] >= P_nodig / COP
 ```
 
-De `UA_emitter`-waarde wordt online bijgeleerd. Het setpoint komt volledig van de Adam — de controller volgt de stooklijn van het Adam-systeem in plaats van een eigen.
+De `UA_emitter`-waarde wordt online bijgeleerd wanneer de kamertemperatuur beschikbaar is. Het setpoint komt volledig van de Adam — de controller volgt de stooklijn van het Adam-systeem in plaats van een eigen.
+
+Zonder kamertemperatuur werkt `ff_water` volledig op aanvoertemperatuur: de integraalcorrectie (op basis van `t_supply − t_water_gewenst`) vangt de modelfout op. Gebruik `chofu/cmd/kamer_in_water = 0` om kamertemperatuur expliciet uit te schakelen (opgeslagen in EEPROM).
 
 ---
 
@@ -313,10 +321,11 @@ FF_AUTO  : regel_fout = t_kamer   − t_kamer_gewenst
 ### Benodigd koelvermogen (feedforward)
 
 ```
-FF_WATER : P_nodig = UA_emitter × (t_kamer   − t_water_gewenst)
-FF_AUTO  : P_nodig = UA_house   × (t_buiten   − t_kamer_gewenst)
+FF_WATER (met kamer):    P_nodig = UA_emitter × (t_kamer − t_water_gewenst)
+FF_WATER (zonder kamer): P_nodig = UA_emitter × max(0, t_outside − t_water_gewenst)
+FF_AUTO  :               P_nodig = UA_house   × (t_buiten − t_kamer_gewenst)
 COP      = ff_cop_koel(t_aanvoer, t_buiten)
-stand    = laagste stand waarbij VERMOGEN[stand] ≥ P_nodig / COP
+stand    = laagste stand waarbij VERMOGEN[stand] >= P_nodig / COP
 ```
 
 De integraalcorrectie (±2 standen), hysteresis en het online leren van

@@ -31,6 +31,8 @@ float t_kamer = 19.0;
 float t_kamer_gewenst = 19.0;
 float t_water_gewenst = 32.0;
 bool  koeling_modus = false;
+bool  kamer_geldig = false;    // false tot eerste ontvangst via chofu/cmd/kamer
+bool  kamer_in_water = true;   // default: kamertemp gebruiken in ff_water (zoals voorheen)
 
 // ═══════════════════════════════════════════════════════════════
 //  REGELPARAMETERS

@@ -46,6 +46,8 @@ extern float t_kamer;
 extern float t_kamer_gewenst;
 extern float t_water_gewenst;
 extern bool  koeling_modus;
+extern bool  kamer_geldig;       // true zodra chofu/cmd/kamer ten minste 1x ontvangen is
+extern bool  kamer_in_water;     // true = kamertemp gebruiken in ff_water/water; false = alleen aanvoertemp
 
 // ═══════════════════════════════════════════════════════════════
 //  REGELPARAMETERS (instelbaar via MQTT, opgeslagen in EEPROM)

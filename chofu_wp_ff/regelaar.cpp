@@ -84,8 +84,10 @@ static void pas_ff_koel_aan(bool is_water){
   // FF: benodigde koelvermogen
   float P_nodig, cop;
   if(is_water){
-    // Warmtestroom kamer → koud water (emitter model)
-    P_nodig = max(0.0f, ff_UA_emitter * (t_kamer - wsp));
+    // Met kamer: ff_UA_emitter × (t_kamer − wsp)  [warmtestroom kamer → koud water]
+    // Zonder:    ff_UA_emitter × (t_outside − wsp) [warmte-inval vanuit buiten als benadering]
+    bool kamer_beschikbaar = kamer_geldig && kamer_in_water;
+    P_nodig = max(0.0f, ff_UA_emitter * (kamer_beschikbaar ? (t_kamer - wsp) : (t_outside - wsp)));
     cop = ff_cop_koel(t_supply, t_outside);
   } else {
     // Warmte-inval vanuit buiten die weggekoeeld moet worden (huis model)
@@ -238,12 +240,20 @@ void pas_ff_aan(){
 
   // ── Feedforward: benodigde warmte ─────────────────────────────
   // ff_water: emitter-model — hoeveel thermisch vermogen nodig om t_water_gewenst te halen
+  //   Met kamer: ff_UA_emitter × (t_water_gewenst − t_kamer)  [exact emitter-model]
+  //   Zonder:    ff_UA_emitter × (t_water_gewenst − t_outside) [conservatieve benadering]
   // ff_auto:  huis-model   — hoeveel warmte het huis vraagt op basis van kamertemp
   float P_nodig;
   float cop;
+  bool kamer_beschikbaar = kamer_geldig && kamer_in_water;
   if(is_water){
-    P_nodig = max(0.0f, ff_UA_emitter * (t_water_gewenst - t_kamer));
-    cop = ff_cop(max(t_water_gewenst, t_kamer + 1.0f), t_outside);
+    if(kamer_beschikbaar){
+      P_nodig = max(0.0f, ff_UA_emitter * (t_water_gewenst - t_kamer));
+      cop = ff_cop(max(t_water_gewenst, t_kamer + 1.0f), t_outside);
+    } else {
+      P_nodig = max(0.0f, ff_UA_emitter * (t_water_gewenst - t_outside));
+      cop = ff_cop(t_water_gewenst, t_outside);
+    }
   } else {
     P_nodig = max(0.0f, ff_UA_house * (t_kamer_gewenst - t_outside));
     cop = ff_cop(t_supply, t_outside);
@@ -291,11 +301,13 @@ void pas_ff_aan(){
   float P_hp_est = VERMOGEN[ctrl.stand] * ff_cop(t_supply, t_outside);
   if(ctrl.stand > 0 && P_hp_est > 50.0f && fabsf(regel_fout) < leer_drempel){
     if(is_water){
-      float dt_sup = t_supply - t_kamer;
-      if(dt_sup > 2.0f){
-        float meting = P_hp_est / dt_sup;
-        ff_UA_emitter = (1.0f - FF_LEARN_RATE) * ff_UA_emitter + FF_LEARN_RATE * meting;
-        ff_UA_emitter = constrain(ff_UA_emitter, 50.0f, 500.0f);
+      if(kamer_beschikbaar){
+        float dt_sup = t_supply - t_kamer;
+        if(dt_sup > 2.0f){
+          float meting = P_hp_est / dt_sup;
+          ff_UA_emitter = (1.0f - FF_LEARN_RATE) * ff_UA_emitter + FF_LEARN_RATE * meting;
+          ff_UA_emitter = constrain(ff_UA_emitter, 50.0f, 500.0f);
+        }
       }
     } else {
       // Minimale ΔT=10°C: bij kleine ΔT (zachte buitentemperatuur) is de

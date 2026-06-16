@@ -104,8 +104,12 @@ COP      = 0.40 × T_aanvoer_K / (T_aanvoer_K − T_buiten_K)   [1–6]
 stand_ff = laagste stand waarbij VERMOGEN[s] >= P_nodig / COP
 
 ── FF_WATER ─────────────────────────────────────────
-P_nodig  = UA_emitter × (T_water_gewenst − T_kamer)
-COP      = 0.40 × T_water_K / (T_water_K − T_buiten_K)       [1–6]
+Met kamer (kamer_in_water=1, kamer_geldig=1):
+  P_nodig = UA_emitter × (T_water_gewenst − T_kamer)
+  COP     = 0.40 × T_water_K / (T_water_K − T_buiten_K)       [1–6]
+Zonder kamer (kamer_in_water=0 of nog niet ontvangen):
+  P_nodig = UA_emitter × max(0, T_water_gewenst − T_buiten)
+  COP     = 0.40 × T_water_K / (T_water_K − T_buiten_K)       [1–6]
 stand_ff = laagste stand waarbij VERMOGEN[s] >= P_nodig / COP
 
 ── Gemeenschappelijk ────────────────────────────────
