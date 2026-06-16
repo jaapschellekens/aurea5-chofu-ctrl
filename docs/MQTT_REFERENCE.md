@@ -357,6 +357,46 @@ Alle safeguard meldingen verschijnen op `chofu/alert` (retained) en `chofu/log/W
 
 ---
 
+## Max compressorstand
+
+Begrenst de hoogste compressorstand in **alle modi behalve `handmatig`** (en behalve
+tijdens SWW, dat een eigen limiet heeft). Handig om geluid/verbruik te beperken.
+Persistent in EEPROM.
+
+| Topic | Richting | Waarde | Beschrijving |
+|-------|----------|--------|--------------|
+| `chofu/cmd/max_stand` | HA→Arduino | 1–8 | Max stand (default 8 = geen limiet) |
+| `chofu/max_stand` | Arduino→HA | 1–8 | Actuele max stand |
+
+HA-entiteit: **Chofu Max Stand** (number).
+
+## SWW (tapwater / DHW)
+
+Overlay-modus die de actieve regeling **tijdelijk overneemt** om het tapwatervat te
+laden. Activeren vanuit HA (bv. via een vat-thermostaat of schema). Bij activeren:
+schakelt de driewegklep-relais (`SWW_KLEP_PIN`, instelbaar in `types.h`), zet koeling
+uit, en regelt de aanvoer naar `SWW_SETPOINT` begrensd op `SWW_MAX_STAND`. De
+`MAX_STAND`-limiet geldt **niet** tijdens SWW. HA bepaalt start/stop (de firmware
+kent de vattemperatuur niet). Setpoint en stand zijn persistent; `sww` zelf is
+runtime (na reboot uit).
+
+| Topic | Richting | Waarde | Beschrijving |
+|-------|----------|--------|--------------|
+| `chofu/cmd/sww` | HA→Arduino | 0/1 | Tapwater laden aan/uit |
+| `chofu/cmd/sww_setpoint` | HA→Arduino | 30–60 °C | Laad-aanvoertemperatuur (default 50) |
+| `chofu/cmd/sww_max_stand` | HA→Arduino | 1–8 | Max stand tijdens SWW (default 8) |
+| `chofu/sww` | Arduino→HA | 0/1 | SWW actief |
+| `chofu/sww_setpoint` | Arduino→HA | °C | Actueel SWW-setpoint |
+| `chofu/sww_max_stand` | Arduino→HA | 1–8 | Actuele SWW-max-stand |
+
+HA-entiteiten: **Chofu SWW** (switch), **Chofu SWW Setpoint** (number),
+**Chofu SWW Max Stand** (number).
+
+> Bedrading: `SWW_KLEP_PIN` (default ESP32 GPIO25 / UNO R4 D2) stuurt het
+> klep-relais. Polariteit via `SWW_KLEP_ACTIEF_HOOG`. Pas beide aan in `types.h`.
+
+---
+
 ## Home Assistant Auto-Discovery
 
 De Arduino publiceert alle HA discovery configs automatisch bij opstart (retained). Handmatige YAML configuratie is **niet** nodig.

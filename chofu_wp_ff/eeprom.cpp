@@ -36,6 +36,9 @@ void eeprom_save(){
   EEPROM.put(ADDR_STOOKLIJN_AAN, STOOKLIJN_AAN_GRENS);
   EEPROM.put(ADDR_SUPPLY_MIN, SUPPLY_MIN);
   EEPROM.put(ADDR_WATER_SP_MIN, WATER_SP_MIN);
+  EEPROM.write(ADDR_MAX_STAND, MAX_STAND);
+  EEPROM.put(ADDR_SWW_SETPOINT, SWW_SETPOINT);
+  EEPROM.write(ADDR_SWW_MAX_STAND, SWW_MAX_STAND);
   Serial.println("EEPROM: settings opgeslagen");
 }
 
@@ -73,6 +76,12 @@ void eeprom_load(){
   if(isnan(SUPPLY_MIN) || SUPPLY_MIN < 10 || SUPPLY_MIN > 25) SUPPLY_MIN = 17.0f;
   EEPROM.get(ADDR_WATER_SP_MIN, WATER_SP_MIN);
   if(isnan(WATER_SP_MIN) || WATER_SP_MIN < 10 || WATER_SP_MIN > 30) WATER_SP_MIN = 16.0f;
+  MAX_STAND = EEPROM.read(ADDR_MAX_STAND);
+  if(MAX_STAND < 1 || MAX_STAND > 8) MAX_STAND = 8;
+  EEPROM.get(ADDR_SWW_SETPOINT, SWW_SETPOINT);
+  if(isnan(SWW_SETPOINT) || SWW_SETPOINT < 30 || SWW_SETPOINT > 60) SWW_SETPOINT = 50.0f;
+  SWW_MAX_STAND = EEPROM.read(ADDR_SWW_MAX_STAND);
+  if(SWW_MAX_STAND < 1 || SWW_MAX_STAND > 8) SWW_MAX_STAND = 8;
   Serial.print("EEPROM: geladen - SP:"); Serial.print(setpoint,1);
   Serial.print(" PID:"); Serial.print(Kp,2); Serial.print("/"); Serial.print(Ki,3); Serial.print("/"); Serial.println(Kd,2);
   Serial.print("  FF UA huis:"); Serial.print(ff_UA_house,0);
@@ -120,6 +129,9 @@ void eeprom_save(){
   prefs.putFloat("Kd_water",   Kd_water);
   prefs.putFloat("sl_aan",     STOOKLIJN_AAN_GRENS);
   prefs.putFloat("supply_min", SUPPLY_MIN);
+  prefs.putUChar("max_stand",  MAX_STAND);
+  prefs.putFloat("sww_sp",     SWW_SETPOINT);
+  prefs.putUChar("sww_max_st", SWW_MAX_STAND);
   prefs.end();
   Serial.println("NVS: settings opgeslagen");
 }
@@ -146,6 +158,12 @@ void eeprom_load(){
   Kd_water           = prefs.getFloat("Kd_water",    0.010f);
   STOOKLIJN_AAN_GRENS= prefs.getFloat("sl_aan",     13.0f);
   SUPPLY_MIN         = prefs.getFloat("supply_min", 17.0f);
+  MAX_STAND          = prefs.getUChar("max_stand",  8);
+  if(MAX_STAND < 1 || MAX_STAND > 8) MAX_STAND = 8;
+  SWW_SETPOINT       = prefs.getFloat("sww_sp",     50.0f);
+  if(isnan(SWW_SETPOINT) || SWW_SETPOINT < 30 || SWW_SETPOINT > 60) SWW_SETPOINT = 50.0f;
+  SWW_MAX_STAND      = prefs.getUChar("sww_max_st", 8);
+  if(SWW_MAX_STAND < 1 || SWW_MAX_STAND > 8) SWW_MAX_STAND = 8;
   prefs.end();
   Serial.print("NVS: geladen - SP:"); Serial.print(setpoint,1);
   Serial.print(" PID:"); Serial.print(Kp,2); Serial.print("/"); Serial.print(Ki,3); Serial.print("/"); Serial.println(Kd,2);

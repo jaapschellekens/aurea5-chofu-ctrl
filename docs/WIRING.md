@@ -309,9 +309,6 @@ Check:
 ```
 
 
-
-
-
 ---
 
 ## Handmatige Bediening — Knoppen (optioneel, niet goed getest)

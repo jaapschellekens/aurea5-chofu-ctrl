@@ -139,6 +139,12 @@ De ringbuffer in `ControllerState` (21 slots × 60s) slaat kamertemperatuur op v
 ### Koeling draait alleen in FF-modi
 Koeling (`chofu/cmd/koeling=1`) werkt uitsluitend in `FF_AUTO`, `FF_WATER` en `HANDMATIG`. In `AUTO`/`WATER` wordt het verzoek geweigerd en `koeling_modus` weer uitgezet. Onder `KOELING_MIN_BUITEN` (18°C) stopt koeling volledig. Eigen regelaar: `pas_ff_koel_aan()` (omgekeerde regelfout, dauwpuntgrens `SUPPLY_MIN`).
 
+### SWW (tapwater) is een overlay vóór de modus-dispatch
+SWW (`chofu/cmd/sww`) is geen aparte `Modus` maar een overlay: in `pas_pid_aan()` ná de `SUPPLY_MAX`-noodstop staat `if(sww_actief){ pas_sww_aan(); return; }`, zodat het alle modi (incl. handmatig) tijdelijk overneemt. Eigen setpoint (`SWW_SETPOINT`) en stand (`SWW_MAX_STAND`); de globale `MAX_STAND`-clamp in de loop is uitgezonderd met `!sww_actief`. De driewegklep zit op `SWW_KLEP_PIN` (in `types.h`, niet config.h — regelaar.cpp ziet config.h niet).
+
+### SWW moet koeling forceren uit
+SWW is verwarmen. Stond `koeling_modus` aan vóór SWW, dan stuurt het JGC-telegram nog de koel-byte (19-2 byte3=0x02) terwijl de regelaar opwarmt → pomp koelt het tapwater. Daarom zet de `chofu/cmd/sww=1`-handler `koeling_modus=false`.
+
 ### Water-setpoint 0 = geen vraag — óók in koeling expliciet afvangen
 In `FF_WATER`-koeling betekent `t_water_gewenst==0` "geen vraag" (Adam stuurt 0). Zonder expliciete check leest de koelregelaar dat als `regel_fout = t_aanvoer − 0` → maximaal koelen richting 0°C. De afvang zit nu in `pas_pid_aan()` vóór `pas_ff_aan()` (spiegelt de WATER-modus); een nieuwe FF-koel-tak moet dit speciale geval behouden. `WATER_SP_MIN` (16°C, niet-condenserend) geldt ook in koeling.
 

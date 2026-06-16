@@ -55,6 +55,9 @@ void setup(){
   EEPROM_BEGIN();
   eeprom_init();
   knoppen_init();
+  // SWW driewegklep-relais: uitgang, klep dicht bij start
+  pinMode(SWW_KLEP_PIN, OUTPUT);
+  digitalWrite(SWW_KLEP_PIN, SWW_KLEP_ACTIEF_HOOG ? LOW : HIGH);
 #if defined(ARDUINO_UNOR4_WIFI)
   chofuSerial.begin(666);
 #else
@@ -202,6 +205,12 @@ void loop(){
   lees_warmtepomp_data();
   pas_sim_toe();
   pas_pid_aan();
+  // Configureerbare max compressorstand — geldt in alle modi behalve handmatig.
+  // Niet tijdens SWW: tapwater heeft een eigen limiet (SWW_MAX_STAND).
+  if(!sww_actief && modus != Modus::HANDMATIG && ctrl.stand > MAX_STAND){
+    ctrl.stand = MAX_STAND;
+    ctrl.wp_aan = (ctrl.stand > 0);
+  }
   update_lcd();
   update_matrix();
 #if defined(ARDUINO_UNOR4_WIFI)

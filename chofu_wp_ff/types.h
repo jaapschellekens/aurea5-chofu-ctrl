@@ -48,6 +48,21 @@
   #define CHOFU_TX_PIN   17
 #endif
 
+// ── SWW (tapwater) driewegklep-relais ───────────────────────────
+// GPIO die het relais voor de driewegklep naar het tapwatervat schakelt.
+// Pas hier aan (of via build-flag) voor jouw bedrading — niet in config.h
+// (dat bestand wordt niet door regelaar.cpp gezien).
+#ifndef SWW_KLEP_PIN
+  #if defined(ARDUINO_UNOR4_WIFI)
+    #define SWW_KLEP_PIN 2     // D2 (vrij op UNO R4)
+  #else
+    #define SWW_KLEP_PIN 25    // GPIO25 (veilig op ESP32)
+  #endif
+#endif
+#ifndef SWW_KLEP_ACTIEF_HOOG
+  #define SWW_KLEP_ACTIEF_HOOG 1   // 1 = HIGH opent klep naar tapwatervat
+#endif
+
 // ═══════════════════════════════════════════════════════════════
 //  MODUS
 // ═══════════════════════════════════════════════════════════════

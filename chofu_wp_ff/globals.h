@@ -53,6 +53,12 @@ extern bool  koeling_modus;
 
 extern float   setpoint;
 extern float   doel_setpoint;
+extern uint8_t MAX_STAND;   // max compressorstand in alle modi behalve HANDMATIG (1–8)
+
+// SWW (tapwater) — overlay-modus, overschrijft de actieve regeling tijdelijk
+extern bool    sww_actief;     // door HA gezet via chofu/cmd/sww
+extern float   SWW_SETPOINT;   // gewenste aanvoertemp tijdens tapwater laden (°C)
+extern uint8_t SWW_MAX_STAND;  // max compressorstand tijdens SWW (eigen limiet, los van MAX_STAND)
 extern float   delta_t;
 extern bool    lcd_enabled;
 extern Modus   modus;

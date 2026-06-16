@@ -348,6 +348,37 @@ void pas_ff_aan(){
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  SWW (tapwater) — overlay-regelaar
+// ═══════════════════════════════════════════════════════════════
+// Actief zolang sww_actief (door HA gezet). Houdt de aanvoer op SWW_SETPOINT,
+// begrensd op SWW_MAX_STAND (eigen limiet, NIET door MAX_STAND geclamped).
+// De driewegklep wordt geschakeld in de MQTT-handler bij aan/uit.
+
+static void pas_sww_aan(){
+  uint32_t nu = millis();
+  if(nu - vorige_pid_ms < (uint32_t)pid_interval_ms) return;
+  vorige_pid_ms = nu;
+
+  doel_setpoint = SWW_SETPOINT;
+  float fout = SWW_SETPOINT - t_supply;   // positief = nog te koud → opwarmen
+
+  uint8_t doel;
+  if(fout <= 0.0f)      doel = 0;                              // op temp → uit (HA stopt SWW via sww=0)
+  else if(fout < 1.0f)  doel = min(SWW_MAX_STAND, (uint8_t)2);
+  else if(fout < 3.0f)  doel = min(SWW_MAX_STAND, (uint8_t)4);
+  else                  doel = SWW_MAX_STAND;                  // ver onder setpoint → vol vermogen
+
+  long hyst = (doel < ctrl.stand) ? HYST_DOWN_MS : HYST_FAST_MS;
+  if(doel != ctrl.stand && (nu - ctrl.vorige_stand_wijz_ms >= (uint32_t)hyst)){
+    ctrl.stand = doel;
+    ctrl.vorige_stand_wijz_ms = nu;
+    ctrl.wp_aan = (ctrl.stand > 0);
+    mqtt_log("SWW: A=" + String(t_supply,1) + " doel=" + String(SWW_SETPOINT,1) +
+             " St=" + String(ctrl.stand), "INFO");
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  PID REGELING (auto / water)
 // ═══════════════════════════════════════════════════════════════
 
@@ -358,6 +389,8 @@ void pas_pid_aan(){
     stuur_alert("NOODSTOP aanvoer: " + String(t_supply,1) + "C > max " + String(SUPPLY_MAX,1) + "C");
     return;
   }
+  // SWW heeft voorrang op alle modi (behalve de noodstop hierboven).
+  if(sww_actief){ pas_sww_aan(); return; }
   if(koeling_modus && (modus == Modus::AUTO || modus == Modus::WATER)){
     // Koeling niet toegestaan in AUTO en WATER — automatisch uitzetten
     koeling_modus = false; ctrl.reset_pid();

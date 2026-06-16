@@ -38,6 +38,11 @@ bool  koeling_modus = false;
 
 float   setpoint = 28.0;
 float   doel_setpoint = 40.0;
+uint8_t MAX_STAND = 8;   // default = ongelimiteerd (regelaar gaat in niet-handmatig nooit boven 8)
+
+bool    sww_actief    = false;
+float   SWW_SETPOINT  = 50.0;   // tapwater laad-aanvoertemperatuur
+uint8_t SWW_MAX_STAND = 8;      // tapwater mag op volle stand laden
 float   delta_t = 5.0;
 bool    lcd_enabled = true;
 Modus   modus = Modus::AUTO;

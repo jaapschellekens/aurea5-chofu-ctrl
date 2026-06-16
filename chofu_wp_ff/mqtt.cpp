@@ -281,6 +281,32 @@ void mqtt_ontvang(int len){
     seriallog_enabled = (payload == "1");
     mqtt_log(seriallog_enabled ? "Serial-log naar MQTT AAN" : "Serial-log naar MQTT UIT", "INFO");
   }
+  else if(topic == MQTT_PREFIX "/cmd/max_stand"){
+    int val = payload.toInt();
+    if(val >= 1 && val <= 8){ MAX_STAND = (uint8_t)val; eeprom_save();
+      mqtt_log("Max stand: " + String(MAX_STAND) + " (niet-handmatig)", "INFO"); }
+  }
+  else if(topic == MQTT_PREFIX "/cmd/sww"){
+    bool aan = (payload == "1");
+    if(aan != sww_actief){
+      sww_actief = aan;
+      if(aan) koeling_modus = false;   // SWW is verwarmen — koeling mag niet aanstaan
+      if(SWW_KLEP_ACTIEF_HOOG) digitalWrite(SWW_KLEP_PIN, aan ? HIGH : LOW);
+      else                     digitalWrite(SWW_KLEP_PIN, aan ? LOW  : HIGH);
+      ctrl.koude_start(millis());   // schone start bij wisselen SWW ↔ verwarming
+      mqtt_log(aan ? "SWW AAN (tapwater laden)" : "SWW UIT", "INFO");
+    }
+  }
+  else if(topic == MQTT_PREFIX "/cmd/sww_setpoint"){
+    float v = payload.toFloat();
+    if(v >= 30 && v <= 60){ SWW_SETPOINT = v; eeprom_save();
+      mqtt_log("SWW setpoint: " + String(SWW_SETPOINT,1) + "C", "INFO"); }
+  }
+  else if(topic == MQTT_PREFIX "/cmd/sww_max_stand"){
+    int v = payload.toInt();
+    if(v >= 1 && v <= 8){ SWW_MAX_STAND = (uint8_t)v; eeprom_save();
+      mqtt_log("SWW max stand: " + String(SWW_MAX_STAND), "INFO"); }
+  }
   // Simulatie topics
   else if(topic == MQTT_PREFIX "/cmd/sim"){
     sim_enabled = (payload == "1");
@@ -491,6 +517,14 @@ void discovery_fase3(){
   disco_pub("homeassistant/switch/" HA_NODE "/seriallog/config", pl);
   pl = "{\"name\":\"Chofu Serial Log Feed\",\"uniq_id\":\"" HA_NODE "_seriallog_feed\",\"stat_t\":\"" MQTT_PREFIX "/seriallog\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/sensor/" HA_NODE "/seriallog_feed/config", pl);
+  pl = "{\"name\":\"Chofu Max Stand\",\"uniq_id\":\"" HA_NODE "_max_stand\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/max_stand\",\"stat_t\":\"" MQTT_PREFIX "/max_stand\",\"min\":1,\"max\":8,\"step\":1," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/" HA_NODE "/max_stand/config", pl);
+  pl = "{\"name\":\"Chofu SWW\",\"uniq_id\":\"" HA_NODE "_sww\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/sww\",\"stat_t\":\"" MQTT_PREFIX "/sww\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/switch/" HA_NODE "/sww/config", pl);
+  pl = "{\"name\":\"Chofu SWW Setpoint\",\"uniq_id\":\"" HA_NODE "_sww_setpoint\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/sww_setpoint\",\"stat_t\":\"" MQTT_PREFIX "/sww_setpoint\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":30,\"max\":60,\"step\":0.5," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/" HA_NODE "/sww_setpoint/config", pl);
+  pl = "{\"name\":\"Chofu SWW Max Stand\",\"uniq_id\":\"" HA_NODE "_sww_max_stand\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/sww_max_stand\",\"stat_t\":\"" MQTT_PREFIX "/sww_max_stand\",\"min\":1,\"max\":8,\"step\":1," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/" HA_NODE "/sww_max_stand/config", pl);
 
   stuur_data();
 }
@@ -530,6 +564,10 @@ void stuur_data(){
   mqttClient.beginMessage(MQTT_PREFIX "/proto_log");mqttClient.print(proto_logging?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/seriallog_state");mqttClient.print(seriallog_enabled?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/supply_max");mqttClient.print(SUPPLY_MAX,1);mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/max_stand");mqttClient.print(MAX_STAND);mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/sww");mqttClient.print(sww_actief?"1":"0");mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/sww_setpoint");mqttClient.print(SWW_SETPOINT,1);mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/sww_max_stand");mqttClient.print(SWW_MAX_STAND);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/koeling_min_buiten");mqttClient.print(KOELING_MIN_BUITEN,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/supply_min");mqttClient.print(SUPPLY_MIN,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/koeling_afschakel");mqttClient.print(KOELING_AFSCHAKEL,2);mqttClient.endMessage();

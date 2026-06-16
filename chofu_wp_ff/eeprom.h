@@ -6,7 +6,7 @@
 //  EEPROM ADRESSEN
 // ═══════════════════════════════════════════════════════════════
 
-#define EEPROM_MAGIC            0xB4  // v2.7: WATER_SP_MIN toegevoegd
+#define EEPROM_MAGIC            0xB6  // v2.9: SWW (setpoint + max stand) toegevoegd
 #define ADDR_MAGIC              0
 #define ADDR_SETPOINT           1
 #define ADDR_KP                 5
@@ -27,6 +27,9 @@
 #define ADDR_STOOKLIJN_AAN      62   // nieuw v2.5
 #define ADDR_SUPPLY_MIN         66   // nieuw v2.6: condensatiebescherming koeling
 #define ADDR_WATER_SP_MIN       70   // nieuw v2.7: minimaal geldig water setpoint
+#define ADDR_MAX_STAND          74   // nieuw v2.8: 1 byte — max compressorstand (niet-handmatig)
+#define ADDR_SWW_SETPOINT       75   // nieuw v2.9: float — SWW laad-setpoint
+#define ADDR_SWW_MAX_STAND      79   // nieuw v2.9: 1 byte — max stand tijdens SWW
 
 void eeprom_init();
 void eeprom_save();
