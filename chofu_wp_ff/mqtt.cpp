@@ -404,7 +404,7 @@ void disco_pub(const char* topic, String& pl){
 
 void discovery_fase1(){
   Serial.println("Discovery F1");
-  String dev = "\"dev\":{\"ids\":[\"" HA_NODE "\"],\"name\":\"" HA_DEV_NAME "\",\"mf\":\"Chofu\",\"mdl\":\"AEYC\",\"sw\":\"2.0\"}";
+  String dev = "\"dev\":{\"ids\":[\"" HA_NODE "\"],\"name\":\"" HA_DEV_NAME "\",\"mf\":\"Chofu\",\"mdl\":\"AEYC\",\"sw\":\"2.0\",\"cu\":\"http://" + WiFi.localIP().toString() + "\"}";
   String avty = "\"avty_t\":\"" MQTT_PREFIX "/status\",\"pl_avail\":\"online\",\"pl_not_avail\":\"offline\"";
   String pl;
 
@@ -425,7 +425,7 @@ void discovery_fase1(){
 
 void discovery_fase2(){
   Serial.println("Discovery F2");
-  String dev = "\"dev\":{\"ids\":[\"" HA_NODE "\"],\"name\":\"" HA_DEV_NAME "\",\"mf\":\"Chofu\",\"mdl\":\"AEYC\",\"sw\":\"2.0\"}";
+  String dev = "\"dev\":{\"ids\":[\"" HA_NODE "\"],\"name\":\"" HA_DEV_NAME "\",\"mf\":\"Chofu\",\"mdl\":\"AEYC\",\"sw\":\"2.0\",\"cu\":\"http://" + WiFi.localIP().toString() + "\"}";
   String avty = "\"avty_t\":\"" MQTT_PREFIX "/status\",\"pl_avail\":\"online\",\"pl_not_avail\":\"offline\"";
   String pl;
 
@@ -460,7 +460,7 @@ void discovery_fase2(){
 
 void discovery_fase3(){
   Serial.println("Discovery F3");
-  String dev = "\"dev\":{\"ids\":[\"" HA_NODE "\"],\"name\":\"" HA_DEV_NAME "\",\"mf\":\"Chofu\",\"mdl\":\"AEYC\",\"sw\":\"2.0\"}";
+  String dev = "\"dev\":{\"ids\":[\"" HA_NODE "\"],\"name\":\"" HA_DEV_NAME "\",\"mf\":\"Chofu\",\"mdl\":\"AEYC\",\"sw\":\"2.0\",\"cu\":\"http://" + WiFi.localIP().toString() + "\"}";
   String avty = "\"avty_t\":\"" MQTT_PREFIX "/status\",\"pl_avail\":\"online\",\"pl_not_avail\":\"offline\"";
   String pl;
 
