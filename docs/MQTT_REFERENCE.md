@@ -211,6 +211,7 @@ In auto of water wordt het commando genegeerd met een alert.
 FF_AUTO:  P_nodig = UA_house × (t_outside − t_kamer_gewenst)
 FF_WATER: P_nodig = UA_emitter × (t_kamer − t_water_gewenst)   [met kamer]
           P_nodig = UA_emitter × (t_outside − t_water_gewenst)  [zonder kamer]
+          Bij start vanuit stand 0: eerst 5 min stand 1, daarna pas hoger.
 HANDMATIG: vaste stand, ongewijzigd.
 
 Zet protocol byte 19-2,3 op 2 (koeling) i.p.v. 1 (verwarming).

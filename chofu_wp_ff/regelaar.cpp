@@ -30,6 +30,8 @@ static uint8_t ff_stand_voor_vermogen(float P_elec){
   return 8;
 }
 
+static constexpr uint32_t FF_WATER_KOEL_SOFTSTART_MS = 300000UL;
+
 // ═══════════════════════════════════════════════════════════════
 //  FEEDFORWARD KOELREGELAAR (ff_auto + ff_water in koeling modus)
 // ═══════════════════════════════════════════════════════════════
@@ -58,7 +60,7 @@ static void pas_ff_koel_aan(bool is_water){
       ctrl.stand--;
       ctrl.vorige_stand_wijz_ms = nu;
       ctrl.wp_aan = (ctrl.stand > 0);
-      if(ctrl.stand == 0){ ctrl.wp_uit_ms = nu; ctrl.reset_ff(); }
+      if(ctrl.stand == 0){ ctrl.wp_uit_ms = nu; ctrl.ff_water_koel_start_ms = 0; ctrl.reset_ff(); }
     }
     return;
   }
@@ -69,7 +71,7 @@ static void pas_ff_koel_aan(bool is_water){
       ctrl.stand--;
       ctrl.vorige_stand_wijz_ms = nu;
       ctrl.wp_aan = (ctrl.stand > 0);
-      if(ctrl.stand == 0){ ctrl.wp_uit_ms = nu; ctrl.reset_ff(); }
+      if(ctrl.stand == 0){ ctrl.wp_uit_ms = nu; ctrl.ff_water_koel_start_ms = 0; ctrl.reset_ff(); }
     }
     return;
   }
@@ -117,6 +119,16 @@ static void pas_ff_koel_aan(bool is_water){
                                max(0, (int)ctrl.stand - max_stap),
                                min(8, (int)ctrl.stand + max_stap));
   uint8_t nieuwe_stand = (uint8_t)nieuwe_stand_i;
+
+  // In FF_WATER-koeling altijd zacht starten: na elke herstart vanuit stand 0
+  // eerst 5 minuten maximaal stand 1 voordat hogere standen zijn toegestaan.
+  bool ff_water_koel_softstart = is_water && (
+    (ctrl.stand == 0 && nieuwe_stand > 0) ||
+    (ctrl.stand > 0 &&
+     ctrl.ff_water_koel_start_ms != 0 &&
+     (nu - ctrl.ff_water_koel_start_ms) < FF_WATER_KOEL_SOFTSTART_MS)
+  );
+  if(ff_water_koel_softstart && nieuwe_stand > 1) nieuwe_stand = 1;
   ctrl.pid_output = stand_ff * 12.5f;
 
   long hyst;
@@ -125,10 +137,18 @@ static void pas_ff_koel_aan(bool is_water){
   else                           hyst = HYST_SLOW_MS;
 
   if(nieuwe_stand != ctrl.stand && (nu - ctrl.vorige_stand_wijz_ms >= (uint32_t)hyst)){
+    if(ctrl.stand == 0 && nieuwe_stand > 0){
+      ctrl.wp_start_ms = nu;
+      if(is_water) ctrl.ff_water_koel_start_ms = nu;
+    }
     ctrl.stand = nieuwe_stand;
     ctrl.vorige_stand_wijz_ms = nu;
     ctrl.wp_aan = (ctrl.stand > 0);
-    if(ctrl.stand == 0){ ctrl.wp_uit_ms = nu; ctrl.reset_ff(); }
+    if(ctrl.stand == 0){
+      ctrl.wp_uit_ms = nu;
+      ctrl.ff_water_koel_start_ms = 0;
+      ctrl.reset_ff();
+    }
     mqtt_log(String(is_water ? "FF-W koel" : "FF-A koel") +
              ": fout=" + String(regel_fout,1) +
              " ff=" + String(stand_ff) +

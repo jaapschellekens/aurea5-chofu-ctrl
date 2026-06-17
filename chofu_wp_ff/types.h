@@ -100,6 +100,7 @@ struct ControllerState {
   float    ff_integraal      = 0;
   uint32_t vorige_stand_wijz_ms = 0;
   uint32_t wp_start_ms = 0;          // tijdstip waarop WP voor het laatste aansloeg
+  uint32_t ff_water_koel_start_ms = 0; // soft-start timer na 0 -> 1 in FF_WATER-koeling
   uint32_t wp_uit_ms   = 0;          // tijdstip waarop WP voor het laatste uitschakelde
   bool     wp_thermal_stop = false;  // true = laatste stop was thermisch (overshoot), false = seizoensmatig
 
@@ -114,6 +115,7 @@ struct ControllerState {
   // WP volledig uitzetten + alle integralen wissen
   void zet_uit() {
     stand = 0; wp_aan = false;
+    ff_water_koel_start_ms = 0;
     pid_integraal = 0; pid_vorige_fout = 0; ff_integraal = 0;
   }
   void koude_start(uint32_t nu) {

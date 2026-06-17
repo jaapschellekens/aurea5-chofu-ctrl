@@ -152,6 +152,9 @@ Regelt de compressorstand zodat de kamer op setpoint blijft.
 P_nodig = UA_emitter × (t_kamer − t_water_gewenst)
 ```
 Regelt de aanvoertemperatuur op `t_water_gewenst` (bijv. 18°C).
+Bij elke start vanuit stand 0 draait de pomp eerst 5 minuten op stand 1 voordat
+hij naar een hogere berekende stand mag gaan. Dit voorkomt een te harde start
+bij koelen.
 
 **HANDMATIG** — vaste stand zoals bij verwarming.
 

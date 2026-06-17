@@ -111,6 +111,7 @@ Zonder kamer (kamer_in_water=0 of nog niet ontvangen):
   P_nodig = UA_emitter × max(0, T_water_gewenst − T_buiten)
   COP     = 0.40 × T_water_K / (T_water_K − T_buiten_K)       [1–6]
 stand_ff = laagste stand waarbij VERMOGEN[s] >= P_nodig / COP
+Bij koeling start FF_WATER vanuit stand 0 altijd eerst 5 minuten op stand 1.
 
 ── Gemeenschappelijk ────────────────────────────────
 Als fout > FF_COAST:   stand_ff += 1   (extra boost)
