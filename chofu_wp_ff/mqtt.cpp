@@ -314,6 +314,8 @@ void mqtt_ontvang(int len){
       if(aan) koeling_modus = false;   // SWW is verwarmen — koeling mag niet aanstaan
       if(SWW_KLEP_ACTIEF_HOOG) digitalWrite(SWW_KLEP_PIN, aan ? HIGH : LOW);
       else                     digitalWrite(SWW_KLEP_PIN, aan ? LOW  : HIGH);
+      // Klepstand direct (retained) publiceren — HA kan hierop een eigen relais sturen.
+      mqttClient.beginMessage(MQTT_PREFIX "/sww_klep", true); mqttClient.print(aan?"1":"0"); mqttClient.endMessage();
       ctrl.koude_start(millis());   // schone start bij wisselen SWW ↔ verwarming
       mqtt_log(aan ? "SWW AAN (tapwater laden)" : "SWW UIT", "INFO");
     }
@@ -548,6 +550,8 @@ void discovery_fase3(){
   disco_pub("homeassistant/number/" HA_NODE "/sww_setpoint/config", pl);
   pl = "{\"name\":\"Chofu SWW Max Stand\",\"uniq_id\":\"" HA_NODE "_sww_max_stand\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/sww_max_stand\",\"stat_t\":\"" MQTT_PREFIX "/sww_max_stand\",\"min\":1,\"max\":8,\"step\":1," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/" HA_NODE "/sww_max_stand/config", pl);
+  pl = "{\"name\":\"Chofu SWW Klep\",\"uniq_id\":\"" HA_NODE "_sww_klep\",\"stat_t\":\"" MQTT_PREFIX "/sww_klep\",\"pl_on\":\"1\",\"pl_off\":\"0\",\"dev_cla\":\"opening\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/binary_sensor/" HA_NODE "/sww_klep/config", pl);
 
   stuur_data();
 }
@@ -591,6 +595,7 @@ void stuur_data(){
   mqttClient.beginMessage(MQTT_PREFIX "/supply_max");mqttClient.print(SUPPLY_MAX,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/max_stand");mqttClient.print(MAX_STAND);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/sww");mqttClient.print(sww_actief?"1":"0");mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/sww_klep", true);mqttClient.print(sww_actief?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/sww_setpoint");mqttClient.print(SWW_SETPOINT,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/sww_max_stand");mqttClient.print(SWW_MAX_STAND);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/koeling_min_buiten");mqttClient.print(KOELING_MIN_BUITEN,1);mqttClient.endMessage();

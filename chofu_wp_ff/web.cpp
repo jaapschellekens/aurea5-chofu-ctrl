@@ -41,6 +41,20 @@ void handle_web_client(){
     v = parse_param("stooklijn_aan");  if(v.length()){ float f=v.toFloat(); if(f>=0&&f<=25&&f<STOOKLIJN_UIT_GRENS){ STOOKLIJN_AAN_GRENS=f; eeprom_save(); } }
     v = parse_param("ff_ua_house");    if(v.length()){ float f=v.toFloat(); if(f>=50&&f<=500){ ff_UA_house=f; eeprom_save(); } }
     v = parse_param("ff_ua_emitter");  if(v.length()){ float f=v.toFloat(); if(f>=50&&f<=500){ ff_UA_emitter=f; eeprom_save(); } }
+    v = parse_param("max_stand");      if(v.length()){ int n=v.toInt(); if(n>=1&&n<=8){ MAX_STAND=(uint8_t)n; eeprom_save(); } }
+    v = parse_param("sww_setpoint");   if(v.length()){ float f=v.toFloat(); if(f>=30&&f<=60){ SWW_SETPOINT=f; eeprom_save(); } }
+    v = parse_param("sww_max_stand");  if(v.length()){ int n=v.toInt(); if(n>=1&&n<=8){ SWW_MAX_STAND=(uint8_t)n; eeprom_save(); } }
+    v = parse_param("sww");            if(v.length()){
+      bool aan = (v == "1");
+      if(aan != sww_actief){
+        sww_actief = aan;
+        if(aan) koeling_modus = false;
+        if(SWW_KLEP_ACTIEF_HOOG) digitalWrite(SWW_KLEP_PIN, aan ? HIGH : LOW);
+        else                     digitalWrite(SWW_KLEP_PIN, aan ? LOW  : HIGH);
+        ctrl.koude_start(millis());
+        data_sturen_gevraagd = true;   // loop publiceert sww/sww_klep direct
+      }
+    }
   }
 
   client.println("HTTP/1.1 200 OK");
@@ -56,7 +70,10 @@ void handle_web_client(){
   client.println("<div class='card'><h2>Status</h2>");
   client.print("<div><span class='status "); client.print(ctrl.wp_aan?"on":"off"); client.print("'></span>WP: <b>"); client.print(ctrl.wp_aan?"AAN":"UIT"); client.println("</b></div>");
   client.print("<div>Modus: <b>"); client.print(modus_naar_str(modus)); client.println("</b></div>");
-  client.print("<div>Stand: <b>"); client.print(ctrl.stand); client.print("</b> ("); client.print(VERMOGEN[ctrl.stand]); client.println(" W)</div>");
+  client.print("<div>Stand: <b>"); client.print(ctrl.stand); client.print("</b> ("); client.print(VERMOGEN[ctrl.stand]); client.print(" W)  max: <b>"); client.print(MAX_STAND); client.println("</b></div>");
+  if(sww_actief){
+    client.print("<div><span class='status on'></span>SWW: <b>tapwater laden</b> → "); client.print(SWW_SETPOINT,1); client.print("°C (max st "); client.print(SWW_MAX_STAND); client.println(")</div>");
+  }
   if(modus == Modus::FF_AUTO || modus == Modus::FF_WATER){
     client.print("<div>FF UA huis: <b>"); client.print(ff_UA_house,0); client.println(" W/K</b></div>");
     client.print("<div>FF UA emitter: <b>"); client.print(ff_UA_emitter,0); client.println(" W/K</b></div>");
@@ -84,6 +101,15 @@ void handle_web_client(){
   client.println("</select></div>");
   client.print("<div>Water setpoint: <input type='number' name='water_setpoint' value='"); client.print(t_water_gewenst,1); client.println("' step='0.1' min='16' max='55'> °C</div>");
   client.print("<div>Stooklijn aan (&lt; uit): <input type='number' name='stooklijn_aan' value='"); client.print(STOOKLIJN_AAN_GRENS,1); client.println("' step='0.5' min='0' max='25'> °C</div>");
+  client.println("<h3>Beperking &amp; tapwater (SWW)</h3>");
+  client.print("<div>Max stand (niet-handmatig): <input type='number' name='max_stand' value='"); client.print(MAX_STAND); client.println("' step='1' min='1' max='8'></div>");
+  client.print("<div>SWW (tapwater laden): <select name='sww'><option value='0'");
+  if(!sww_actief) client.print(" selected");
+  client.print(">uit</option><option value='1'");
+  if(sww_actief) client.print(" selected");
+  client.println(">aan</option></select></div>");
+  client.print("<div>SWW setpoint: <input type='number' name='sww_setpoint' value='"); client.print(SWW_SETPOINT,1); client.println("' step='0.5' min='30' max='60'> °C</div>");
+  client.print("<div>SWW max stand: <input type='number' name='sww_max_stand' value='"); client.print(SWW_MAX_STAND); client.println("' step='1' min='1' max='8'></div>");
   client.println("<h3>PID Parameters — AUTO modus</h3>");
   client.print("<div>Kp: <input type='number' name='kp' value='"); client.print(Kp,2); client.println("' step='0.5' min='0' max='500'></div>");
   client.print("<div>Ki: <input type='number' name='ki' value='"); client.print(Ki,4); client.println("' step='0.001' min='0' max='5'></div>");
@@ -100,7 +126,7 @@ void handle_web_client(){
 
   client.print("<div class='card'><small>IP: "); client.print(WiFi.localIP());
   client.print(" | Uptime: "); client.print(millis()/1000/60); client.println(" min</small></div>");
-  client.println("<script>setTimeout(function(){location.reload()},10000);</script>");
+  client.println("<script>setTimeout(function(){location.href='/'},10000);</script>");
   client.println("</body></html>");
   delay(10);
   client.stop();

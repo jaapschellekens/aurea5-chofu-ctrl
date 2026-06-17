@@ -399,6 +399,7 @@ runtime (na reboot uit).
 | `chofu/cmd/sww_setpoint` | HA→Arduino | 30–60 °C | Laad-aanvoertemperatuur (default 50) |
 | `chofu/cmd/sww_max_stand` | HA→Arduino | 1–8 | Max stand tijdens SWW (default 8) |
 | `chofu/sww` | Arduino→HA | 0/1 | SWW actief |
+| `chofu/sww_klep` | Arduino→HA | 0/1 | **Klepstand** (retained): 1 = open naar tapwatervat. HA kan hierop een eigen relais sturen als de Arduino de klep niet kan schakelen. |
 | `chofu/sww_setpoint` | Arduino→HA | °C | Actueel SWW-setpoint |
 | `chofu/sww_max_stand` | Arduino→HA | 1–8 | Actuele SWW-max-stand |
 
