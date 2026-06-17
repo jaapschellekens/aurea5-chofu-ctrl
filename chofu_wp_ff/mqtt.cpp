@@ -296,10 +296,13 @@ void mqtt_ontvang(int len){
   }
   else if(topic == MQTT_PREFIX "/cmd/proto_log"){
     proto_logging = (payload == "1");
+    // Direct (retained) terugmelden zodat de HA-schakelaar niet terugklapt.
+    mqttClient.beginMessage(MQTT_PREFIX "/proto_log", true); mqttClient.print(proto_logging?"1":"0"); mqttClient.endMessage();
     mqtt_log(proto_logging ? "Protocol logging AAN" : "Protocol logging UIT", "INFO");
   }
   else if(topic == MQTT_PREFIX "/cmd/seriallog"){
     seriallog_enabled = (payload == "1");
+    mqttClient.beginMessage(MQTT_PREFIX "/seriallog_state", true); mqttClient.print(seriallog_enabled?"1":"0"); mqttClient.endMessage();
     mqtt_log(seriallog_enabled ? "Serial-log naar MQTT AAN" : "Serial-log naar MQTT UIT", "INFO");
   }
   else if(topic == MQTT_PREFIX "/cmd/max_stand"){
@@ -590,8 +593,8 @@ void stuur_data(){
   mqttClient.beginMessage(MQTT_PREFIX "/pomp");mqttClient.print(pomp_snelheid_wp);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/comp_hz");mqttClient.print(comp_hz);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/sim_actief");mqttClient.print(sim_actief()?"1":"0");mqttClient.endMessage();
-  mqttClient.beginMessage(MQTT_PREFIX "/proto_log");mqttClient.print(proto_logging?"1":"0");mqttClient.endMessage();
-  mqttClient.beginMessage(MQTT_PREFIX "/seriallog_state");mqttClient.print(seriallog_enabled?"1":"0");mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/proto_log", true);mqttClient.print(proto_logging?"1":"0");mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/seriallog_state", true);mqttClient.print(seriallog_enabled?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/supply_max");mqttClient.print(SUPPLY_MAX,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/max_stand");mqttClient.print(MAX_STAND);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/sww");mqttClient.print(sww_actief?"1":"0");mqttClient.endMessage();
