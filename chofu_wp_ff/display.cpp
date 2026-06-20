@@ -1,14 +1,60 @@
 #include "display.h"
+#include <Wire.h>
+#include "mqtt.h"   // mqtt_log bij LCD-herstel
 
 // ═══════════════════════════════════════════════════════════════
 //  LCD
 // ═══════════════════════════════════════════════════════════════
+
+// True als de LCD-backpack op de I²C-bus ACK't (0x27).
+static bool lcd_bus_ok(){
+  Wire.beginTransmission(0x27);
+  return (Wire.endTransmission() == 0);
+}
+
+// Maak een vastgelopen I²C-bus weer vlot: een slave die SDA laag houdt (door een
+// glitch/EMI) wordt losgemaakt door SCL 9× handmatig te klokken, gevolgd door een
+// STOP-conditie. Daarna Wire + LCD opnieuw initialiseren.
+static void lcd_bus_herstel(){
+  Wire.end();
+  pinMode(SCL, OUTPUT);
+  pinMode(SDA, INPUT_PULLUP);
+  for(uint8_t i = 0; i < 9; i++){
+    digitalWrite(SCL, HIGH); delayMicroseconds(5);
+    digitalWrite(SCL, LOW);  delayMicroseconds(5);
+  }
+  // STOP: SDA laag→hoog terwijl SCL hoog
+  pinMode(SDA, OUTPUT);
+  digitalWrite(SDA, LOW);  delayMicroseconds(5);
+  digitalWrite(SCL, HIGH); delayMicroseconds(5);
+  digitalWrite(SDA, HIGH); delayMicroseconds(5);
+  Wire.begin();
+  lcd.init();
+  lcd.backlight();
+}
 
 void update_lcd(){
   if(!USE_LCD || !lcd_enabled) return;
   uint32_t nu = millis();
   if(nu - vorige_lcd_ms < 6000) return;
   vorige_lcd_ms = nu;
+
+  // I²C-bewaking: een vastgelopen bus bevriest het LCD terwijl de rest van de
+  // firmware doordraait. Detecteer dat en herstel de bus + her-init het display.
+  if(!lcd_bus_ok()){
+    lcd_bus_herstel();
+    mqtt_log("LCD I2C vastgelopen — bus hersteld", "WARNING");
+  }
+
+  // Periodieke her-init: een HD44780-desync (voedingsglitch e.d.) bevriest het
+  // beeld terwijl de PCF8574 nog ACK't, dus niet via de bus-check te vangen.
+  // Elke 5 min opnieuw initialiseren begrenst een eventuele bevriezing tot ~5 min.
+  static uint32_t laatste_init_ms = 0;
+  if(nu - laatste_init_ms > 300000UL){
+    laatste_init_ms = nu;
+    lcd.init();
+    lcd.backlight();
+  }
 
   static uint8_t scherm = 0;
   int verm = (werkelijk_vermogen_w > 0) ? (int)werkelijk_vermogen_w : VERMOGEN[ctrl.stand];
