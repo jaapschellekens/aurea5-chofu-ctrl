@@ -102,10 +102,15 @@ static void pas_ff_koel_aan(bool is_water){
   float coast_k = is_water ? FF_COAST_WATER : FF_COAST_AUTO;
   if(regel_fout > coast_k) stand_ff = min(8, (int)stand_ff + 1);
 
-  // Integraalcorrectie (zelfde logica als verwarming)
+  // Doodband koeling: een mismatch tot KOEL_DEADBAND (de target nog net niet
+  // gehaald) hoeft het vermogen niet op te jagen.
+  const float KOEL_DEADBAND = 1.0f;
+
+  // Integraalcorrectie (zelfde logica als verwarming) — niet integreren binnen
+  // de doodband, anders wint een blijvende ~1°C-afwijking alsnog langzaam op.
   float ff_ki = is_water ? FF_KI_WATER : FF_KI_AUTO;
   float integraal_zone = is_water ? 2.0f : 1.0f;
-  if(ctrl.stand > 0 && fabsf(regel_fout) < integraal_zone)
+  if(ctrl.stand > 0 && fabsf(regel_fout) < integraal_zone && fabsf(regel_fout) > KOEL_DEADBAND)
     ctrl.ff_integraal += regel_fout * (pid_interval_ms / 1000.0f);
   float ff_max_int = 3.0f * 3600.0f / ff_ki;
   ctrl.ff_integraal = constrain(ctrl.ff_integraal, -ff_max_int, ff_max_int);
@@ -119,6 +124,10 @@ static void pas_ff_koel_aan(bool is_water){
                                max(0, (int)ctrl.stand - max_stap),
                                min(8, (int)ctrl.stand + max_stap));
   uint8_t nieuwe_stand = (uint8_t)nieuwe_stand_i;
+
+  // Binnen de doodband (≤ KOEL_DEADBAND nog te warm) geen stap omhoog: een
+  // mismatch van ~1°C hoeft niet naar hoger vermogen. Terugschakelen blijft wel.
+  if(nieuwe_stand > ctrl.stand && regel_fout <= KOEL_DEADBAND) nieuwe_stand = ctrl.stand;
 
   // In FF_WATER-koeling altijd zacht starten: na elke herstart vanuit stand 0
   // eerst 5 minuten maximaal stand 1 voordat hogere standen zijn toegestaan.
