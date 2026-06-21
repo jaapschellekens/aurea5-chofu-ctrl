@@ -6,6 +6,7 @@
 // wordt alleen die ene tab gerenderd (licht voor de MCU). Opslaan loopt via de
 // gedeelde set_param() zodat web en MQTT exact dezelfde validatie gebruiken;
 // daarom zijn de formulier-veldnamen gelijk aan de MQTT-cmd-segmenten.
+// Onder elk veld staat een korte uitleg (hint) uit de documentatie.
 
 void handle_web_client(){
   if(millis() - vorige_web_check_ms < 100) return;
@@ -35,7 +36,6 @@ void handle_web_client(){
     String k = String(key) + "=";
     int idx = qs.indexOf(k);
     if(idx < 0) return "";
-    // moet aan begin of na '&' staan
     if(idx != 0 && qs.charAt(idx - 1) != '&') return "";
     idx += k.length();
     int amp = qs.indexOf('&', idx);
@@ -85,6 +85,7 @@ void handle_web_client(){
     "nav{margin:10px 0;line-height:2}"
     "nav a{display:inline-block;padding:7px 11px;margin:2px;background:#dde;border-radius:4px;text-decoration:none;color:#2c3e50;font-size:13px}"
     "nav a.active{background:#3498db;color:#fff}"
+    ".hint{display:block;color:#888;font-size:11px;margin:1px 0 9px 6px}"
     ".st{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:5px}.on{background:#27ae60}.off{background:#95a5a6}"
     "</style></head><body>");
   client.println("<h1>Chofu Warmtepomp</h1>");
@@ -102,24 +103,25 @@ void handle_web_client(){
   nav("geavanceerd","Geavanceerd");
   client.println("</nav>");
 
-  // ── Hulp-lambda's voor formuliervelden ──────────────────────────
+  // ── Hulp-lambda's ───────────────────────────────────────────────
   auto fstart = [&](const char* tabid, const char* titel){
     client.print("<div class='card'><h2>"); client.print(titel); client.print("</h2><form action='/'>");
     client.print("<input type='hidden' name='tab' value='"); client.print(tabid); client.println("'>");
   };
   auto fend = [&](){ client.println("<br><button type='submit'>Opslaan</button></form></div>"); };
-  auto num = [&](const char* name, const char* label, const String& val,
-                 const char* step, const char* mn, const char* mx, const char* unit){
+  auto num = [&](const char* name, const char* label, const String& val, const char* step,
+                 const char* mn, const char* mx, const char* unit, const char* hint){
     client.print("<div>"); client.print(label); client.print(": <input type='number' name='");
     client.print(name); client.print("' value='"); client.print(val);
     client.print("' step='"); client.print(step); client.print("' min='"); client.print(mn);
-    client.print("' max='"); client.print(mx); client.print("'> "); client.print(unit); client.println("</div>");
+    client.print("' max='"); client.print(mx); client.print("'> "); client.print(unit);
+    client.print("<small class='hint'>"); client.print(hint); client.println("</small></div>");
   };
-  auto onoff = [&](const char* name, const char* label, bool on){
+  auto onoff = [&](const char* name, const char* label, bool on, const char* hint){
     client.print("<div>"); client.print(label); client.print(": <select name='"); client.print(name);
     client.print("'><option value='0'"); if(!on) client.print(" selected");
     client.print(">uit</option><option value='1'"); if(on) client.print(" selected");
-    client.println(">aan</option></select></div>");
+    client.print(">aan</option></select><small class='hint'>"); client.print(hint); client.println("</small></div>");
   };
 
   // ── Tab-inhoud ──────────────────────────────────────────────────
@@ -153,95 +155,130 @@ void handle_web_client(){
       if(strcmp(modus_naar_str(modus), m) == 0) client.print(" selected");
       client.print(">"); client.print(m); client.println("</option>");
     }
-    client.println("</select></div>");
-    onoff("koeling","Koeling", koeling_modus);
-    onoff("sww","Tapwater laden (SWW)", sww_actief);
+    client.print("</select><small class='hint'>AUTO=kamer-PID, WATER=aanvoer-PID, FF_*=feedforward, handmatig=vaste stand.</small></div>");
+    onoff("koeling","Koeling", koeling_modus, "Koelen i.p.v. verwarmen (alleen FF_AUTO/FF_WATER/handmatig).");
+    onoff("sww","Tapwater laden (SWW)", sww_actief, "Laadt het tapwatervat: schakelt de klep, eigen setpoint/stand, koeling uit.");
     fend();
     // Handmatige stand — apart formulier (zet modus automatisch op handmatig).
     client.println("<div class='card'><h2>Handmatige stand</h2><form action='/'><input type='hidden' name='tab' value='bediening'>");
     client.print("<div>Stand: <input type='number' name='stand' value='"); client.print(handmatig_stand);
-    client.println("' step='1' min='0' max='12'> (0–12; zet modus op handmatig)</div>");
+    client.print("' step='1' min='0' max='12'><small class='hint'>Vaste compressorstand 0–12; zet de modus op handmatig.</small></div>");
     client.println("<button type='submit'>Zet stand</button></form></div>");
     // losse actie
     client.println("<div class='card'><form action='/'><input type='hidden' name='tab' value='bediening'>");
-    client.println("<button type='submit' name='force_start' value='1'>Force start (hysteresis reset)</button></form></div>");
+    client.println("<button type='submit' name='force_start' value='1'>Force start</button>");
+    client.println("<small class='hint'>Reset de hysterese-timer zodat de WP direct mag bijschakelen.</small></form></div>");
   }
   else if(tab == "stooklijn"){
     fstart("stooklijn","Stooklijn");
-    num("stooklijn_basis","Basis-aanvoer", String(setpoint,1), "0.5","20","45","°C");
-    num("stooklijn_grens","Curve start (< buiten)", String(STOOKLIJN_GRENS,1), "0.5","0","25","°C");
-    num("stooklijn_factor","Helling", String(STOOKLIJN_FACTOR,2), "0.05","0.1","5","°C/°C");
-    num("stooklijn_uit","Seizoensstop (> buiten)", String(STOOKLIJN_UIT_GRENS,1), "0.5","5","30","°C");
-    num("stooklijn_aan","Hervat (< buiten)", String(STOOKLIJN_AAN_GRENS,1), "0.5","0","25","°C");
-    num("t_vorst","Vorstgrens", String(T_VORST,1), "0.5","-10","10","°C");
+    num("stooklijn_basis","Basis-aanvoer", String(setpoint,1), "0.5","20","45","°C",
+        "Aanvoertemp bij mild weer (vlak deel van de curve, bij/boven de grens).");
+    num("stooklijn_grens","Curve start", String(STOOKLIJN_GRENS,1), "0.5","0","25","°C",
+        "Buitentemp waaronder de aanvoer omhoog gaat.");
+    num("stooklijn_factor","Helling", String(STOOKLIJN_FACTOR,2), "0.05","0.1","5","°C/°C",
+        "Hoeveel °C aanvoer extra per °C kouder buiten.");
+    num("stooklijn_uit","Seizoensstop", String(STOOKLIJN_UIT_GRENS,1), "0.5","5","30","°C",
+        "Boven deze buitentemp stopt de verwarming (AUTO/FF_AUTO).");
+    num("stooklijn_aan","Hervat", String(STOOKLIJN_AAN_GRENS,1), "0.5","0","25","°C",
+        "Onder deze buitentemp hervat de verwarming (hysterese t.o.v. stop).");
+    num("t_vorst","Vorstgrens", String(T_VORST,1), "0.5","-10","10","°C",
+        "Onder deze buitentemp draait de WP altijd min. stand 1 (vorstbeveiliging).");
     fend();
   }
   else if(tab == "water"){
     fstart("water","Water & kamer");
-    num("water_setpoint","Water setpoint (0=geen vraag)", String(t_water_gewenst,1), "0.5","0","55","°C");
-    num("water_sp_min","Water SP min", String(WATER_SP_MIN,1), "0.5","10","30","°C");
-    onoff("kamer_in_water","Kamertemp in water-modi", kamer_in_water);
-    num("kamer","Kamertemp (extern)", String(t_kamer,1), "0.1","5","35","°C");
-    num("kamer_setpoint","Kamer setpoint", String(t_kamer_gewenst,1), "0.5","14","30","°C");
+    num("water_setpoint","Water setpoint", String(t_water_gewenst,1), "0.5","0","55","°C",
+        "Gewenste aanvoertemp (WATER/FF_WATER). 0 = geen warmtevraag → WP uit.");
+    num("water_sp_min","Water SP min", String(WATER_SP_MIN,1), "0.5","10","30","°C",
+        "Laagste geldige water-setpoint; waarden 1..min-1 worden genegeerd.");
+    onoff("kamer_in_water","Kamertemp in water-modi", kamer_in_water,
+        "Kamertemp meewegen in water-modi; uit = alleen op aanvoertemp regelen.");
+    num("kamer","Kamertemp (extern)", String(t_kamer,1), "0.1","5","35","°C",
+        "Externe kamertemperatuur (bv. zonder eigen sensor).");
+    num("kamer_setpoint","Kamer setpoint", String(t_kamer_gewenst,1), "0.5","14","30","°C",
+        "Gewenste kamertemperatuur.");
     fend();
   }
   else if(tab == "pid"){
     fstart("pid","PID");
     client.println("<h3>AUTO modus</h3>");
-    num("kp","Kp", String(Kp,2), "0.5","0.1","500","");
-    num("ki","Ki", String(Ki,4), "0.001","0","5","");
-    num("kd","Kd", String(Kd,4), "0.001","0","50","");
+    num("kp","Kp", String(Kp,2), "0.5","0.1","500","", "Proportionele versterking (AUTO).");
+    num("ki","Ki", String(Ki,4), "0.001","0","5","", "Integraal-versterking (AUTO).");
+    num("kd","Kd", String(Kd,4), "0.001","0","50","", "Differentieel-versterking (AUTO).");
     client.println("<h3>WATER modus</h3>");
-    num("kp_water","Kp water", String(Kp_water,2), "0.5","0.1","500","");
-    num("ki_water","Ki water", String(Ki_water,4), "0.001","0","5","");
-    num("kd_water","Kd water", String(Kd_water,4), "0.001","0","50","");
+    num("kp_water","Kp water", String(Kp_water,2), "0.5","0.1","500","", "Proportioneel voor aanvoer-tracking (WATER).");
+    num("ki_water","Ki water", String(Ki_water,4), "0.001","0","5","", "Integraal (WATER).");
+    num("kd_water","Kd water", String(Kd_water,4), "0.001","0","50","", "Differentieel (WATER).");
     fend();
   }
   else if(tab == "ff"){
     fstart("ff","Feedforward (lerende UA)");
-    num("ff_ua_house","UA huis", String(ff_UA_house,0), "1","50","500","W/K");
-    num("ff_ua_emitter","UA emitter", String(ff_UA_emitter,0), "1","50","500","W/K");
+    num("ff_ua_house","UA huis", String(ff_UA_house,0), "1","50","500","W/K",
+        "Warmteverlies huis; leert online. Stuur dit bij comfortklachten in FF_AUTO.");
+    num("ff_ua_emitter","UA emitter", String(ff_UA_emitter,0), "1","50","500","W/K",
+        "Warmteafgifte radiatoren/vloer; leert online in FF_WATER.");
     fend();
     client.println("<div class='card'><form action='/'><input type='hidden' name='tab' value='ff'>");
-    client.println("<button type='submit' name='ff_save' value='1'>Leerwaarden opslaan</button></form></div>");
+    client.println("<button type='submit' name='ff_save' value='1'>Leerwaarden opslaan</button>");
+    client.println("<small class='hint'>Sla de geleerde UA-waarden op in EEPROM.</small></form></div>");
   }
   else if(tab == "koeling"){
     fstart("koeling","Koeling");
-    onoff("koeling","Koeling actief", koeling_modus);
-    num("koeling_min_buiten","Min. buitentemp", String(KOELING_MIN_BUITEN,1), "0.5","0","30","°C");
-    num("supply_min","Min. aanvoer (dauwpunt)", String(SUPPLY_MIN,1), "0.5","10","25","°C");
+    onoff("koeling","Koeling actief", koeling_modus,
+        "Koelen aan/uit (alleen FF_AUTO/FF_WATER/handmatig).");
+    num("koeling_min_buiten","Min. buitentemp", String(KOELING_MIN_BUITEN,1), "0.5","0","30","°C",
+        "Onder deze buitentemp stopt koeling (geen zin als het buiten koel is).");
+    num("supply_min","Min. aanvoer", String(SUPPLY_MIN,1), "0.5","10","25","°C",
+        "Laagste aanvoertemp — dauwpunt-/condensatiebescherming.");
     fend();
   }
   else if(tab == "sww"){
     fstart("sww","Tapwater (SWW)");
-    onoff("sww","Tapwater laden", sww_actief);
-    num("sww_setpoint","SWW setpoint", String(SWW_SETPOINT,1), "0.5","30","60","°C");
-    num("sww_max_stand","SWW max stand", String(SWW_MAX_STAND), "1","1","8","");
+    onoff("sww","Tapwater laden", sww_actief,
+        "Start/stop tapwater laden; schakelt de driewegklep en zet koeling uit.");
+    num("sww_setpoint","SWW setpoint", String(SWW_SETPOINT,1), "0.5","30","60","°C",
+        "Aanvoertemp tijdens het laden van het tapwatervat.");
+    num("sww_max_stand","SWW max stand", String(SWW_MAX_STAND), "1","1","8","",
+        "Max compressorstand tijdens SWW (los van de algemene max stand).");
     fend();
   }
   else if(tab == "grenzen"){
     fstart("grenzen","Grenzen & systeem");
-    num("supply_max","Max aanvoer (noodstop)", String(SUPPLY_MAX,1), "1","40","80","°C");
-    num("max_stand","Max stand (niet-handmatig)", String(MAX_STAND), "1","1","8","");
-    onoff("lcd","LCD", lcd_enabled);
-    onoff("proto_log","Protocol logging", proto_logging);
-    onoff("seriallog","Serial-log naar MQTT", seriallog_enabled);
+    num("supply_max","Max aanvoer", String(SUPPLY_MAX,1), "1","40","80","°C",
+        "Veiligheidsplafond: bij overschrijding noodstop (alle modi).");
+    num("max_stand","Max stand", String(MAX_STAND), "1","1","8","",
+        "Hoogste compressorstand in alle modi behalve handmatig (en SWW).");
+    onoff("lcd","LCD", lcd_enabled, "Display aan/uit.");
+    onoff("proto_log","Protocol logging", proto_logging, "Ruwe JGC-telegrammen naar MQTT (debug).");
+    onoff("seriallog","Serial-log naar MQTT", seriallog_enabled, "Logregels gebatcht naar MQTT (debug).");
     fend();
   }
   else if(tab == "geavanceerd"){
     fstart("geavanceerd","Geavanceerd");
-    num("pid_interval","PID interval", String(pid_interval_ms), "100","100","60000","ms");
-    num("hyst_slow","Hyst traag", String(HYST_SLOW_MS), "1000","100","3600000","ms");
-    num("hyst_fast","Hyst snel", String(HYST_FAST_MS), "1000","100","3600000","ms");
-    num("hyst_down","Hyst afbouw", String(HYST_DOWN_MS), "1000","100","3600000","ms");
-    num("auto_hyst_down","Auto afbouw", String(AUTO_HYST_DOWN_MS/60000.0f,1), "0.5","0","30","min");
-    num("ff_min_off","FF min uit", String(FF_MIN_OFF_MS/60000.0f,1), "1","0","120","min");
-    num("ff_restart_coast","FF herstart coast", String(FF_RESTART_COAST,2), "0.05","0","5","°C");
-    num("ff_lookahead","FF vooruitkijk", String(FF_LOOKAHEAD_MS/60000.0f,1), "0.5","0","60","min");
-    num("ff_thermal_min_off","FF thermisch min uit", String(FF_THERMAL_MIN_OFF_MS/60000.0f,1), "0.5","0","30","min");
-    num("ff_afschakel","FF afschakel (auto)", String(FF_AFSCHAKEL_AUTO,2), "0.1","-3","0","°C");
-    num("koeling_afschakel","Koeling afschakel", String(KOELING_AFSCHAKEL,2), "0.1","0.1","5","°C");
-    num("koel_deadband","Koel doodband", String(KOEL_DEADBAND,1), "0.1","0","5","°C");
+    num("pid_interval","PID interval", String(pid_interval_ms), "100","100","60000","ms",
+        "Hoe vaak de regelaar de stand herberekent.");
+    num("hyst_slow","Hyst traag", String(HYST_SLOW_MS), "1000","100","3600000","ms",
+        "Min. tijd tussen standverhogingen bij kleine regelfout.");
+    num("hyst_fast","Hyst snel", String(HYST_FAST_MS), "1000","100","3600000","ms",
+        "Min. tijd tussen standverhogingen bij grote regelfout.");
+    num("hyst_down","Hyst afbouw", String(HYST_DOWN_MS), "1000","100","3600000","ms",
+        "Min. tijd voordat teruggeschakeld wordt.");
+    num("auto_hyst_down","Auto afbouw", String(AUTO_HYST_DOWN_MS/60000.0f,1), "0.5","0","30","min",
+        "Trager afbouwen in AUTO dan in WATER.");
+    num("ff_min_off","FF min uit", String(FF_MIN_OFF_MS/60000.0f,1), "1","0","120","min",
+        "Min. uitschakelperiode na een (seizoens)stop.");
+    num("ff_restart_coast","FF herstart coast", String(FF_RESTART_COAST,2), "0.05","0","5","°C",
+        "Hoeveel onder setpoint nodig om vanuit stand 0 te herstarten.");
+    num("ff_lookahead","FF vooruitkijk", String(FF_LOOKAHEAD_MS/60000.0f,1), "0.5","0","60","min",
+        "Vooruitkijktijd voor predictieve terugschakeling (0=uit).");
+    num("ff_thermal_min_off","FF thermisch min uit", String(FF_THERMAL_MIN_OFF_MS/60000.0f,1), "0.5","0","30","min",
+        "Min. uit-tijd na thermische stop (korter dan seizoensstop).");
+    num("ff_afschakel","FF afschakel (auto)", String(FF_AFSCHAKEL_AUTO,2), "0.1","-3","0","°C",
+        "°C kamer boven setpoint waarbij FF begint terug te schakelen.");
+    num("koeling_afschakel","Koeling afschakel", String(KOELING_AFSCHAKEL,2), "0.1","0.1","5","°C",
+        "°C onder setpoint waarbij koeling terugschakelt.");
+    num("koel_deadband","Koel doodband", String(KOEL_DEADBAND,1), "0.1","0","5","°C",
+        "Koel-mismatch waarbinnen niet wordt opgeschaald (kleine afwijking is ok).");
     fend();
   }
 
