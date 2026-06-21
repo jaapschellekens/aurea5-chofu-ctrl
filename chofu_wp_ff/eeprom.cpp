@@ -40,6 +40,7 @@ void eeprom_save(){
   EEPROM.put(ADDR_SWW_SETPOINT, SWW_SETPOINT);
   EEPROM.write(ADDR_SWW_MAX_STAND, SWW_MAX_STAND);
   EEPROM.write(ADDR_KAMER_IN_WATER, kamer_in_water ? 1 : 0);
+  EEPROM.put(ADDR_KOEL_DEADBAND, KOEL_DEADBAND);
   Serial.println("EEPROM: settings opgeslagen");
 }
 
@@ -84,6 +85,8 @@ void eeprom_load(){
   SWW_MAX_STAND = EEPROM.read(ADDR_SWW_MAX_STAND);
   if(SWW_MAX_STAND < 1 || SWW_MAX_STAND > 8) SWW_MAX_STAND = 8;
   kamer_in_water = (EEPROM.read(ADDR_KAMER_IN_WATER) != 0);
+  EEPROM.get(ADDR_KOEL_DEADBAND, KOEL_DEADBAND);
+  if(isnan(KOEL_DEADBAND) || KOEL_DEADBAND < 0 || KOEL_DEADBAND > 5) KOEL_DEADBAND = 1.0f;
   Serial.print("EEPROM: geladen - SP:"); Serial.print(setpoint,1);
   Serial.print(" PID:"); Serial.print(Kp,2); Serial.print("/"); Serial.print(Ki,3); Serial.print("/"); Serial.println(Kd,2);
   Serial.print("  FF UA huis:"); Serial.print(ff_UA_house,0);
@@ -135,6 +138,7 @@ void eeprom_save(){
   prefs.putFloat("sww_sp",     SWW_SETPOINT);
   prefs.putUChar("sww_max_st", SWW_MAX_STAND);
   prefs.putBool("kamer_water", kamer_in_water);
+  prefs.putFloat("koel_db",    KOEL_DEADBAND);
   prefs.end();
   Serial.println("NVS: settings opgeslagen");
 }
@@ -168,6 +172,8 @@ void eeprom_load(){
   SWW_MAX_STAND      = prefs.getUChar("sww_max_st", 8);
   if(SWW_MAX_STAND < 1 || SWW_MAX_STAND > 8) SWW_MAX_STAND = 8;
   kamer_in_water     = prefs.getBool("kamer_water", true);
+  KOEL_DEADBAND      = prefs.getFloat("koel_db",     1.0f);
+  if(isnan(KOEL_DEADBAND) || KOEL_DEADBAND < 0 || KOEL_DEADBAND > 5) KOEL_DEADBAND = 1.0f;
   prefs.end();
   Serial.print("NVS: geladen - SP:"); Serial.print(setpoint,1);
   Serial.print(" PID:"); Serial.print(Kp,2); Serial.print("/"); Serial.print(Ki,3); Serial.print("/"); Serial.println(Kd,2);

@@ -102,9 +102,8 @@ static void pas_ff_koel_aan(bool is_water){
   float coast_k = is_water ? FF_COAST_WATER : FF_COAST_AUTO;
   if(regel_fout > coast_k) stand_ff = min(8, (int)stand_ff + 1);
 
-  // Doodband koeling: een mismatch tot KOEL_DEADBAND (de target nog net niet
-  // gehaald) hoeft het vermogen niet op te jagen.
-  const float KOEL_DEADBAND = 1.0f;
+  // Doodband koeling (KOEL_DEADBAND, instelbaar via MQTT): een mismatch tot deze
+  // waarde (de target nog net niet gehaald) hoeft het vermogen niet op te jagen.
 
   // Integraalcorrectie (zelfde logica als verwarming) — niet integreren binnen
   // de doodband, anders wint een blijvende ~1°C-afwijking alsnog langzaam op.

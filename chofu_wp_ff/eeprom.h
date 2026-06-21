@@ -31,6 +31,7 @@
 #define ADDR_SWW_SETPOINT       75   // nieuw v2.9: float — SWW laad-setpoint
 #define ADDR_SWW_MAX_STAND      79   // nieuw v2.9: 1 byte — max stand tijdens SWW
 #define ADDR_KAMER_IN_WATER     80   // nieuw v3.0: 1 byte — kamertemp gebruiken in water modi
+#define ADDR_KOEL_DEADBAND      81   // float — koel-doodband (default-bij-ontbreken, geen magic-bump)
 
 void eeprom_init();
 void eeprom_save();

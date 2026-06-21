@@ -89,6 +89,7 @@ extern float SUPPLY_MIN;
 extern float WATER_SP_MIN;        // minimaal geldig water setpoint (16°C default; 0 = geen warmtevraag altijd geldig)
 extern float KOELING_MIN_BUITEN;
 extern float KOELING_AFSCHAKEL;
+extern float KOEL_DEADBAND;        // °C: koel-mismatch waarbinnen niet wordt opgeschaald
 extern float STOOKLIJN_UIT_GRENS;
 extern float STOOKLIJN_AAN_GRENS;  // aan-drempel na buitenseizoen: hysteresis t.o.v. UIT_GRENS
 extern long  FF_MIN_OFF_MS;         // min uitschakelperiode na thermische stop (ms)

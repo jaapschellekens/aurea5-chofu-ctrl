@@ -187,6 +187,11 @@ void mqtt_ontvang(int len){
     float val = payload.toFloat();
     if(val >= 0.1f && val <= 5.0f){ KOELING_AFSCHAKEL = val; }
   }
+  else if(topic == MQTT_PREFIX "/cmd/koel_deadband"){
+    float val = payload.toFloat();
+    if(val >= 0.0f && val <= 5.0f){ KOEL_DEADBAND = val; eeprom_save();
+      mqtt_log("Koel doodband: " + String(KOEL_DEADBAND,1) + "C", "INFO"); }
+  }
   else if(topic == MQTT_PREFIX "/cmd/water_setpoint"){
     float val = payload.toFloat();
     if(val == 0.0f){
@@ -485,6 +490,8 @@ void discovery_fase3(){
   disco_pub("homeassistant/number/" HA_NODE "/supply_min/config", pl);
   pl = "{\"name\":\"Chofu Koeling Afschakeldrempel\",\"uniq_id\":\"" HA_NODE "_koeling_afschakel\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/koeling_afschakel\",\"stat_t\":\"" MQTT_PREFIX "/koeling_afschakel\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":0.1,\"max\":5,\"step\":0.1," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/" HA_NODE "/koeling_afschakel/config", pl);
+  pl = "{\"name\":\"Chofu Koel Doodband\",\"uniq_id\":\"" HA_NODE "_koel_deadband\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/koel_deadband\",\"stat_t\":\"" MQTT_PREFIX "/koel_deadband\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":0,\"max\":5,\"step\":0.1," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/" HA_NODE "/koel_deadband/config", pl);
 
   pl = "{\"name\":\"Chofu Modus\",\"uniq_id\":\"" HA_NODE "_modus_sel\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/modus\",\"stat_t\":\"" MQTT_PREFIX "/modus\",\"options\":[\"auto\",\"water\",\"ff_auto\",\"ff_water\",\"handmatig\"]," + avty + "," + dev + "}";
   disco_pub("homeassistant/select/" HA_NODE "/modus_sel/config", pl);
@@ -604,6 +611,7 @@ void stuur_data(){
   mqttClient.beginMessage(MQTT_PREFIX "/koeling_min_buiten");mqttClient.print(KOELING_MIN_BUITEN,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/supply_min");mqttClient.print(SUPPLY_MIN,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/koeling_afschakel");mqttClient.print(KOELING_AFSCHAKEL,2);mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/koel_deadband");mqttClient.print(KOEL_DEADBAND,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/stooklijn_uit");mqttClient.print(STOOKLIJN_UIT_GRENS,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/stooklijn_aan");mqttClient.print(STOOKLIJN_AAN_GRENS,1);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/ff_min_off");mqttClient.print(FF_MIN_OFF_MS/60000L);mqttClient.endMessage();  // in minuten
