@@ -107,6 +107,7 @@ void setup(){
   mqttClient.endWill();
 
   Serial.println("MQTT: connect()...");
+  wifiClient.stop();   // ruim een eventueel hangende socket op (na reset/reflash)
   if(mqttClient.connect(MQTT_BROKER, MQTT_PORT)){
     Serial.println("MQTT OK!");
     Serial.println("MQTT: abonneren op " MQTT_PREFIX "/cmd/#, " MQTT_PREFIX "/sim/#");
@@ -146,6 +147,16 @@ void setup(){
 // ═══════════════════════════════════════════════════════════════
 
 void mqtt_herverbind(){
+  // Snelpad: alles in orde → meteen terug.
+  if(WiFi.status() == WL_CONNECTED && mqttClient.connected()) return;
+
+  // Niet-blokkerende backoff: hooguit 1 herstelpoging per RECONNECT_MS, zodat de
+  // regelaar/JGC-loop niet stilvalt (geen delay() meer in het pad).
+  static uint32_t laatste_poging_ms = 0;
+  const uint32_t RECONNECT_MS = 5000;
+  if(laatste_poging_ms != 0 && millis() - laatste_poging_ms < RECONNECT_MS) return;
+  laatste_poging_ms = millis();
+
   // WiFi eerst: MQTT kan niet werken zonder WiFi
   if(WiFi.status() != WL_CONNECTED){
     Serial.println("WiFi: herverbinden...");
@@ -164,6 +175,12 @@ void mqtt_herverbind(){
   }
 
   if(mqttClient.connected()) return;
+
+  // Oude TCP-socket expliciet sluiten vóór een nieuwe poging — voorkomt een
+  // blijvende 'connection refused' (-2) door een hangende socket na reset/drop
+  // (zowel UNO R4 WiFiS3 als ESP32).
+  wifiClient.stop();
+
   Serial.print("MQTT: herverbinden met "); Serial.print(MQTT_BROKER);
   Serial.print(":"); Serial.println(MQTT_PORT);
   mqttClient.beginWill(MQTT_PREFIX "/status", true, 1);
@@ -180,7 +197,6 @@ void mqtt_herverbind(){
     vorige_discovery_ms = millis(); discovery_fase = 1;
   } else {
     Serial.print("MQTT: herverbinden mislukt, foutcode="); Serial.println(mqttClient.connectError());
-    delay(5000);
   }
 }
 
