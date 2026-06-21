@@ -157,6 +157,11 @@ void handle_web_client(){
     onoff("koeling","Koeling", koeling_modus);
     onoff("sww","Tapwater laden (SWW)", sww_actief);
     fend();
+    // Handmatige stand — apart formulier (zet modus automatisch op handmatig).
+    client.println("<div class='card'><h2>Handmatige stand</h2><form action='/'><input type='hidden' name='tab' value='bediening'>");
+    client.print("<div>Stand: <input type='number' name='stand' value='"); client.print(handmatig_stand);
+    client.println("' step='1' min='0' max='12'> (0–12; zet modus op handmatig)</div>");
+    client.println("<button type='submit'>Zet stand</button></form></div>");
     // losse actie
     client.println("<div class='card'><form action='/'><input type='hidden' name='tab' value='bediening'>");
     client.println("<button type='submit' name='force_start' value='1'>Force start (hysteresis reset)</button></form></div>");
