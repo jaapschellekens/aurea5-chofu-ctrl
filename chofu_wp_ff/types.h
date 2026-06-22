@@ -18,7 +18,7 @@
   #define MQTT_PREFIX  "chofu"
 #endif
 #ifndef HA_NODE
-  #define HA_NODE      "chofu_hp"
+  #define HA_NODE      "chofu hp"
 #endif
 #ifndef HA_DEV_NAME
   #define HA_DEV_NAME  "Chofu WP"

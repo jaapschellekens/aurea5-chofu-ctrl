@@ -111,20 +111,9 @@ void check_mqtt_watchdog(){
 //  MQTT ONTVANGEN
 // ═══════════════════════════════════════════════════════════════
 
-void mqtt_ontvang(int len){
-  vorige_mqtt_rx_ms = millis();
-  String topic = mqttClient.messageTopic();
-  String payload = "";
-  while(mqttClient.available()) payload += (char)mqttClient.read();
-
-  // Throttle Serial-output: bij hoog MQTT-volume vult de USB-CDC TX-buffer
-  // en blokkeert Serial.println() de hele callback.
-  static uint32_t laatste_serial_mqtt_ms = 0;
-  if(millis() - laatste_serial_mqtt_ms >= 200){
-    Serial.print("MQTT: "); Serial.print(topic); Serial.print("="); Serial.println(payload);
-    laatste_serial_mqtt_ms = millis();
-  }
-
+// Verwerkt één commando-/sim-bericht (topic + payload). Gedeeld door de
+// MQTT-callback en de web-UI (via set_param). De keten zelf is ongewijzigd.
+static void verwerk_bericht(const String& topic, const String& payload){
   if(topic == MQTT_PREFIX "/cmd/lcd"){
     lcd_enabled = (payload == "1");
     if(lcd_enabled) lcd.backlight(); else { lcd.noBacklight(); lcd.clear(); }
@@ -393,9 +382,35 @@ void mqtt_ontvang(int len){
     if(val >= 100 && val <= 60000) pid_interval_ms = val;
   }
 
+}
+
+// MQTT-callback: leest topic/payload en delegeert naar verwerk_bericht().
+void mqtt_ontvang(int len){
+  vorige_mqtt_rx_ms = millis();
+  String topic = mqttClient.messageTopic();
+  String payload = "";
+  while(mqttClient.available()) payload += (char)mqttClient.read();
+
+  // Throttle Serial-output: bij hoog MQTT-volume vult de USB-CDC TX-buffer
+  // en blokkeert Serial.println() de hele callback.
+  static uint32_t laatste_serial_mqtt_ms = 0;
+  if(millis() - laatste_serial_mqtt_ms >= 200){
+    Serial.print("MQTT: "); Serial.print(topic); Serial.print("="); Serial.println(payload);
+    laatste_serial_mqtt_ms = millis();
+  }
+
+  verwerk_bericht(topic, payload);
+
   // Stuur data niet direct vanuit de callback (re-entrant mqttClient gebruik).
   // De main loop pikt de vlag op en roept stuur_data() aan op een veilig moment.
-  if (!topic.startsWith(MQTT_PREFIX "/sim/")) data_sturen_gevraagd = true;
+  if(!topic.startsWith(MQTT_PREFIX "/sim/")) data_sturen_gevraagd = true;
+}
+
+// Gedeelde setter voor de web-UI: bouwt het cmd-topic en hergebruikt dezelfde
+// validatie/neveneffecten als MQTT. Roep aan met key == cmd-segment (bv. "kp").
+bool set_param(const String& key, const String& payload){
+  verwerk_bericht(String(MQTT_PREFIX "/cmd/") + key, payload);
+  return true;
 }
 
 // ═══════════════════════════════════════════════════════════════

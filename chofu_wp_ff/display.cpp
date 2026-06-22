@@ -39,6 +39,15 @@ void update_lcd(){
   if(nu - vorige_lcd_ms < 6000) return;
   vorige_lcd_ms = nu;
 
+  // Eenmalige detectie: is er überhaupt een LCD aangesloten? Zo niet (bv. testbord)
+  // → LCD-functies uit, anders blijft de bus-check elke 6s vals "herstellen".
+  static int8_t lcd_status = -1;   // -1=onbekend, 0=afwezig, 1=aanwezig
+  if(lcd_status == -1){
+    lcd_status = lcd_bus_ok() ? 1 : 0;
+    if(lcd_status == 0){ mqtt_log("Geen LCD op I2C gevonden — LCD uitgeschakeld", "INFO"); return; }
+  }
+  if(lcd_status == 0) return;
+
   // I²C-bewaking: een vastgelopen bus bevriest het LCD terwijl de rest van de
   // firmware doordraait. Detecteer dat en herstel de bus + her-init het display.
   if(!lcd_bus_ok()){
