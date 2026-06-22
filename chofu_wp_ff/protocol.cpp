@@ -98,8 +98,9 @@ static void jgc_verwerk_frames(){
   comp_hz          = jgc_frames[3][9];
   pomp_snelheid_wp = jgc_frames[3][10];
 
-  // Defrost uit ID=1
-  defrost = (jgc_frames[1][4] != 0);
+  // Defrost uit ID=1. Ontdooien bestaat alleen bij verwarmen; in koeling betekent
+  // deze byte iets anders, dus negeren we hem dan (anders staat 'defrost' vals aan).
+  defrost = !koeling_modus && (jgc_frames[1][4] != 0);
 
   delta_t = t_supply - t_return;
   // Geen mqtt_log "JGC RX" meer hier: blokkerende publish in het RX-pad.
