@@ -113,9 +113,11 @@ void handle_web_client(){
   auto fend = [&](){ client.println("<br><button type='submit'>Opslaan</button></form></div>"); };
   auto num = [&](const char* name, const char* label, const String& val, const char* step,
                  const char* mn, const char* mx, const char* unit, const char* hint){
+    (void)step;   // step='any': geen step-raster-validatie (opgeslagen waarden liggen
+                  // er vaak niet op); de firmware bewaakt de bereiken zelf.
     client.print("<div>"); client.print(label); client.print(": <input type='number' name='");
     client.print(name); client.print("' value='"); client.print(val);
-    client.print("' step='"); client.print(step); client.print("' min='"); client.print(mn);
+    client.print("' step='any' min='"); client.print(mn);
     client.print("' max='"); client.print(mx); client.print("'> "); client.print(unit);
     client.print("<small class='hint'>"); client.print(hint); client.println("</small></div>");
   };
@@ -261,11 +263,11 @@ void handle_web_client(){
     fstart("geavanceerd","Geavanceerd");
     num("pid_interval","PID interval", String(pid_interval_ms), "100","100","60000","ms",
         "Hoe vaak de stand herberekend wordt. Lager = sneller reageren maar meer schakelen/last.");
-    num("hyst_slow","Hyst traag", String(HYST_SLOW_MS), "1000","100","3600000","ms",
+    num("hyst_slow","Hyst traag", String(HYST_SLOW_MS), "100","100","3600000","ms",
         "Min. tijd tussen standverhogingen bij kleine fout. Hoger = rustiger, trager opbouwen.");
-    num("hyst_fast","Hyst snel", String(HYST_FAST_MS), "1000","100","3600000","ms",
+    num("hyst_fast","Hyst snel", String(HYST_FAST_MS), "100","100","3600000","ms",
         "Idem bij grote fout. Lager = sneller opschalen als de afwijking groot is.");
-    num("hyst_down","Hyst afbouw", String(HYST_DOWN_MS), "1000","100","3600000","ms",
+    num("hyst_down","Hyst afbouw", String(HYST_DOWN_MS), "100","100","3600000","ms",
         "Min. tijd voordat teruggeschakeld wordt. Hoger = minder pendelen, maar kan overshoot geven.");
     num("auto_hyst_down","Auto afbouw", String(AUTO_HYST_DOWN_MS/60000.0f,1), "0.5","0","30","min",
         "Trager afbouwen in AUTO. Hoger = WP blijft langer op stand staan.");
