@@ -290,7 +290,11 @@ void handle_web_client(){
 
   // ── Voettekst ───────────────────────────────────────────────────
   client.print("<div class='card'><small>IP: "); client.print(WiFi.localIP());
-  client.print(" | Uptime: "); client.print(millis()/1000/60); client.println(" min</small></div>");
+  { uint32_t s=millis()/1000, m=s/60, h=m/60, d=h/24;
+    client.print(" | Uptime: ");
+    if(d){ client.print(d); client.print("d "); }
+    if(d||h%24){ client.print(h%24); client.print("u "); }
+    client.print(m%60); client.println("m</small></div>"); }
   client.println("</body></html>");
   delay(10);
   client.stop();
