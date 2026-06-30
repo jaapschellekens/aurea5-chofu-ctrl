@@ -186,6 +186,11 @@ static void verwerk_bericht(const String& topic, const String& payload){
     if(val == 0.0f){
       t_water_gewenst = 0.0f;
       mqtt_log("Water SP: 0 (geen vraag)", "INFO");
+    } else if(val == 10.0f){
+      // Anna sentinel: 10°C water SP = koeling gevraagd
+      if(modus != Modus::FF_WATER){ modus = Modus::FF_WATER; ctrl.koude_start(millis()); eeprom_save(); }
+      if(!koeling_modus){ koeling_modus = true; ctrl.reset_pid(); }
+      mqtt_log("Anna: koeling aan (FF_WATER)", "INFO");
     } else if(val < SUPPLY_MIN){
       // Te laag voor zowel verwarming als koeling: clamp op SUPPLY_MIN (condensatiebescherming)
       stuur_alert("Water SP " + String(val,1) + "C < SUPPLY_MIN " + String(SUPPLY_MIN,1) + "C -> geclampt");
@@ -195,6 +200,7 @@ static void verwerk_bericht(const String& topic, const String& payload){
       // Verwarming: tussen SUPPLY_MIN en WATER_SP_MIN is ongeldig (bijv. 17-15°C = geen zinnige warmtevraag)
       return;
     } else if(val <= 55){
+      if(koeling_modus){ koeling_modus = false; ctrl.reset_pid(); mqtt_log("Anna: verwarming aan (koeling uit)", "INFO"); }
       t_water_gewenst = val;
       mqtt_log("Water SP: " + String(t_water_gewenst,1) + "C", "INFO");
     }

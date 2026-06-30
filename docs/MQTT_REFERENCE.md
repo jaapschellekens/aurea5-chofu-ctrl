@@ -153,15 +153,22 @@ Stand mapping:
 ```
 Topic:   chofu/cmd/water_setpoint
 Payload: "0"              → geen warmtevraag: WP uit (vorstbeveiliging blijft actief)
+         "10"             → Plugwise Anna sentinel: koeling gevraagd
+                            → modus wordt FF_WATER, koeling_modus = true
          "<WATER_SP_MIN>"–"55.0" → gewenste aanvoertemperatuur verwarming (float, °C)
-         "<SUPPLY_MIN>"–"55.0"   → gewenste aanvoertemperatuur koeling (float, °C)
+                            → als koeling_modus actief was: automatisch koeling_modus = false
 
 Stel gewenste aanvoertemperatuur in (WATER / FF_WATER modus).
 Waarde 0 wordt gebruikt door externe regelaars (bijv. Plugwise Adam) om aan te geven
 dat er geen warmtevraag is — de WP wordt dan uitgeschakeld.
 
+De Plugwise Anna stuurt bij koelvraag altijd exact 10°C als water setpoint (de WP
+bepaalt zelf de aanvoertemperatuur). Bij terugschakeling naar verwarming stuurt Anna
+een normaal setpoint (bijv. 35°C), waardoor koeling_modus automatisch op false gaat.
+Handmatig koeling aan/uitzetten kan nog steeds via chofu/cmd/koeling.
+
 Clamp-logica (geen silent negeren):
-  Waarden onder SUPPLY_MIN (bijv. Adam koelsetpoint 10°C) → geclampt op SUPPLY_MIN
+  Waarden onder SUPPLY_MIN (exclusief 0 en 10) → geclampt op SUPPLY_MIN
     en alert gepubliceerd op chofu/alert.
   Waarden tussen SUPPLY_MIN en WATER_SP_MIN in verwarmingsmodus → genegeerd
     (onzinnige verwarmingsvraag).
