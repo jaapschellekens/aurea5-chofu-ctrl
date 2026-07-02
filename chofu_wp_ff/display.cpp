@@ -65,165 +65,64 @@ void update_lcd(){
     lcd.backlight();
   }
 
+  // ── Vereenvoudigde weergave: 3 schermen (+ debug bij proto_log) ──
+  // Scherm 0 = wat doet hij nu, Scherm 1 = omgeving, Scherm 2 = systeem.
   static uint8_t scherm = 0;
-  int verm = (werkelijk_vermogen_w > 0) ? (int)werkelijk_vermogen_w : VERMOGEN[ctrl.stand];
-  uint8_t max_scherm = proto_logging ? 5 : 4;
+  uint8_t max_scherm = proto_logging ? 4 : 3;
 
   lcd.clear();
 
   switch(scherm){
 
-    // ── Scherm 0: Altijd gelijk — statussamenvatting ─────────────
-    case 0:
-      // r0: "St3 1200W  AAN"
-      lcd.print("St"); lcd.print(ctrl.stand);
-      lcd.print(" "); lcd.print(verm); lcd.print("W");
-      lcd.print(ctrl.wp_aan ? " AAN" : " UIT");
-      // r1: "FF-A  Hz:45"
-      lcd.setCursor(0,1);
-      if     (modus==Modus::FF_AUTO)   lcd.print("FF-A");
-      else if(modus==Modus::FF_WATER)  lcd.print("FF-W");
-      else if(modus==Modus::WATER)     lcd.print("WATR");
-      else if(modus==Modus::HANDMATIG) lcd.print("HAND");
-      else                             lcd.print("AUTO");
-      lcd.print(" Hz:"); lcd.print(comp_hz);
-      break;
+    // ── Scherm 0: Wat doet hij nu ────────────────────────────────
+    case 0: {
+      // Regel 1: toestandwoord + stand.
+      const char* toestand; bool toon_stand = true;
+      if(defrost)             { toestand = "ONTDOOIEN"; toon_stand = false; }
+      else if(sww_actief)       toestand = "TAPWATER";
+      else if(!ctrl.wp_aan)   { toestand = "UIT";       toon_stand = false; }
+      else if(koeling_modus)    toestand = "KOELEN";
+      else                      toestand = "VERWARMEN";
+      lcd.print(toestand);
+      if(toon_stand){ lcd.setCursor(11,0); lcd.print("st "); lcd.print(ctrl.stand); }
 
-    // ── Scherm 1: Primaire regelstatus (mode-specifiek) ──────────
+      // Regel 2: geregelde temperatuur passend bij de situatie/modus.
+      lcd.setCursor(0,1);
+      if(sww_actief){
+        lcd.print("Tapw "); lcd.print(t_supply,1); lcd.print(">"); lcd.print(SWW_SETPOINT,1);
+      } else if(!ctrl.wp_aan){
+        lcd.print("Buiten "); lcd.print(t_outside,1); lcd.print(" C");
+      } else if(modus==Modus::AUTO || modus==Modus::FF_AUTO){
+        lcd.print("Kamer "); lcd.print(t_kamer,1); lcd.print(">"); lcd.print(t_kamer_gewenst,1);
+      } else if(modus==Modus::WATER || modus==Modus::FF_WATER){
+        lcd.print("Aanv "); lcd.print(t_supply,1); lcd.print(">"); lcd.print(t_water_gewenst,1);
+      } else { // HANDMATIG
+        lcd.print("Aanv "); lcd.print(t_supply,0); lcd.print(" Ret "); lcd.print(t_return,0);
+      }
+      break;
+    }
+
+    // ── Scherm 1: Omgeving & waterkring ──────────────────────────
     case 1:
-      switch(modus){
-
-        case Modus::AUTO:
-          // r0: "K:20.1 >21.0"    kamer actual vs setpoint
-          // r1: "PID:45%  F:-0.9" PID output + regelafwijking kamer
-          lcd.print("K:"); lcd.print(t_kamer,1);
-          lcd.print(" >"); lcd.print(t_kamer_gewenst,1);
-          lcd.setCursor(0,1);
-          lcd.print("PID:"); lcd.print((int)ctrl.pid_output); lcd.print("%");
-          { float f = t_kamer_gewenst - t_kamer;
-            lcd.print(" F:"); if(f>0) lcd.print("+"); lcd.print(f,1); }
-          break;
-
-        case Modus::FF_AUTO:
-          // r0: "K:20.1 >21.0"    kamer actual vs setpoint
-          // r1: "B: 5.0  UA:272"  buiten + geleerd UA_house
-          lcd.print("K:"); lcd.print(t_kamer,1);
-          lcd.print(" >"); lcd.print(t_kamer_gewenst,1);
-          lcd.setCursor(0,1);
-          lcd.print("B:"); lcd.print(t_outside,1);
-          lcd.print(" UA:"); lcd.print((int)ff_UA_house);
-          break;
-
-        case Modus::WATER:
-          // r0: "A:35.2 SP:32"    aanvoer vs water setpoint
-          // r1: "PID:45%  F:+3.2" PID output + regelafwijking aanvoer
-          lcd.print("A:"); lcd.print(t_supply,1);
-          lcd.print(" SP:"); lcd.print(t_water_gewenst,0);
-          lcd.setCursor(0,1);
-          lcd.print("PID:"); lcd.print((int)ctrl.pid_output); lcd.print("%");
-          { float f = t_supply - t_water_gewenst;
-            lcd.print(" F:"); if(f>0) lcd.print("+"); lcd.print(f,1); }
-          break;
-
-        case Modus::FF_WATER:
-          // r0: "A:35.2 D:38.2"   aanvoer vs stooklijn doel
-          // r1: "B: 5.0  UA:267"  buiten + geleerd UA_emitter
-          lcd.print("A:"); lcd.print(t_supply,1);
-          lcd.print(" D:"); lcd.print(doel_setpoint,1);
-          lcd.setCursor(0,1);
-          lcd.print("B:"); lcd.print(t_outside,1);
-          lcd.print(" UA:"); lcd.print((int)ff_UA_emitter);
-          break;
-
-        default: // HANDMATIG
-          // r0: "A:35.2  R:30.1"  aanvoer + retour
-          // r1: "DT: 5.1  Hz:45"  delta_T + compressorfrequentie
-          lcd.print("A:"); lcd.print(t_supply,1);
-          lcd.print(" R:"); lcd.print(t_return,1);
-          lcd.setCursor(0,1);
-          lcd.print("DT:"); lcd.print(delta_t,1);
-          lcd.print(" Hz:"); lcd.print(comp_hz);
-          break;
-      }
-      break;
-
-    // ── Scherm 2: Secundaire info (mode-specifiek) ───────────────
-    case 2:
-      switch(modus){
-
-        case Modus::AUTO:
-          // r0: "A:35.2 D:38.2"   aanvoer vs stooklijn doel
-          // r1: "B: 5.0  R:30.1"  buiten + retour
-          lcd.print("A:"); lcd.print(t_supply,1);
-          lcd.print(" D:"); lcd.print(doel_setpoint,1);
-          lcd.setCursor(0,1);
-          lcd.print("B:"); lcd.print(t_outside,1);
-          lcd.print(" R:"); lcd.print(t_return,1);
-          break;
-
-        case Modus::FF_AUTO:
-          // r0: "A:35.2  R:30.1"  aanvoer + retour
-          // r1: "DT:5.1 FF:+0.5"  delta_T + FF integraalcorrectie
-          lcd.print("A:"); lcd.print(t_supply,1);
-          lcd.print(" R:"); lcd.print(t_return,1);
-          lcd.setCursor(0,1);
-          lcd.print("DT:"); lcd.print(delta_t,1);
-          lcd.print(" FF:");
-          if(ctrl.ff_integraal >= 0) lcd.print("+");
-          lcd.print(ctrl.ff_integraal,1);
-          break;
-
-        case Modus::WATER:
-          // r0: "R:30.1 DT: 5.1"  retour + delta_T
-          // r1: "B: 5.0  K:20.1"  buiten + kamer
-          lcd.print("R:"); lcd.print(t_return,1);
-          lcd.print(" DT:"); lcd.print(delta_t,1);
-          lcd.setCursor(0,1);
-          lcd.print("B:"); lcd.print(t_outside,1);
-          lcd.print(" K:"); lcd.print(t_kamer,1);
-          break;
-
-        case Modus::FF_WATER:
-          // r0: "R:30.1 DT: 5.1"  retour + delta_T
-          // r1: "FF:+0.5  Hz:45"  FF integraalcorrectie + Hz
-          lcd.print("R:"); lcd.print(t_return,1);
-          lcd.print(" DT:"); lcd.print(delta_t,1);
-          lcd.setCursor(0,1);
-          lcd.print("FF:");
-          if(ctrl.ff_integraal >= 0) lcd.print("+");
-          lcd.print(ctrl.ff_integraal,1);
-          lcd.print(" Hz:"); lcd.print(comp_hz);
-          break;
-
-        default: // HANDMATIG
-          // r0: "K:20.1  B: 5.0"  kamer + buiten
-          // r1: "Verm: 1200W"      huidig vermogen
-          lcd.print("K:"); lcd.print(t_kamer,1);
-          lcd.print(" B:"); lcd.print(t_outside,1);
-          lcd.setCursor(0,1);
-          lcd.print("Verm:"); lcd.print(verm); lcd.print("W");
-          break;
-      }
-      break;
-
-    // ── Scherm 3: Altijd gelijk — netwerk + pomp ─────────────────
-    case 3:
-      // r0: "P:60%  DT: 5.1"
-      // r1: "192.168.1.50"
-      lcd.print("P:"); lcd.print(pomp_snelheid_wp); lcd.print("%");
-      lcd.print(" DT:"); lcd.print(delta_t,1);
+      lcd.print("Buiten "); lcd.print(t_outside,1); lcd.print(" Hz"); lcd.print(comp_hz);
       lcd.setCursor(0,1);
-      lcd.print(WiFi.localIP());
+      lcd.print("Aanv "); lcd.print(t_supply,0); lcd.print(" Ret "); lcd.print(t_return,0);
       break;
-    // ── Scherm 4: Protocol debug (alleen als proto_logging aan) ──
-    case 4: {
-      // r0: "DBG jgc OK" of "DBG jgc TOUT"
-      // r1: "A:35.2 Err:0"
+
+    // ── Scherm 2: Systeem ────────────────────────────────────────
+    case 2:
+      lcd.print(WiFi.localIP());
+      lcd.setCursor(0,1);
+      lcd.print("Modus: "); lcd.print(modus_naar_str(modus));
+      break;
+
+    // ── Scherm 3: Protocol-debug (alleen als proto_logging aan) ──
+    case 3: {
       bool timeout = (millis() - vorige_telegram_ms > 5000);
       lcd.print("DBG jgc ");
       lcd.print(timeout ? "TOUT" : "OK  ");
       lcd.setCursor(0, 1);
-      lcd.print("A:"); lcd.print(t_supply, 1);
+      lcd.print("Aanv "); lcd.print(t_supply, 1);
       lcd.print(" Err:"); lcd.print(proto_crc_fouten);
       break;
     }
