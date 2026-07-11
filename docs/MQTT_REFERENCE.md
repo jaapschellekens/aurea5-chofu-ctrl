@@ -665,6 +665,49 @@ Voor diagnose op byte-niveau zonder WiFi/MQTT: flash `sniffer/sniffer.ino` (poll
 
 ---
 
+## Plugwise Adam Topics
+
+Alleen actief met `ADAM_IP`/`ADAM_PASS` in `config.h` én bron ≠ `uit`.
+Zie [ADAM_INTEGRATIE_PLAN.md](ADAM_INTEGRATIE_PLAN.md) voor het volledige ontwerp.
+
+### Commando's
+
+```
+Topic:   chofu/cmd/adam_bron          (EEPROM)
+Payload: "uit"          → Adam niet gebruiken (default)
+         "water"        → intended_boiler_temperature → t_water_gewenst
+         "water+kamer"  → + temperatuur van ADAM_ZONE → t_kamer
+         "multi"        → + regelen op zone met grootste vraag (setpoint − temp),
+                          zonesetpoint vervangt Anna-setpoint; wissel-hysterese 0.3°C
+
+Topic:   chofu/cmd/adam_koel_sp       (EEPROM)
+Payload: 16.0 – 25.0    → watersetpoint bij Adam-koelvraag (default 18.0)
+```
+
+### Watersetpoint-interpretatie (water/ff_water)
+
+| Adam SP | Betekenis | Actie |
+|---|---|---|
+| 0 | geen vraag | `t_water_gewenst = 0` → WP uit |
+| 10 | koelvraag (Anna geeft vast 10°C) | koeling aan op `adam_koel_sp` (alleen ff_water) |
+| ≥ 16 | verwarmingsvraag | `t_water_gewenst = SP` |
+
+### State topics
+
+| Topic | Inhoud |
+|-------|--------|
+| `chofu/adam/bron` | actieve bron |
+| `chofu/adam/status` | `uit` / `ok` / `fout` |
+| `chofu/adam/sp` | laatste intended_boiler_temperature |
+| `chofu/adam/koel_sp` | actueel koel-watersetpoint |
+| `chofu/adam/zone/<naam>` | temperatuur per zone (naam gesaneerd, max 8) |
+| `chofu/adam/zone/<naam>_sp` | thermostaatsetpoint per zone (indien aanwezig) |
+| `chofu/adam/actieve_zone` | actieve zone in multi-modus |
+
+**Terugval:** API >90 s onbereikbaar → laatste MQTT-waarden gelden weer + alert; herstel wordt gelogd. De poll is niet-blokkerend (max 512 bytes per loop-doorgang) en raakt de JGC-pomptiming niet.
+
+---
+
 ## Kamertemperatuur Topics
 
 | Topic | Richting | Beschrijving |
