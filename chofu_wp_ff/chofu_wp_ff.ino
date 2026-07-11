@@ -43,6 +43,7 @@
 #include "display.h"
 #include "web.h"
 #include "knoppen.h"
+#include "adam.h"
 
 // ═══════════════════════════════════════════════════════════════
 //  SETUP
@@ -54,6 +55,13 @@ void setup(){
   Serial.println("\n\nChofuCtrl v2.0 — FF modus");
   EEPROM_BEGIN();
   eeprom_init();
+#if defined(ADAM_IP)
+  #ifndef ADAM_ZONE
+    #define ADAM_ZONE ""
+  #endif
+  adam_config(ADAM_IP, ADAM_PASS, ADAM_ZONE);
+  Serial.println("Adam API geconfigureerd: " ADAM_IP);
+#endif
   knoppen_init();
   // SWW driewegklep-relais: uitgang, klep dicht bij start
   pinMode(SWW_KLEP_PIN, OUTPUT);
@@ -219,6 +227,8 @@ void loop(){
   }
 
   lees_warmtepomp_data();
+  adam_poll();      // niet-blokkerend; doet zelf zijn 30s-timing
+  adam_pas_toe();   // vóór pas_sim_toe zodat de simulator altijd wint
   pas_sim_toe();
   pas_pid_aan();
   // Configureerbare max compressorstand — geldt in alle modi behalve handmatig.

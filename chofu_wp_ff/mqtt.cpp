@@ -1,4 +1,5 @@
 #include "mqtt.h"
+#include "adam.h"
 #include "eeprom.h"   // voor eeprom_save()
 #include "regelaar.h" // voor ctrl.reset_pid() / reset_ff() / koude_start()
 
@@ -180,6 +181,20 @@ static void verwerk_bericht(const String& topic, const String& payload){
     float val = payload.toFloat();
     if(val >= 0.0f && val <= 5.0f){ KOEL_DEADBAND = val; eeprom_save();
       mqtt_log("Koel doodband: " + String(KOEL_DEADBAND,1) + "C", "INFO"); }
+  }
+  else if(topic == MQTT_PREFIX "/cmd/adam_bron"){
+    AdamBron nieuw;
+    if(payload == "uit") nieuw = AdamBron::UIT;
+    else if(payload == "water") nieuw = AdamBron::WATER;
+    else if(payload == "water+kamer") nieuw = AdamBron::WATER_KAMER;
+    else return;
+    adam_bron = nieuw; eeprom_save();
+    mqtt_log(String("Adam bron: ") + adam_bron_str(), "INFO");
+  }
+  else if(topic == MQTT_PREFIX "/cmd/adam_koel_sp"){
+    float val = payload.toFloat();
+    if(val >= 16 && val <= 25){ ADAM_KOEL_SP = val; eeprom_save();
+      mqtt_log("Adam koel SP: " + String(ADAM_KOEL_SP,1) + "C", "INFO"); }
   }
   else if(topic == MQTT_PREFIX "/cmd/water_setpoint"){
     float val = payload.toFloat();
@@ -511,6 +526,16 @@ void discovery_fase3(){
   pl = "{\"name\":\"Chofu Modus\",\"uniq_id\":\"" HA_NODE "_modus_sel\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/modus\",\"stat_t\":\"" MQTT_PREFIX "/modus\",\"options\":[\"auto\",\"water\",\"ff_auto\",\"ff_water\",\"handmatig\"]," + avty + "," + dev + "}";
   disco_pub("homeassistant/select/" HA_NODE "/modus_sel/config", pl);
 
+  // Adam API
+  pl = "{\"name\":\"Chofu Adam Bron\",\"uniq_id\":\"" HA_NODE "_adam_bron\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/adam_bron\",\"stat_t\":\"" MQTT_PREFIX "/adam/bron\",\"options\":[\"uit\",\"water\",\"water+kamer\"]," + avty + "," + dev + "}";
+  disco_pub("homeassistant/select/" HA_NODE "/adam_bron/config", pl);
+  pl = "{\"name\":\"Chofu Adam Koel SP\",\"uniq_id\":\"" HA_NODE "_adam_koel_sp\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/adam_koel_sp\",\"stat_t\":\"" MQTT_PREFIX "/adam/koel_sp\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":16,\"max\":25,\"step\":0.5," + avty + "," + dev + "}";
+  disco_pub("homeassistant/number/" HA_NODE "/adam_koel_sp/config", pl);
+  pl = "{\"name\":\"Chofu Adam SP\",\"uniq_id\":\"" HA_NODE "_adam_sp\",\"stat_t\":\"" MQTT_PREFIX "/adam/sp\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/" HA_NODE "/adam_sp/config", pl);
+  pl = "{\"name\":\"Chofu Adam Status\",\"uniq_id\":\"" HA_NODE "_adam_status\",\"stat_t\":\"" MQTT_PREFIX "/adam/status\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/" HA_NODE "/adam_status/config", pl);
+
   pl = "{\"name\":\"Chofu Alert\",\"uniq_id\":\"" HA_NODE "_alert\",\"stat_t\":\"" MQTT_PREFIX "/alert\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/sensor/" HA_NODE "/alert/config", pl);
   pl = "{\"name\":\"Chofu Simulatie\",\"uniq_id\":\"" HA_NODE "_sim\",\"stat_t\":\"" MQTT_PREFIX "/sim_actief\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
@@ -647,6 +672,27 @@ void stuur_data(){
   mqttClient.beginMessage(MQTT_PREFIX "/kp_water");mqttClient.print(Kp_water,3);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/ki_water");mqttClient.print(Ki_water,4);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/kd_water");mqttClient.print(Kd_water,4);mqttClient.endMessage();
+
+  // Adam API status
+  mqttClient.beginMessage(MQTT_PREFIX "/adam/bron");mqttClient.print(adam_bron_str());mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/adam/status");mqttClient.print(adam_status_str());mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/adam/koel_sp");mqttClient.print(ADAM_KOEL_SP,1);mqttClient.endMessage();
+  if(adam_actief() && adam_geldig()){
+    if(!isnan(adam_water_sp())){
+      mqttClient.beginMessage(MQTT_PREFIX "/adam/sp");mqttClient.print(adam_water_sp(),1);mqttClient.endMessage();
+    }
+    for(uint8_t i = 0; i < adam_zone_count; i++){
+      // Topicnaam saneren: spaties -> _, alleen [A-Za-z0-9_-]
+      String zn = adam_zones[i].naam;
+      String topic = MQTT_PREFIX "/adam/zone/";
+      for(unsigned int k = 0; k < zn.length(); k++){
+        char c = zn[k];
+        if(c == ' ') topic += '_';
+        else if(isalnum((unsigned char)c) || c == '_' || c == '-') topic += c;
+      }
+      mqttClient.beginMessage(topic);mqttClient.print(adam_zones[i].temp,1);mqttClient.endMessage();
+    }
+  }
 
   // Ververs retained availability zodat HA entiteiten beschikbaar blijven na discovery
   mqttClient.beginMessage(MQTT_PREFIX "/status", true, 1);

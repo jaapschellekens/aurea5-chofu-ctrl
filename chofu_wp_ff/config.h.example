@@ -15,6 +15,13 @@ const char* MQTT_PASS   = "";
 // types.h. Pas die aan voor een testbord (bv. "chofu_test") zodat het
 // productiesysteem en zijn HA-entiteiten niet overschreven worden.
 
+// ── Plugwise Adam API (optioneel) ───────────────────────────────
+// Alleen nodig als je de Adam-bron gebruikt (chofu/cmd/adam_bron).
+// Zonder deze defines blijft de module volledig inactief.
+// #define ADAM_IP   "192.168.1.x"
+// #define ADAM_PASS "abcd1234"     // Smile-ID, 8 tekens van sticker
+// #define ADAM_ZONE "Woonkamer"    // zonenaam voor t_kamer (bron water+kamer)
+
 // ── ESP32 specifiek ─────────────────────────────────────────────
 // Standaard CHOFU_RX_PIN=16, CHOFU_TX_PIN=17 (zie chofu_wp_ff.ino).
 // Overschrijf hier als jouw board andere pinnen gebruikt:

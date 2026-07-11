@@ -6,7 +6,7 @@
 //  EEPROM ADRESSEN
 // ═══════════════════════════════════════════════════════════════
 
-#define EEPROM_MAGIC            0xB7  // v3.0: kamer_in_water toegevoegd
+#define EEPROM_MAGIC            0xB8  // v3.1: Adam API (adam_bron, adam_koel_sp)
 #define ADDR_MAGIC              0
 #define ADDR_SETPOINT           1
 #define ADDR_KP                 5
@@ -32,6 +32,8 @@
 #define ADDR_SWW_MAX_STAND      79   // nieuw v2.9: 1 byte — max stand tijdens SWW
 #define ADDR_KAMER_IN_WATER     80   // nieuw v3.0: 1 byte — kamertemp gebruiken in water modi
 #define ADDR_KOEL_DEADBAND      81   // float — koel-doodband (default-bij-ontbreken, geen magic-bump)
+#define ADDR_ADAM_BRON          85   // nieuw v3.1: 1 byte — Adam bron (0=uit/1=water/2=water+kamer)
+#define ADDR_ADAM_KOEL_SP       86   // nieuw v3.1: float — watersetpoint bij Adam-koelvraag
 
 void eeprom_init();
 void eeprom_save();
