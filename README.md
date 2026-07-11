@@ -31,6 +31,7 @@ De controller spreekt het Chofu 0x19/0x91 serieel protocol op **666 baud** (JGC 
 - **Vijf regelingsmodi** — Auto PID, Auto FF (feedforward), Water PID, Water FF, Handmatig
 - **Feedforward controller** — model-gebaseerde stooklijn met online leren van UA_house en UA_emitter
 - **Anna/Adam thermostaat support** — leest setpoint en kamertemperatuur via MQTT
+- **Plugwise Adam API** (optioneel) — watersetpoint, koelvraag en zonetemperaturen rechtstreeks van de Adam, incl. multi-zone vraagsturing
 - **Stooklijn compensatie** — aanvoertemperatuur omhoog bij vorst
 - **Vorstbeveiliging** — automatisch bij instelbare grens
 - **Koelmodus** — telegram 19-2 byte 3 = 0x02, regelaar draait automatisch om
@@ -300,6 +301,8 @@ Zie [docs/INSTALLATION.md](docs/INSTALLATION.md) voor uitgebreide stap-voor-stap
 | `chofu/cmd/koeling_min_buiten` | Min. buitentemp voor koeling (EEPROM) | 0–30°C |
 | `chofu/cmd/supply_min` | Condensatiebescherming koeling (EEPROM) | 10–25°C |
 | `chofu/cmd/koeling_afschakel` | Afschakeldrempel koeling | 0.1–5.0°C |
+| `chofu/cmd/adam_bron` | Plugwise Adam bron (EEPROM) | `uit`/`water`/`water+kamer`/`multi` |
+| `chofu/cmd/adam_koel_sp` | Watersetpoint bij Adam-koelvraag (EEPROM) | 16–25°C |
 | `chofu/cmd/proto_log` | Protocol hex-logging aan/uit | 0/1 |
 | `chofu/cmd/power` | WP aan/uit | 0/1 |
 | `chofu/cmd/t_vorst` | Vorstgrens | −10 tot 10°C |
@@ -330,17 +333,32 @@ Zie [docs/INSTALLATION.md](docs/INSTALLATION.md) voor uitgebreide stap-voor-stap
 
 ---
 
-## Plugwise Adam integratie (`adam_api_test/`)
+## Plugwise Adam integratie (ingebouwd)
 
-Experimentele integratie met de lokale REST API van de Plugwise Adam zoneregeling. De Adam bepaalt via OpenTherm de gewenste aanvoertemperatuur — deze kan als `t_water_gewenst` in de `water`/`ff_water` modus van de Chofu controller worden gebruikt.
+De firmware kan optioneel rechtstreeks de lokale REST API van de Plugwise Adam pollen (`adam.h`/`adam.cpp`, niet-blokkerend, elke 30 s). Volledig ontwerp: [docs/ADAM_INTEGRATIE_PLAN.md](docs/ADAM_INTEGRATIE_PLAN.md).
 
-| Bestand | Functie |
-|---------|---------|
-| `adam_api_test.ino` | Arduino/ESP32 sketch: haalt `intended_boiler_temperature` op (~1s, HTTP/1.1) |
-| `adam_discover.py` | Python diagnostics: zones, keteldata en alle XML-types |
-| `config.h.example` | Credentials template (kopieer naar `config.h`) |
+**Activeren:** zet in `config.h`:
+```cpp
+#define ADAM_IP   "192.168.1.x"
+#define ADAM_PASS "abcd1234"     // Smile-ID van sticker
+#define ADAM_ZONE "Woonkamer"    // zonenaam voor bron water+kamer
+```
+en kies een bron via `chofu/cmd/adam_bron` (EEPROM):
 
-**Werking:** `intended_boiler_temperature = 0` → geen warmtevraag; `> 0` → gewenste aanvoertemperatuur in °C.
+| Bron | Gedrag |
+|------|--------|
+| `uit` | Adam wordt niet gebruikt (default); MQTT-bronnen zoals voorheen |
+| `water` | `intended_boiler_temperature` → `t_water_gewenst` (water/ff_water) |
+| `water+kamer` | Als `water`, plus temperatuur van `ADAM_ZONE` → `t_kamer` |
+| `multi` | Als `water`, plus regelen op de zone met de **grootste vraag** (setpoint − temp, 0,3 °C wissel-hysterese); het zonesetpoint vervangt het Anna-setpoint |
+
+**Watersetpoint-interpretatie** (Anna via Adam): `0` = geen vraag → WP uit; `10` = **koelvraag** → koeling aan op `chofu/cmd/adam_koel_sp` (default 18 °C, alleen ff_water); `≥ 16` = verwarmen op dat setpoint.
+
+**Terugval:** is de API > 90 s onbereikbaar, dan gelden weer de laatste MQTT-waarden + alert. Alle beveiligingen (SUPPLY_MIN, KOELING_MIN_BUITEN, vorst) blijven leidend.
+
+**State topics:** `chofu/adam/bron`, `chofu/adam/sp`, `chofu/adam/status`, `chofu/adam/koel_sp`, `chofu/adam/zone/<naam>` (+ `_sp`), `chofu/adam/actieve_zone` (multi).
+
+De map `adam_api_test/` bevat de oorspronkelijke proof-of-concept plus `adam_discover.py` (Python) om zonenamen en beschikbare data te verkennen.
 
 ---
 
