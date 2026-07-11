@@ -1,6 +1,7 @@
 #include "web.h"
 #include "eeprom.h"  // voor eeprom_save()
 #include "mqtt.h"    // voor set_param()
+#include "adam.h"
 
 // Server-side tabs (geen JavaScript): de actieve tab zit in ?tab=. Per request
 // wordt alleen die ene tab gerenderd (licht voor de MCU). Opslaan loopt via de
@@ -101,7 +102,8 @@ void handle_web_client(){
   client.print("<nav>");
   nav("status","Status"); nav("bediening","Bediening"); nav("stooklijn","Stooklijn");
   nav("water","Water & kamer"); nav("pid","PID"); nav("ff","Feedforward");
-  nav("koeling","Koeling"); nav("sww","Tapwater"); nav("grenzen","Grenzen & systeem");
+  nav("koeling","Koeling"); nav("sww","Tapwater"); nav("adam","Adam");
+  nav("grenzen","Grenzen & systeem");
   nav("geavanceerd","Geavanceerd");
   client.println("</nav>");
 
@@ -246,6 +248,56 @@ void handle_web_client(){
         "Aanvoertemp tijdens laden. Hoger = heter tapwater/sneller klaar, maar lagere COP.");
     num("sww_max_stand","SWW max stand", String(SWW_MAX_STAND), "1","1","8","",
         "Max stand tijdens SWW. Hoger = sneller laden (meer vermogen/geluid). Los van de algemene max stand.");
+    fend();
+  }
+  else if(tab == "adam"){
+    // Status
+    client.println("<div class='card'><h2>Plugwise Adam</h2>");
+    if(adam_ip_str()[0] == 0){
+      client.println("<div>Niet geconfigureerd — zet ADAM_IP/ADAM_PASS in config.h en flash opnieuw.</div>");
+    } else {
+      client.print("<div>Adam: <b>"); client.print(adam_ip_str()); client.println("</b></div>");
+      const char* st = adam_status_str();
+      client.print("<div><span class='st "); client.print(strcmp(st,"ok")==0?"on":"off");
+      client.print("'></span>Status: <b>"); client.print(st); client.println("</b></div>");
+      if(adam_fout_str()[0]){
+        client.print("<div>Laatste fout: <b>"); client.print(adam_fout_str()); client.println("</b></div>");
+      }
+      if(adam_geldig()){
+        if(!isnan(adam_water_sp())){
+          client.print("<div>Adam SP: <b>"); client.print(adam_water_sp(),1); client.println("°C</b>");
+          client.println("<small class='hint'>0 = geen vraag, 10 = koelvraag, ≥16 = verwarmen op deze aanvoertemp.</small></div>");
+        }
+        if(adam_bron == AdamBron::MULTI && adam_actieve_zone()[0]){
+          client.print("<div>Actieve zone: <b>"); client.print(adam_actieve_zone()); client.println("</b></div>");
+        }
+        if(adam_zone_count){
+          client.println("<h3>Zones</h3>");
+          for(uint8_t i = 0; i < adam_zone_count; i++){
+            client.print("<div>"); client.print(adam_zones[i].naam);
+            client.print(": "); client.print(adam_zones[i].temp,1); client.print("°C");
+            if(!isnan(adam_zones[i].sp)){ client.print(" → "); client.print(adam_zones[i].sp,1); client.print("°C"); }
+            client.println("</div>");
+          }
+        }
+      }
+    }
+    client.println("</div>");
+    // Bediening
+    fstart("adam","Bediening");
+    client.print("<div>Bron: <select name='adam_bron'>");
+    struct { const char* val; const char* label; AdamBron b; } opts[] = {
+      {"uit","uit",AdamBron::UIT}, {"water","water",AdamBron::WATER},
+      {"water_kamer","water+kamer",AdamBron::WATER_KAMER}, {"multi","multi",AdamBron::MULTI}};
+    for(auto& o : opts){
+      client.print("<option value='"); client.print(o.val); client.print("'");
+      if(adam_bron == o.b) client.print(" selected");
+      client.print(">"); client.print(o.label); client.println("</option>");
+    }
+    client.println("</select><small class='hint'>uit = MQTT-bronnen; water = Adam-SP naar watersetpoint; "
+      "water+kamer = + zonetemp als kamertemp; multi = regelen op zone met grootste vraag.</small></div>");
+    num("adam_koel_sp","Koel-watersetpoint", String(ADAM_KOEL_SP,1), "0.5","16","25","°C",
+        "Aanvoertemp bij een koelvraag van de Adam (SP=10). Lager = meer koelvermogen, let op condens.");
     fend();
   }
   else if(tab == "grenzen"){

@@ -186,7 +186,7 @@ static void verwerk_bericht(const String& topic, const String& payload){
     AdamBron nieuw;
     if(payload == "uit") nieuw = AdamBron::UIT;
     else if(payload == "water") nieuw = AdamBron::WATER;
-    else if(payload == "water+kamer") nieuw = AdamBron::WATER_KAMER;
+    else if(payload == "water+kamer" || payload == "water_kamer") nieuw = AdamBron::WATER_KAMER;
     else if(payload == "multi") nieuw = AdamBron::MULTI;
     else return;
     adam_bron = nieuw; eeprom_save();

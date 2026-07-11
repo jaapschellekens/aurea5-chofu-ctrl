@@ -149,6 +149,7 @@ const char* adam_status_str(){
   return adam_geldig() ? "ok" : "fout";
 }
 const char* adam_fout_str(){ return laatste_fout; }
+const char* adam_ip_str(){ return cfg_ip; }
 
 // ── Base64 (voor basic auth, credentials zijn compile-time) ───
 static String adam_auth_b64(){

@@ -42,5 +42,6 @@ const char* adam_bron_str();   // "uit" / "water" / "water+kamer" / "multi"
 const char* adam_actieve_zone();// actieve zone in multi-modus ("" indien geen)
 const char* adam_status_str(); // "uit" / "ok" / "fout"
 const char* adam_fout_str();   // reden laatste mislukte poll ("" = geen)
+const char* adam_ip_str();     // geconfigureerd IP ("" = niet geconfigureerd)
 
 #endif // CHOFU_ADAM_H
