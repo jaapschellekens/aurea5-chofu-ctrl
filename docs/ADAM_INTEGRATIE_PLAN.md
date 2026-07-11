@@ -1,6 +1,6 @@
 # Plan: Plugwise Adam API-integratie in chofu_wp_ff
 
-Status: **fase 1 geïmplementeerd** (branch `feature/adam-api`); fase 2 (multi-zone) open.
+Status: **fase 1 + fase 2 (multi-zone) geïmplementeerd** (branch `feature/adam-api`).
 Basis: werkende proof-of-concept in `adam_api_test/` (streaming parser, basic auth).
 
 ## Doel
@@ -78,7 +78,7 @@ Anna-setpoint (`anna/setpoint`) blijft ongewijzigd de bron voor `t_kamer_gewenst
 > als bron. Met Adam-zonering is `ff_water` daarom de aanbevolen hoofdmodus (de Adam
 > doet de zone-arbitrage). Zie ook de optionele multi-zone-uitbreiding hieronder.
 
-### Optioneel (fase 2): multi-zone vraagsturing in ff_auto
+### Fase 2 (geïmplementeerd): multi-zone vraagsturing in ff_auto
 
 Regel op de zone met de **grootste warmtevraag** in plaats van één vaste zone.
 Per zone staan zowel `temperature` als het `thermostat`-setpoint in de XML:

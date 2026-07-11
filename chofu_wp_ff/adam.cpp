@@ -54,13 +54,16 @@ struct Matcher {
 
 enum class AS : uint8_t {
   IDLE, HEADERS,
-  ZOEK_SP, SP_GT, SP_VAL,          // intended_boiler_temperature
-  ZOEK_LOC, LOC_NAME, NAME_VAL,    // <location> → <name>
-  ZOEK_TEMP, TEMP_GT, TEMP_VAL     // <type>temperature</type> → <measurement>
+  SCAN,                            // zoekt SP-type én <location parallel
+  SP_GT, SP_VAL,                   // intended_boiler_temperature
+  LOC_NAME, NAME_VAL,              // <location> → <name>
+  ZONE_SCAN,                       // binnen zone: temp/thermostat/volgende locatie
+  TEMP_GT, TEMP_VAL,               // <type>temperature</type> → <measurement>
+  THERMO_GT, THERMO_VAL            // <type>thermostat</type> → <measurement>/<setpoint>
 };
 static AS as = AS::IDLE;
 
-static Matcher m_hdr, m_sp, m_meas, m_loc, m_name, m_temp, m_loc2;
+static Matcher m_hdr, m_sp, m_meas, m_loc, m_name, m_temp, m_thermo, m_setp, m_loc2;
 static char  valbuf[16];
 static uint8_t val_idx = 0;
 static char  naam_buf[21];
@@ -75,12 +78,32 @@ static void adam_reset_matchers(){
   m_loc2.init("<location ");
   m_name.init("<name>");
   m_temp.init("<type>temperature</type>");
+  m_thermo.init("<type>thermostat</type>");
+  m_setp.init("<setpoint>");
 }
+
+// Zone-in-opbouw (gecommit bij volgende <location of einde stream)
+static float ztmp_temp = NAN, ztmp_sp = NAN;
+
+static void zone_commit(){
+  if(naam_buf[0] && !isnan(ztmp_temp) && ztmp_temp > -30 && ztmp_temp < 50
+     && adam_zone_count < ADAM_MAX_ZONES){
+    strncpy(adam_zones[adam_zone_count].naam, naam_buf, sizeof(naam_buf));
+    adam_zones[adam_zone_count].temp = ztmp_temp;
+    adam_zones[adam_zone_count].sp   = ztmp_sp;
+    adam_zone_count++;
+  }
+  naam_buf[0] = 0;
+  ztmp_temp = NAN; ztmp_sp = NAN;
+}
+
+static void zone_commit();  // forward
 
 static void poll_afronden(bool ok){
   adam_client.stop();
   as = AS::IDLE;
   if(ok){
+    zone_commit();  // laatste zone (stream-einde) nog committen
     adam_sp_val = sp_tmp;
     // Zone opzoeken voor t_kamer
     adam_zone_val = NAN;
@@ -104,9 +127,13 @@ const char* adam_bron_str(){
   switch(adam_bron){
     case AdamBron::WATER:       return "water";
     case AdamBron::WATER_KAMER: return "water+kamer";
+    case AdamBron::MULTI:       return "multi";
     default:                    return "uit";
   }
 }
+
+static char multi_actieve_zone[21] = "";
+const char* adam_actieve_zone(){ return multi_actieve_zone; }
 const char* adam_status_str(){
   if(!adam_actief()) return "uit";
   return adam_geldig() ? "ok" : "fout";
@@ -159,6 +186,8 @@ void adam_poll(){
     adam_reset_matchers();
     sp_tmp = NAN;
     adam_zone_count = 0;
+    naam_buf[0] = 0;
+    ztmp_temp = NAN; ztmp_sp = NAN;
     as = AS::HEADERS;
     return;
   }
@@ -171,7 +200,8 @@ void adam_poll(){
 
   // Verbinding weg en buffer leeg → afronden met wat we hebben
   if(!adam_client.available()){
-    if(!adam_client.connected()) poll_afronden(!isnan(sp_tmp));
+    if(!adam_client.connected())
+      poll_afronden(!isnan(sp_tmp) || adam_zone_count > 0 || !isnan(ztmp_temp));
     return;
   }
 
@@ -182,12 +212,16 @@ void adam_poll(){
     switch(as){
 
       case AS::HEADERS:
-        if(m_hdr.feed(c)) as = AS::ZOEK_SP;
+        if(m_hdr.feed(c)) as = AS::SCAN;
         break;
 
-      // ── intended_boiler_temperature ──────────────────────────
-      case AS::ZOEK_SP:
-        if(m_sp.feed(c)){ m_meas.idx = 0; as = AS::SP_GT; }
+      // ── SCAN: intended_boiler_temperature én <location parallel ──
+      case AS::SCAN:
+        if(isnan(sp_tmp) && m_sp.feed(c)){ m_meas.idx = 0; as = AS::SP_GT; }
+        else if(m_loc.feed(c)){
+          if(adam_zone_count >= ADAM_MAX_ZONES){ poll_afronden(true); return; }
+          m_name.idx = 0; as = AS::LOC_NAME;
+        }
         break;
       case AS::SP_GT:
         // eerst "<measurement" vinden, daarna '>' van de open-tag
@@ -199,22 +233,18 @@ void adam_poll(){
         if(c == '<' || val_idx >= sizeof(valbuf) - 1){
           valbuf[val_idx] = 0;
           sp_tmp = atof(valbuf);
-          m_loc.idx = 0;
-          as = AS::ZOEK_LOC;
+          m_loc.idx = 0; m_sp.idx = 0;
+          as = AS::SCAN;
         } else valbuf[val_idx++] = c;
         break;
 
-      // ── zones: <location> → <name> → temperature ─────────────
-      case AS::ZOEK_LOC:
-        if(adam_zone_count >= ADAM_MAX_ZONES){ poll_afronden(true); return; }
-        if(m_loc.feed(c)){ m_name.idx = 0; as = AS::LOC_NAME; }
-        break;
+      // ── zones: <location> → <name> → temperatuur/setpoint ────
       case AS::LOC_NAME: {
         // Appliances bevatten self-closing referenties (<location id="..."/>)
         // vóór de echte <location>-blokken — die overslaan, anders vult de
         // zonetabel zich met appliance-namen.
         static char vorige_c = 0;
-        if(vorige_c == '/' && c == '>'){ vorige_c = 0; m_loc.idx = 0; as = AS::ZOEK_LOC; break; }
+        if(vorige_c == '/' && c == '>'){ vorige_c = 0; m_loc.idx = 0; as = AS::SCAN; break; }
         vorige_c = c;
         if(m_name.feed(c)){ vorige_c = 0; naam_idx = 0; as = AS::NAME_VAL; }
         break;
@@ -222,31 +252,54 @@ void adam_poll(){
       case AS::NAME_VAL:
         if(c == '<' || naam_idx >= sizeof(naam_buf) - 1){
           naam_buf[naam_idx] = 0;
-          m_temp.idx = 0; m_loc2.idx = 0;
-          as = AS::ZOEK_TEMP;
+          ztmp_temp = NAN; ztmp_sp = NAN;
+          m_temp.idx = 0; m_thermo.idx = 0; m_loc2.idx = 0;
+          as = AS::ZONE_SCAN;
         } else naam_buf[naam_idx++] = c;
         break;
-      case AS::ZOEK_TEMP:
-        // temperatuur binnen dit blok, óf volgend <location = zone zonder sensor
+
+      case AS::ZONE_SCAN:
+        // Binnen het zoneblok: temperatuur, thermostaatsetpoint, of volgende zone
         if(m_temp.feed(c)){ m_meas.idx = 0; as = AS::TEMP_GT; }
-        else if(m_loc2.feed(c)){ m_name.idx = 0; as = AS::LOC_NAME; }
+        else if(m_thermo.feed(c)){ m_meas.idx = 0; m_setp.idx = 0; as = AS::THERMO_GT; }
+        else if(m_loc2.feed(c)){
+          zone_commit();
+          if(adam_zone_count >= ADAM_MAX_ZONES){ poll_afronden(true); return; }
+          m_name.idx = 0; as = AS::LOC_NAME;
+        }
         break;
+
       case AS::TEMP_GT:
         if(m_meas.len != m_meas.idx){
           if(m_meas.feed(c)){ m_meas.idx = m_meas.len; }
+          else if(m_loc2.feed(c)){ zone_commit(); m_name.idx = 0; as = AS::LOC_NAME; }
         } else if(c == '>'){ val_idx = 0; as = AS::TEMP_VAL; }
         break;
       case AS::TEMP_VAL:
         if(c == '<' || val_idx >= sizeof(valbuf) - 1){
           valbuf[val_idx] = 0;
-          float t = atof(valbuf);
-          if(t > -30 && t < 50 && adam_zone_count < ADAM_MAX_ZONES){
-            strncpy(adam_zones[adam_zone_count].naam, naam_buf, sizeof(naam_buf));
-            adam_zones[adam_zone_count].temp = t;
-            adam_zone_count++;
-          }
-          m_loc.idx = 0;
-          as = AS::ZOEK_LOC;
+          ztmp_temp = atof(valbuf);
+          m_temp.idx = 0; m_thermo.idx = 0; m_loc2.idx = 0;
+          as = AS::ZONE_SCAN;
+        } else valbuf[val_idx++] = c;
+        break;
+
+      case AS::THERMO_GT:
+        // Setpoint kan in een point_log (<measurement>) of in een
+        // thermostat_functionality (<setpoint>) staan — beide accepteren
+        if(m_meas.len != m_meas.idx){
+          if(m_meas.feed(c)){ m_meas.idx = m_meas.len; break; }
+          if(m_setp.feed(c)){ val_idx = 0; as = AS::THERMO_VAL; break; }
+          if(m_loc2.feed(c)){ zone_commit(); m_name.idx = 0; as = AS::LOC_NAME; }
+        } else if(c == '>'){ val_idx = 0; as = AS::THERMO_VAL; }
+        break;
+      case AS::THERMO_VAL:
+        if(c == '<' || val_idx >= sizeof(valbuf) - 1){
+          valbuf[val_idx] = 0;
+          float v = atof(valbuf);
+          if(v >= 4 && v <= 30) ztmp_sp = v;   // Anna/Tom setpointbereik
+          m_temp.idx = 0; m_thermo.idx = 0; m_loc2.idx = 0;
+          as = AS::ZONE_SCAN;
         } else valbuf[val_idx++] = c;
         break;
 
@@ -278,8 +331,8 @@ void adam_pas_toe(){
   float sp = adam_sp_val;
   bool nieuw = isnan(vorige_sp) || fabs(sp - vorige_sp) > 0.05f;
 
-  // ── Watersetpoint (alleen water/ff_water) ────────────────────
-  if(modus == Modus::WATER || modus == Modus::FF_WATER){
+  // ── Watersetpoint (alleen water/ff_water, en alleen bij geldige SP) ──
+  if(!isnan(sp) && (modus == Modus::WATER || modus == Modus::FF_WATER)){
     if(sp == 0.0f){
       // Geen vraag; koeling laten zoals hij is (SP=0 komt ook voor tussen koelcycli)
       t_water_gewenst = 0.0f;
@@ -322,6 +375,44 @@ void adam_pas_toe(){
     } else if(!zone_fout_gemeld){
       stuur_alert("Adam zone '" + String(cfg_zone) + "' niet gevonden - kamerbron blijft Anna/MQTT");
       zone_fout_gemeld = true;
+    }
+  }
+
+  // ── Multi-zone: regel op de zone met de grootste vraag ───────
+  // vraag = setpoint − temp (alleen zones met thermostaatsetpoint).
+  // Wissel-hysterese 0.3°C voorkomt gependel tussen bijna-gelijke zones.
+  // t_kamer_gewenst komt dan van de zone-thermostaat (Anna-setpoint genegeerd).
+  if(adam_bron == AdamBron::MULTI){
+    static bool multi_fout_gemeld = false;
+    int besti = -1, acti = -1;
+    float best_vraag = -1e9f, act_vraag = -1e9f;
+    for(uint8_t i = 0; i < adam_zone_count; i++){
+      const AdamZone& z = adam_zones[i];
+      if(isnan(z.sp) || z.temp < 5 || z.temp > 35) continue;
+      float vraag = z.sp - z.temp;
+      if(vraag > best_vraag){ best_vraag = vraag; besti = i; }
+      if(multi_actieve_zone[0] && strcmp(z.naam, multi_actieve_zone) == 0){
+        acti = i; act_vraag = vraag;
+      }
+    }
+    if(besti < 0){
+      if(!multi_fout_gemeld){
+        stuur_alert("Adam multi: geen zone met thermostaatsetpoint gevonden");
+        multi_fout_gemeld = true;
+      }
+    } else {
+      multi_fout_gemeld = false;
+      // Actieve zone wisselen alleen bij >0.3C meer vraag (of geen actieve)
+      if(acti < 0 || (besti != acti && best_vraag > act_vraag + 0.3f)){
+        if(acti >= 0 || multi_actieve_zone[0] == 0)
+          mqtt_log(String("Adam multi: actieve zone -> ") + adam_zones[besti].naam +
+                   " (vraag " + String(best_vraag,1) + "C)", "INFO");
+        strncpy(multi_actieve_zone, adam_zones[besti].naam, sizeof(multi_actieve_zone));
+        acti = besti;
+      }
+      t_kamer         = adam_zones[acti].temp;
+      t_kamer_gewenst = adam_zones[acti].sp;
+      kamer_geldig    = true;
     }
   }
 }

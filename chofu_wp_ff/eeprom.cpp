@@ -91,7 +91,7 @@ void eeprom_load(){
   EEPROM.get(ADDR_KOEL_DEADBAND, KOEL_DEADBAND);
   if(isnan(KOEL_DEADBAND) || KOEL_DEADBAND < 0 || KOEL_DEADBAND > 5) KOEL_DEADBAND = 1.0f;
   uint8_t ab = EEPROM.read(ADDR_ADAM_BRON);
-  adam_bron = (ab <= 2) ? (AdamBron)ab : AdamBron::UIT;
+  adam_bron = (ab <= 3) ? (AdamBron)ab : AdamBron::UIT;
   EEPROM.get(ADDR_ADAM_KOEL_SP, ADAM_KOEL_SP);
   if(isnan(ADAM_KOEL_SP) || ADAM_KOEL_SP < 16 || ADAM_KOEL_SP > 25) ADAM_KOEL_SP = 18.0f;
   Serial.print("EEPROM: geladen - SP:"); Serial.print(setpoint,1);
@@ -184,7 +184,7 @@ void eeprom_load(){
   KOEL_DEADBAND      = prefs.getFloat("koel_db",     1.0f);
   if(isnan(KOEL_DEADBAND) || KOEL_DEADBAND < 0 || KOEL_DEADBAND > 5) KOEL_DEADBAND = 1.0f;
   uint8_t ab = prefs.getUChar("adam_bron", 0);
-  adam_bron = (ab <= 2) ? (AdamBron)ab : AdamBron::UIT;
+  adam_bron = (ab <= 3) ? (AdamBron)ab : AdamBron::UIT;
   ADAM_KOEL_SP = prefs.getFloat("adam_koelsp", 18.0f);
   if(isnan(ADAM_KOEL_SP) || ADAM_KOEL_SP < 16 || ADAM_KOEL_SP > 25) ADAM_KOEL_SP = 18.0f;
   prefs.end();

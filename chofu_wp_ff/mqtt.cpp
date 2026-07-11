@@ -187,6 +187,7 @@ static void verwerk_bericht(const String& topic, const String& payload){
     if(payload == "uit") nieuw = AdamBron::UIT;
     else if(payload == "water") nieuw = AdamBron::WATER;
     else if(payload == "water+kamer") nieuw = AdamBron::WATER_KAMER;
+    else if(payload == "multi") nieuw = AdamBron::MULTI;
     else return;
     adam_bron = nieuw; eeprom_save();
     mqtt_log(String("Adam bron: ") + adam_bron_str(), "INFO");
@@ -527,7 +528,7 @@ void discovery_fase3(){
   disco_pub("homeassistant/select/" HA_NODE "/modus_sel/config", pl);
 
   // Adam API
-  pl = "{\"name\":\"Chofu Adam Bron\",\"uniq_id\":\"" HA_NODE "_adam_bron\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/adam_bron\",\"stat_t\":\"" MQTT_PREFIX "/adam/bron\",\"options\":[\"uit\",\"water\",\"water+kamer\"]," + avty + "," + dev + "}";
+  pl = "{\"name\":\"Chofu Adam Bron\",\"uniq_id\":\"" HA_NODE "_adam_bron\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/adam_bron\",\"stat_t\":\"" MQTT_PREFIX "/adam/bron\",\"options\":[\"uit\",\"water\",\"water+kamer\",\"multi\"]," + avty + "," + dev + "}";
   disco_pub("homeassistant/select/" HA_NODE "/adam_bron/config", pl);
   pl = "{\"name\":\"Chofu Adam Koel SP\",\"uniq_id\":\"" HA_NODE "_adam_koel_sp\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/adam_koel_sp\",\"stat_t\":\"" MQTT_PREFIX "/adam/koel_sp\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"min\":16,\"max\":25,\"step\":0.5," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/" HA_NODE "/adam_koel_sp/config", pl);
@@ -691,6 +692,13 @@ void stuur_data(){
         else if(isalnum((unsigned char)c) || c == '_' || c == '-') topic += c;
       }
       mqttClient.beginMessage(topic);mqttClient.print(adam_zones[i].temp,1);mqttClient.endMessage();
+      if(!isnan(adam_zones[i].sp)){
+        mqttClient.beginMessage(topic + "_sp");mqttClient.print(adam_zones[i].sp,1);mqttClient.endMessage();
+      }
+    }
+    if(adam_bron == AdamBron::MULTI){
+      mqttClient.beginMessage(MQTT_PREFIX "/adam/actieve_zone");
+      mqttClient.print(adam_actieve_zone());mqttClient.endMessage();
     }
   }
 
