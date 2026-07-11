@@ -677,6 +677,7 @@ void stuur_data(){
   // Adam API status
   mqttClient.beginMessage(MQTT_PREFIX "/adam/bron");mqttClient.print(adam_bron_str());mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/adam/status");mqttClient.print(adam_status_str());mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/adam/fout");mqttClient.print(adam_fout_str());mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/adam/koel_sp");mqttClient.print(ADAM_KOEL_SP,1);mqttClient.endMessage();
   if(adam_actief() && adam_geldig()){
     if(!isnan(adam_water_sp())){

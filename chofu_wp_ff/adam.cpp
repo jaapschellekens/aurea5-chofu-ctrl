@@ -39,6 +39,9 @@ static uint32_t   laatste_poll_ms  = 0;
 static uint32_t   poll_start_ms    = 0;
 static uint8_t    fout_teller      = 0;
 static bool       ooit_ok          = false;
+static char       laatste_fout[24] = "";      // reden laatste mislukte poll
+static char       http_status[4]   = "";      // HTTP-statuscode (bv. "401")
+static uint8_t    http_idx         = 0;
 
 // ── Herstartbare substring-matcher ─────────────────────────────
 struct Matcher {
@@ -99,9 +102,16 @@ static void zone_commit(){
 
 static void zone_commit();  // forward
 
-static void poll_afronden(bool ok){
+static void poll_afronden(bool ok, const char* reden = ""){
   adam_client.stop();
   as = AS::IDLE;
+  if(!ok){
+    strncpy(laatste_fout, reden, sizeof(laatste_fout) - 1);
+    laatste_fout[sizeof(laatste_fout) - 1] = 0;
+    mqtt_log(String("Adam poll mislukt: ") + reden, "WARNING");
+  } else {
+    laatste_fout[0] = 0;
+  }
   if(ok){
     zone_commit();  // laatste zone (stream-einde) nog committen
     adam_sp_val = sp_tmp;
@@ -138,6 +148,7 @@ const char* adam_status_str(){
   if(!adam_actief()) return "uit";
   return adam_geldig() ? "ok" : "fout";
 }
+const char* adam_fout_str(){ return laatste_fout; }
 
 // ── Base64 (voor basic auth, credentials zijn compile-time) ───
 static String adam_auth_b64(){
@@ -174,7 +185,7 @@ void adam_poll(){
     // connect() blokkeert kort (LAN: <100ms bij bereikbare host); bij
     // onbereikbare host beschermt de backoff tegen herhaald blokkeren.
     if(!adam_client.connect(cfg_ip, 80)){
-      poll_afronden(false);
+      poll_afronden(false, "verbinding mislukt");
       return;
     }
     adam_client.println("GET /core/domain_objects HTTP/1.1");
@@ -184,6 +195,7 @@ void adam_poll(){
     adam_client.println();
 
     adam_reset_matchers();
+    http_status[0] = 0; http_idx = 0;
     sp_tmp = NAN;
     adam_zone_count = 0;
     naam_buf[0] = 0;
@@ -194,14 +206,20 @@ void adam_poll(){
 
   // Harde timeout per poll
   if(nu - poll_start_ms > ADAM_TIMEOUT_MS){
-    poll_afronden(false);
+    poll_afronden(false, "timeout");
     return;
   }
 
   // Verbinding weg en buffer leeg → afronden met wat we hebben
   if(!adam_client.available()){
-    if(!adam_client.connected())
-      poll_afronden(!isnan(sp_tmp) || adam_zone_count > 0 || !isnan(ztmp_temp));
+    if(!adam_client.connected()){
+      bool data_ok = !isnan(sp_tmp) || adam_zone_count > 0 || !isnan(ztmp_temp);
+      if(data_ok) poll_afronden(true);
+      else if(http_status[0] && strcmp(http_status, "200") != 0)
+        poll_afronden(false, (String("http ") + http_status).c_str());
+      else
+        poll_afronden(false, "geen data in antwoord");
+    }
     return;
   }
 
@@ -212,6 +230,12 @@ void adam_poll(){
     switch(as){
 
       case AS::HEADERS:
+        // Statuscode uit "HTTP/1.1 XXX ..." (posities 9-11)
+        if(http_idx < 12){
+          if(http_idx >= 9 && http_idx <= 11) http_status[http_idx - 9] = c;
+          if(http_idx == 11) http_status[3] = 0;
+          http_idx++;
+        }
         if(m_hdr.feed(c)) as = AS::SCAN;
         break;
 

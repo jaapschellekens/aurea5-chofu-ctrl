@@ -41,5 +41,6 @@ float       adam_zone_temp();  // temperatuur van ADAM_ZONE, NAN indien ongeldig
 const char* adam_bron_str();   // "uit" / "water" / "water+kamer" / "multi"
 const char* adam_actieve_zone();// actieve zone in multi-modus ("" indien geen)
 const char* adam_status_str(); // "uit" / "ok" / "fout"
+const char* adam_fout_str();   // reden laatste mislukte poll ("" = geen)
 
 #endif // CHOFU_ADAM_H
