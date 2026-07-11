@@ -94,9 +94,10 @@ static void jgc_verwerk_frames(){
     prev_t_outside = new_outside;
   }
 
-  // Compressor Hz en pompsnelheid uit ID=3
-  comp_hz          = jgc_frames[3][9];
-  pomp_snelheid_wp = jgc_frames[3][10];
+  // Frame 91-3 (per JGC-referentie): byte 9 = stand-echo, byte 10 = vermogen/25.6
+  wp_stand_echo   = jgc_frames[3][9];
+  wp_vermogen_raw = jgc_frames[3][10];
+  werkelijk_vermogen_w = 25.6f * wp_vermogen_raw;
 
   // Defrost uit ID=1. Ontdooien bestaat alleen bij verwarmen; in koeling betekent
   // deze byte iets anders, dus negeren we hem dan (anders staat 'defrost' vals aan).

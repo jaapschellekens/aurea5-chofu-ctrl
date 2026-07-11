@@ -152,7 +152,7 @@ void handle_web_client(){
     client.print("<div>Buiten: <span class='"); client.print(tcls); client.print("'>"); client.print(t_outside,1); client.println("°C</span></div>");
     client.print("<div>Kamer (extern): <span class='ext'>"); client.print(t_kamer,1); client.print("°C</span> → "); client.print(t_kamer_gewenst,1); client.println("°C</div>");
     client.println("<small class='hint'>Rood/blauw = meting van de Chofu (verwarmen/koelen); zwart = extern gezet.</small>");
-    client.print("<div>Compressor: "); client.print(comp_hz); client.print(" Hz"); if(defrost) client.print(" | DEFROST"); client.println("</div>");
+    client.print("<div>Compressor: "); client.print((int)werkelijk_vermogen_w); client.print(" W (stand-echo "); client.print(wp_stand_echo); client.print(")"); if(defrost) client.print(" | DEFROST"); client.println("</div>");
     client.println("</div>");
   }
   else if(tab == "bediening"){

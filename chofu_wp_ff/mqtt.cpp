@@ -509,8 +509,8 @@ void discovery_fase3(){
   disco_pub("homeassistant/sensor/" HA_NODE "/pid/config", pl);
   pl = "{\"name\":\"Chofu Pomp\",\"uniq_id\":\"" HA_NODE "_pomp\",\"stat_t\":\"" MQTT_PREFIX "/pomp\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/sensor/" HA_NODE "/pomp/config", pl);
-  pl = "{\"name\":\"Chofu Comp Hz\",\"uniq_id\":\"" HA_NODE "_comp_hz\",\"stat_t\":\"" MQTT_PREFIX "/comp_hz\",\"unit_of_meas\":\"Hz\"," + avty + "," + dev + "}";
-  disco_pub("homeassistant/sensor/" HA_NODE "/comp_hz/config", pl);
+  pl = "{\"name\":\"Chofu Stand Echo\",\"uniq_id\":\"" HA_NODE "_stand_echo\",\"stat_t\":\"" MQTT_PREFIX "/stand_echo\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/" HA_NODE "/stand_echo/config", pl);
   pl = "{\"name\":\"Chofu Stand\",\"uniq_id\":\"" HA_NODE "_stand_cmd\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/stand\",\"stat_t\":\"" MQTT_PREFIX "/stand\",\"min\":0,\"max\":12,\"step\":1," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/" HA_NODE "/stand_cmd/config", pl);
   pl = "{\"name\":\"Chofu Koeling\",\"uniq_id\":\"" HA_NODE "_koeling\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/koeling\",\"stat_t\":\"" MQTT_PREFIX "/koeling\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
@@ -638,8 +638,10 @@ void stuur_data(){
   mqttClient.beginMessage(MQTT_PREFIX "/lcd");mqttClient.print(lcd_enabled?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/defrost");mqttClient.print(defrost?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/pid");mqttClient.print(ctrl.pid_output,1);mqttClient.endMessage();
-  mqttClient.beginMessage(MQTT_PREFIX "/pomp");mqttClient.print(pomp_snelheid_wp);mqttClient.endMessage();
-  mqttClient.beginMessage(MQTT_PREFIX "/comp_hz");mqttClient.print(comp_hz);mqttClient.endMessage();
+  // stand_echo = door de pomp bevestigde stand (frame 91-3 byte 9).
+  // Het oude chofu/pomp ("pompsnelheid") en chofu/comp_hz waren verkeerd
+  // gelabeld: byte 10 is compressorvermogen/25.6 en zit nu in chofu/vermogen.
+  mqttClient.beginMessage(MQTT_PREFIX "/stand_echo");mqttClient.print(wp_stand_echo);mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/sim_actief");mqttClient.print(sim_actief()?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/proto_log", true);mqttClient.print(proto_logging?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/seriallog_state", true);mqttClient.print(seriallog_enabled?"1":"0");mqttClient.endMessage();

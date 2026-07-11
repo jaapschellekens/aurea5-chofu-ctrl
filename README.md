@@ -180,7 +180,7 @@ Belangrijke bevindingen (juni 2026, zie [docs/ervaringen.md](docs/ervaringen.md)
 
 - De lijn is **half-duplex met echo**: eigen TX-bytes komen terug op RX.
 - De "eindnul" uit de oorspronkelijke JGC-code is een **AVR-artefact** (break → 0x00); de Renesas-UART van de UNO R4 filtert die weg. Frames zijn exact `lenbyte` bytes.
-- ID=2 bevat de temperaturen (aanvoer/retour/buiten, little-endian ×0,1 °C), ID=3 compressor-Hz en pompsnelheid, ID=1 defrost.
+- ID=2 bevat de temperaturen (aanvoer/retour/buiten, little-endian ×0,1 °C); ID=3 byte 9 = stand-echo en byte 10 = compressorvermogen/25,6; ID=1 defrost.
 - De JGC-parser (CRC-CCITT) is de enige ondersteunde parser; de pomp antwoordt niet op het oudere 25-byte formaat.
 
 Voor busdiagnose zonder WiFi/MQTT: flash `sniffer/sniffer.ino` (pollt zelf en dumpt alle bytes als hex op USB-serial). Met `chofu/cmd/proto_log = 1` publiceert de firmware hex-frames op `chofu/proto/rx|tx` en elke 30 s een foutensamenvatting (`JGC (30s): CRC +x abort +y ok +z`).
@@ -271,8 +271,8 @@ Zie [docs/INSTALLATION.md](docs/INSTALLATION.md) voor uitgebreide stap-voor-stap
 | `chofu/kamer` | Kamertemperatuur (Anna) | °C |
 | `chofu/kamer_gewenst` | Gewenste kamertemperatuur | °C |
 | `chofu/stand` | Compressorstand (0–12) | — |
-| `chofu/vermogen` | Geschat compressorvermogen | W |
-| `chofu/comp_hz` | Compressorfrequentie | Hz |
+| `chofu/vermogen` | Gemeten compressorvermogen | W |
+| `chofu/stand_echo` | Door pomp bevestigde stand | 0–12 |
 | `chofu/delta_t` | Aanvoer − retour | °C |
 | `chofu/modus` | Huidige modus | auto/ff_auto/water/ff_water/handmatig |
 | `chofu/stooklijn_basis` | Actief aanvoer setpoint | °C |

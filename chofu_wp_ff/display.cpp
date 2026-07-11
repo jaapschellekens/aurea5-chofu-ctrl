@@ -104,7 +104,7 @@ void update_lcd(){
 
     // ── Scherm 1: Omgeving & waterkring ──────────────────────────
     case 1:
-      lcd.print("Buiten "); lcd.print(t_outside,1); lcd.print(" Hz"); lcd.print(comp_hz);
+      lcd.print("Buiten "); lcd.print(t_outside,1); lcd.print(" W"); lcd.print((int)werkelijk_vermogen_w);
       lcd.setCursor(0,1);
       lcd.print("Aanv "); lcd.print(t_supply,0); lcd.print(" Ret "); lcd.print(t_return,0);
       break;

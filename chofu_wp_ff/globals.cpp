@@ -18,8 +18,8 @@ WiFiServer webServer(80);
 // ═══════════════════════════════════════════════════════════════
 
 float   t_supply = 25.0, t_return = 20.0, t_outside = 5.0;
-uint8_t comp_hz = 0;
-uint8_t pomp_snelheid_wp = 0;
+uint8_t wp_stand_echo = 0;
+uint8_t wp_vermogen_raw = 0;
 bool    defrost = false;
 float   werkelijk_vermogen_w = 0;
 

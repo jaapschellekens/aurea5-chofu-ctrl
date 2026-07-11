@@ -61,7 +61,7 @@ Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt a
 | Topic | Type | Values | Beschrijving |
 |-------|------|--------|--------------|
 | `chofu/stand` | int | 0–12 | Huidige compressor stand |
-| `chofu/vermogen` | int | W | Geschat vermogen |
+| `chofu/vermogen` | int | W | Compressorvermogen (gemeten: frame 91-3 byte 10 × 25.6; terugval: standtabel) |
 | `chofu/aan` | string | 0/1 | Warmtepomp aan/uit |
 | `chofu/modus` | string | auto/ff_auto/water/ff_water/handmatig | Regelingsmodus |
 | `chofu/doel_setpoint` | float | °C | Actief doel-setpoint (stooklijn) |
@@ -70,8 +70,7 @@ Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt a
 | `chofu/ff_ua_house` | float | W/K | Geleerde UA huis (FF auto) |
 | `chofu/ff_ua_emitter` | float | W/K | Geleerde UA emitter (FF water) |
 | `chofu/defrost` | string | 0/1 | Defrost actief |
-| `chofu/pomp` | int | 0–100 | Pompsnelheid (%) |
-| `chofu/comp_hz` | int | Hz | Compressor frequentie |
+| `chofu/stand_echo` | int | 0–12 | Door de pomp bevestigde stand (frame 91-3 byte 9) |
 | `chofu/lcd` | string | 0/1 | LCD backlight status |
 | `chofu/sim_actief` | string | 0/1 | Simulatiemodus actief |
 | `chofu/proto_log` | string | 0/1 | Protocol logging actief |
