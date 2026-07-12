@@ -66,6 +66,9 @@ Gebruik uitsluitend `Serial1` (hardware UART, pinnen D0/D1) voor Chofu-communica
 ### WiFi library heet anders
 `WiFiS3.h` (UNO R4) vs `WiFi.h` (ESP32) — zit al in `#if defined(ARDUINO_UNOR4_WIFI)` guards.
 
+### WiFiS3 stokt bij HTTP-downloads > ~76 KB
+Grote downloads via `WiFiClient` stoppen rond 76 KB (0x13000): `connected()` blijft true maar er komen geen bytes meer. Symptoom bij de Adam-integratie: `timeout 77824B` terwijl `intended_boiler_temperature` op ~82 KB in domain_objects stond. Oplossing: geen groot document streamen maar gerichte kleine requests (`/core/appliances;class=heater_central` + `/core/locations`), plus stall-detectie (>3 s geen bytes bij open verbinding → afronden met wat er is). Diagnose ging via een bytes/state/HTTP-code-teller in de foutmelding en `adam_discover.py --raw` voor de byte-offsets.
+
 ---
 
 ## Hardware-communicatie valkuilen (juni 2026, opgelost)
