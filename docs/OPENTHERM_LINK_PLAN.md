@@ -120,6 +120,25 @@ publishes in tijdkritieke paden):
    naar IC1 pas activeren na fase 0/1 (zie onder) — IC1 stuurt de **gasketel** aan,
    dus verkeerde frames kunnen de ketel laten stoken.
 
+## 5b. Bescherming van IC1 (LET OP: bij JGC is de OT-chip gesneuveld!)
+
+JHN meldt dat IC1 tijdens zijn experimenten kapot is gegaan. IC1 is niet los
+verkrijgbaar — sneuvelt hij, dan is de controlbox (OpenTherm naar Anna én ketel)
+onbruikbaar. Waarschijnlijke doodsoorzaken en de maatregelen daartegen:
+
+| Risico | Maatregel |
+|---|---|
+| **Driver-conflict**: onze TX op de verkéérde pad (IC1's TX-uitgang) → twee push-pull uitgangen vechten → uitgangstrap kapot. Dit is exact de pad-verwisseling die we bij de pomp-link ook hadden — daar redde de 1 kΩ ons. | **Altijd ≥1 kΩ serie in élke draad naar IC1** (begrenst conflictstroom tot <5 mA). Eerste contact zelfs via 10 kΩ, pas verlagen na verificatie. Plus software-gate: zie onder. |
+| **Software-gate tegen verwisseling**: | firmware zendt **pas nadat ≥3 geldige frames ontvangen zijn** — kloppen RX-frames, dan zit onze RX op IC1-TX en dus onze TX op de juiste pad. Verkeerd om = we ontvangen niets = we zenden nooit. |
+| **Terugvoeding**: Arduino aan terwijl controlbox uit → 5 V via TX-pin in een spanningsloze IC1 → latch-up. | TX **open-collector** uitvoeren (transistor of diode + pull-up naar de 5 V van de contrólbox zelf): wij kunnen alleen naar GND trekken, nooit spanning índuwen. De pull-up sterft mee met de voeding van IC1. |
+| **Massa/net-potentiaal**: laptop met USB-TTL aan een controlbox waarvan de voeding mogelijk niet geïsoleerd is → grote vereffeningsstroom. | Vóór fase 0: verifieer dat de controlbox-elektronica SELV/geïsoleerd is (meet AC-spanning pads↔aarde). Gebruik een laptop op accu of een USB-isolator (ADUM3160, ~€10). |
+| **Volledige zekerheid** | **Opto-isolatie op beide richtingen** (H11L1/6N137; PC817 is op 9600 baud randgeval). Galvanisch gescheiden = geen conflict-, terugvoedings- of massaprobleem mogelijk. Meerprijs ~€3. **Aanbevolen voor de definitieve inbouw.** |
+| **Sondes/uitglijders**: kortsluiting tussen naburige pads bij meten op een draaiend bord. | Meten alleen spanningsloos aansluiten (haakjes/clips i.p.v. losse probes); daarna pas inschakelen. Foto's vooraf. |
+| **ESD** | Polsband of eerst GND aanraken; niet solderen op een gevoed bord. |
+
+**Kortom:** fase 0 alléén luisteren (RX-draad + 10 kΩ, TX niet aangesloten), definitieve
+inbouw met opto-isolatie en de zend-pas-na-geldige-ontvangst-gate in de firmware.
+
 ## 6. Gefaseerde aanpak
 
 | Fase | Wat | Risico |
