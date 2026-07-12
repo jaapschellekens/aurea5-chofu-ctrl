@@ -75,6 +75,7 @@ static uint8_t naam_idx = 0;
 static float sp_tmp = NAN;
 static uint32_t bytes_sinds_loc = 0;   // bytes sinds laatste <location (voor vroege exit)
 static uint32_t rx_bytes = 0;          // totaal ontvangen bytes deze poll (diagnose)
+static uint32_t laatste_rx_byte_ms = 0; // tijdstip laatste ontvangen byte (stall-detectie)
 
 static void adam_reset_matchers(){
   m_hdr.init("\r\n\r\n");
@@ -216,6 +217,7 @@ void adam_poll(){
     http_status[0] = 0; http_idx = 0;
     bytes_sinds_loc = 0;
     rx_bytes = 0;
+    laatste_rx_byte_ms = nu;
     sp_tmp = NAN;
     adam_zone_count = 0;
     naam_buf[0] = 0;
@@ -229,6 +231,19 @@ void adam_poll(){
     String d = "timeout " + String(rx_bytes) + "B st" + String((int)as);
     if(http_status[0]){ d += " http"; d += http_status; }
     poll_afronden(false, d.c_str());
+    return;
+  }
+
+  // Stall: verbinding open maar >3s geen bytes meer (WiFiS3 bij grote
+  // downloads) → afronden met wat we hebben i.p.v. de volle 20s wachten
+  if(!adam_client.available() && adam_client.connected() &&
+     nu - laatste_rx_byte_ms > 3000 && rx_bytes > 0){
+    if(!isnan(sp_tmp) || adam_zone_count > 0){
+      poll_afronden(true);
+    } else {
+      String d = "stall " + String(rx_bytes) + "B st" + String((int)as);
+      poll_afronden(false, d.c_str());
+    }
     return;
   }
 
@@ -250,6 +265,7 @@ void adam_poll(){
   while(budget-- && adam_client.available()){
     char c = (char)adam_client.read();
     rx_bytes++;
+    laatste_rx_byte_ms = nu;
 
     // Vroege exit: de locaties staan aaneengesloten in de XML. Hebben we de SP
     // en minstens één zone, en komt er 16KB lang geen nieuwe <location, dan
