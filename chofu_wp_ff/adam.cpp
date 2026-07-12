@@ -76,6 +76,7 @@ static float sp_tmp = NAN;
 static uint32_t bytes_sinds_loc = 0;   // bytes sinds laatste <location (voor vroege exit)
 static uint32_t rx_bytes = 0;          // totaal ontvangen bytes deze poll (diagnose)
 static uint32_t laatste_rx_byte_ms = 0; // tijdstip laatste ontvangen byte (stall-detectie)
+static uint8_t  poll_fase = 0;         // 0 = SP (heater_central), 1 = zones (locations)
 
 static void adam_reset_matchers(){
   m_hdr.init("\r\n\r\n");
@@ -185,6 +186,50 @@ static String adam_auth_b64(){
   return out;
 }
 
+// ── Twee gerichte requests per poll ────────────────────────────
+// De WiFiS3 stokt bij downloads > ~76KB; domain_objects is 200KB+ en de
+// keteldata (intended_boiler_temperature) staat daar vaak voorbij die grens.
+// Daarom twee kleine documenten: het heater_central-appliance (SP) en de
+// locations (zones). Blijft de class-filter onbeantwoord, dan valt fase 0
+// terug op wat er wel binnenkomt (heater_central staat vooraan).
+static bool start_verzoek(const char* pad){
+  adam_client.stop();
+  if(!adam_client.connect(cfg_ip, 80)) return false;
+  adam_client.print("GET "); adam_client.print(pad); adam_client.println(" HTTP/1.1");
+  adam_client.print("Host: "); adam_client.println(cfg_ip);
+  adam_client.println("Authorization: Basic " + adam_auth_b64());
+  adam_client.println("Connection: close");
+  adam_client.println();
+  adam_reset_matchers();
+  http_status[0] = 0; http_idx = 0;
+  bytes_sinds_loc = 0;
+  laatste_rx_byte_ms = millis();
+  naam_buf[0] = 0;
+  ztmp_temp = NAN; ztmp_sp = NAN;
+  as = AS::HEADERS;
+  return true;
+}
+
+// Einde van het lopende verzoek (klaar/stall/verbinding dicht):
+// fase 0 → door naar zones; fase 1 → poll afronden
+static void verzoek_einde(){
+  if(poll_fase == 0){
+    poll_fase = 1;
+    if(!start_verzoek("/core/locations"))
+      poll_afronden(false, "verbinding mislukt (zones)");
+  } else {
+    zone_commit();
+    if(!isnan(sp_tmp) || adam_zone_count > 0){
+      poll_afronden(true);
+    } else {
+      String d = "geen data (" + String(rx_bytes) + "B";
+      if(http_status[0]){ d += " http"; d += http_status; }
+      d += ")";
+      poll_afronden(false, d.c_str());
+    }
+  }
+}
+
 // ── Poll state machine ─────────────────────────────────────────
 void adam_poll(){
   if(!adam_actief()){
@@ -203,26 +248,13 @@ void adam_poll(){
 
     // connect() blokkeert kort (LAN: <100ms bij bereikbare host); bij
     // onbereikbare host beschermt de backoff tegen herhaald blokkeren.
-    if(!adam_client.connect(cfg_ip, 80)){
-      poll_afronden(false, "verbinding mislukt");
-      return;
-    }
-    adam_client.println("GET /core/domain_objects HTTP/1.1");
-    adam_client.print("Host: "); adam_client.println(cfg_ip);
-    adam_client.println("Authorization: Basic " + adam_auth_b64());
-    adam_client.println("Connection: close");
-    adam_client.println();
-
-    adam_reset_matchers();
-    http_status[0] = 0; http_idx = 0;
-    bytes_sinds_loc = 0;
+    poll_fase = 0;
     rx_bytes = 0;
-    laatste_rx_byte_ms = nu;
     sp_tmp = NAN;
     adam_zone_count = 0;
-    naam_buf[0] = 0;
-    ztmp_temp = NAN; ztmp_sp = NAN;
-    as = AS::HEADERS;
+    if(!start_verzoek("/core/appliances;class=heater_central")){
+      poll_afronden(false, "verbinding mislukt");
+    }
     return;
   }
 
@@ -234,29 +266,11 @@ void adam_poll(){
     return;
   }
 
-  // Stall: verbinding open maar >3s geen bytes meer (WiFiS3 bij grote
-  // downloads) → afronden met wat we hebben i.p.v. de volle 20s wachten
-  if(!adam_client.available() && adam_client.connected() &&
-     nu - laatste_rx_byte_ms > 3000 && rx_bytes > 0){
-    if(!isnan(sp_tmp) || adam_zone_count > 0){
-      poll_afronden(true);
-    } else {
-      String d = "stall " + String(rx_bytes) + "B st" + String((int)as);
-      poll_afronden(false, d.c_str());
-    }
-    return;
-  }
-
-  // Verbinding weg en buffer leeg → afronden met wat we hebben
+  // Stall (verbinding open, >3s geen bytes) of verbinding dicht →
+  // huidig verzoek beëindigen; fase 0 gaat door naar de zones
   if(!adam_client.available()){
-    if(!adam_client.connected()){
-      bool data_ok = !isnan(sp_tmp) || adam_zone_count > 0 || !isnan(ztmp_temp);
-      if(data_ok) poll_afronden(true);
-      else if(http_status[0] && strcmp(http_status, "200") != 0)
-        poll_afronden(false, (String("http ") + http_status).c_str());
-      else
-        poll_afronden(false, "geen data in antwoord");
-    }
+    bool stall = adam_client.connected() && (nu - laatste_rx_byte_ms > 3000);
+    if(stall || !adam_client.connected()) verzoek_einde();
     return;
   }
 
@@ -271,10 +285,9 @@ void adam_poll(){
     // en minstens één zone, en komt er 16KB lang geen nieuwe <location, dan
     // volgt er niets bruikbaars meer — de resterende ~170KB overslaan scheelt
     // seconden per poll (en voorkomt de 20s-timeout).
-    if(as == AS::SCAN || as == AS::ZONE_SCAN){
-      if(++bytes_sinds_loc > ZONE_STILTE_B && !isnan(sp_tmp) && adam_zone_count > 0){
-        zone_commit();
-        poll_afronden(true);
+    if(poll_fase == 1 && (as == AS::SCAN || as == AS::ZONE_SCAN)){
+      if(++bytes_sinds_loc > ZONE_STILTE_B && adam_zone_count > 0){
+        verzoek_einde();   // alle zones binnen — rest van het document overslaan
         return;
       }
     }
@@ -293,11 +306,14 @@ void adam_poll(){
 
       // ── SCAN: intended_boiler_temperature én <location parallel ──
       case AS::SCAN:
-        if(isnan(sp_tmp) && m_sp.feed(c)){ m_meas.idx = 0; as = AS::SP_GT; }
-        else if(m_loc.feed(c)){
-          if(adam_zone_count >= ADAM_MAX_ZONES){ poll_afronden(true); return; }
-          bytes_sinds_loc = 0;
-          m_name.idx = 0; as = AS::LOC_NAME;
+        if(poll_fase == 0){
+          if(isnan(sp_tmp) && m_sp.feed(c)){ m_meas.idx = 0; as = AS::SP_GT; }
+        } else {
+          if(m_loc.feed(c)){
+            if(adam_zone_count >= ADAM_MAX_ZONES){ poll_afronden(true); return; }
+            bytes_sinds_loc = 0;
+            m_name.idx = 0; as = AS::LOC_NAME;
+          }
         }
         break;
       case AS::SP_GT:
@@ -310,8 +326,8 @@ void adam_poll(){
         if(c == '<' || val_idx >= sizeof(valbuf) - 1){
           valbuf[val_idx] = 0;
           sp_tmp = atof(valbuf);
-          m_loc.idx = 0; m_sp.idx = 0;
-          as = AS::SCAN;
+          verzoek_einde();   // SP binnen — meteen door naar het zones-document
+          return;
         } else valbuf[val_idx++] = c;
         break;
 
