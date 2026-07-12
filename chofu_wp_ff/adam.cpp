@@ -29,7 +29,8 @@ static const uint32_t ADAM_POLL_MS    = 30000;   // interval
 static const uint32_t ADAM_TIMEOUT_MS = 20000;   // harde limiet per poll
 static const uint32_t ADAM_BACKOFF_MS = 300000;  // 5 min na herhaald falen
 static const uint32_t ADAM_GELDIG_MS  = 90000;   // data vervalt na 90s
-static const uint16_t LEES_BUDGET     = 512;     // bytes per loop()-doorgang
+static const uint16_t LEES_BUDGET     = 2048;    // bytes per loop()-doorgang (~2-4ms CPU)
+static const uint32_t ZONE_STILTE_B   = 16384;   // geen <location meer na zoveel bytes → klaar
 
 static WiFiClient adam_client;
 static float      adam_sp_val      = NAN;
@@ -72,6 +73,7 @@ static uint8_t val_idx = 0;
 static char  naam_buf[21];
 static uint8_t naam_idx = 0;
 static float sp_tmp = NAN;
+static uint32_t bytes_sinds_loc = 0;   // bytes sinds laatste <location (voor vroege exit)
 
 static void adam_reset_matchers(){
   m_hdr.init("\r\n\r\n");
@@ -197,6 +199,7 @@ void adam_poll(){
 
     adam_reset_matchers();
     http_status[0] = 0; http_idx = 0;
+    bytes_sinds_loc = 0;
     sp_tmp = NAN;
     adam_zone_count = 0;
     naam_buf[0] = 0;
@@ -228,6 +231,19 @@ void adam_poll(){
   uint16_t budget = LEES_BUDGET;
   while(budget-- && adam_client.available()){
     char c = (char)adam_client.read();
+
+    // Vroege exit: de locaties staan aaneengesloten in de XML. Hebben we de SP
+    // en minstens één zone, en komt er 16KB lang geen nieuwe <location, dan
+    // volgt er niets bruikbaars meer — de resterende ~170KB overslaan scheelt
+    // seconden per poll (en voorkomt de 20s-timeout).
+    if(as == AS::SCAN || as == AS::ZONE_SCAN){
+      if(++bytes_sinds_loc > ZONE_STILTE_B && !isnan(sp_tmp) && adam_zone_count > 0){
+        zone_commit();
+        poll_afronden(true);
+        return;
+      }
+    }
+
     switch(as){
 
       case AS::HEADERS:
@@ -245,6 +261,7 @@ void adam_poll(){
         if(isnan(sp_tmp) && m_sp.feed(c)){ m_meas.idx = 0; as = AS::SP_GT; }
         else if(m_loc.feed(c)){
           if(adam_zone_count >= ADAM_MAX_ZONES){ poll_afronden(true); return; }
+          bytes_sinds_loc = 0;
           m_name.idx = 0; as = AS::LOC_NAME;
         }
         break;
@@ -290,6 +307,7 @@ void adam_poll(){
         else if(m_loc2.feed(c)){
           zone_commit();
           if(adam_zone_count >= ADAM_MAX_ZONES){ poll_afronden(true); return; }
+          bytes_sinds_loc = 0;
           m_name.idx = 0; as = AS::LOC_NAME;
         }
         break;
