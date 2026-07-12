@@ -40,7 +40,7 @@ static uint32_t   laatste_poll_ms  = 0;
 static uint32_t   poll_start_ms    = 0;
 static uint8_t    fout_teller      = 0;
 static bool       ooit_ok          = false;
-static char       laatste_fout[24] = "";      // reden laatste mislukte poll
+static char       laatste_fout[40] = "";      // reden laatste mislukte poll
 static char       http_status[4]   = "";      // HTTP-statuscode (bv. "401")
 static uint8_t    http_idx         = 0;
 
@@ -74,6 +74,7 @@ static char  naam_buf[21];
 static uint8_t naam_idx = 0;
 static float sp_tmp = NAN;
 static uint32_t bytes_sinds_loc = 0;   // bytes sinds laatste <location (voor vroege exit)
+static uint32_t rx_bytes = 0;          // totaal ontvangen bytes deze poll (diagnose)
 
 static void adam_reset_matchers(){
   m_hdr.init("\r\n\r\n");
@@ -115,6 +116,9 @@ static void poll_afronden(bool ok, const char* reden = ""){
     laatste_fout[0] = 0;
   }
   if(ok){
+    if(proto_logging)
+      mqtt_log("Adam poll ok: " + String(rx_bytes) + "B in " +
+               String(millis() - poll_start_ms) + "ms, " + String(adam_zone_count) + " zones", "INFO");
     zone_commit();  // laatste zone (stream-einde) nog committen
     adam_sp_val = sp_tmp;
     // Zone opzoeken voor t_kamer
@@ -211,6 +215,7 @@ void adam_poll(){
     adam_reset_matchers();
     http_status[0] = 0; http_idx = 0;
     bytes_sinds_loc = 0;
+    rx_bytes = 0;
     sp_tmp = NAN;
     adam_zone_count = 0;
     naam_buf[0] = 0;
@@ -219,9 +224,11 @@ void adam_poll(){
     return;
   }
 
-  // Harde timeout per poll
+  // Harde timeout per poll — met diagnose: hoever kwam de stream?
   if(nu - poll_start_ms > ADAM_TIMEOUT_MS){
-    poll_afronden(false, "timeout");
+    String d = "timeout " + String(rx_bytes) + "B st" + String((int)as);
+    if(http_status[0]){ d += " http"; d += http_status; }
+    poll_afronden(false, d.c_str());
     return;
   }
 
@@ -242,6 +249,7 @@ void adam_poll(){
   uint16_t budget = LEES_BUDGET;
   while(budget-- && adam_client.available()){
     char c = (char)adam_client.read();
+    rx_bytes++;
 
     // Vroege exit: de locaties staan aaneengesloten in de XML. Hebben we de SP
     // en minstens één zone, en komt er 16KB lang geen nieuwe <location, dan
