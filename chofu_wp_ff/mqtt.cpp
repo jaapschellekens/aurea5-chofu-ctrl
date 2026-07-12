@@ -190,6 +190,7 @@ static void verwerk_bericht(const String& topic, const String& payload){
     else if(payload == "multi") nieuw = AdamBron::MULTI;
     else return;
     adam_bron = nieuw; eeprom_save();
+    adam_forceer_poll();   // niet tot 30s wachten na een bronwissel
     mqtt_log(String("Adam bron: ") + adam_bron_str(), "INFO");
   }
   else if(topic == MQTT_PREFIX "/cmd/adam_koel_sp"){

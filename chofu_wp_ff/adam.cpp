@@ -148,7 +148,18 @@ static char multi_actieve_zone[21] = "";
 const char* adam_actieve_zone(){ return multi_actieve_zone; }
 const char* adam_status_str(){
   if(!adam_actief()) return "uit";
-  return adam_geldig() ? "ok" : "fout";
+  if(adam_geldig()) return "ok";
+  // Nog nooit een geslaagde poll: dat is opstarten, geen fout — tenzij er
+  // al een echte pollfout geregistreerd is.
+  if(!ooit_ok && laatste_fout[0] == 0) return "init";
+  return "fout";
+}
+
+// Directe poll afdwingen (bv. na bronwissel): interval-wachttijd overslaan
+void adam_forceer_poll(){
+  laatste_poll_ms = millis() - ADAM_POLL_MS;
+  fout_teller = 0;          // backoff resetten
+  laatste_fout[0] = 0;      // oude foutmelding wissen
 }
 const char* adam_fout_str(){ return laatste_fout; }
 const char* adam_ip_str(){ return cfg_ip; }

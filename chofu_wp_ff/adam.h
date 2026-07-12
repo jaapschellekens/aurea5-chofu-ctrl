@@ -33,6 +33,7 @@ extern uint8_t  adam_zone_count;
 void        adam_config(const char* ip, const char* pass, const char* zone);
 
 void        adam_poll();       // elke loop()-doorgang aanroepen; doet zelf timing
+void        adam_forceer_poll();// directe poll (na bronwissel); reset backoff + foutmelding
 void        adam_pas_toe();    // resultaat toepassen op regeling (vóór pas_sim_toe)
 bool        adam_actief();     // bron != UIT en ADAM_IP geconfigureerd
 bool        adam_geldig();     // laatste poll ok en < 90s oud
@@ -40,7 +41,7 @@ float       adam_water_sp();   // NAN indien ongeldig
 float       adam_zone_temp();  // temperatuur van ADAM_ZONE, NAN indien ongeldig
 const char* adam_bron_str();   // "uit" / "water" / "water+kamer" / "multi"
 const char* adam_actieve_zone();// actieve zone in multi-modus ("" indien geen)
-const char* adam_status_str(); // "uit" / "ok" / "fout"
+const char* adam_status_str(); // "uit" / "init" / "ok" / "fout"
 const char* adam_fout_str();   // reden laatste mislukte poll ("" = geen)
 const char* adam_ip_str();     // geconfigureerd IP ("" = niet geconfigureerd)
 
