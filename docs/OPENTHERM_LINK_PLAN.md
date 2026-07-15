@@ -91,10 +91,26 @@ IC-voetje pad "IC1-RX" (pad 2) ←─[level shift]──── SC16IS750 TX
 GND gedeeld (al aanwezig) · SC16IS750: VCC 3.3V, SDA→A4, SCL→A5, adres ≠ 0x27 (LCD)
 ```
 
-> ⚠️ De exacte padnummers van pad 1/pad 2 op het 28-pins voetje moeten geverifieerd
-> worden (Tweakers-thread/foto's, of meten: de pad die in rust ~5 V voert en elke
-> ~1–4 s activiteit toont is IC1-TX). Zelfde les als bij de pomp-link: labels kunnen
-> vanuit de verwijderde chip gedacht zijn.
+### Pinnen van het 28-pins IC-voetje (uit de Tweakers-thread)
+
+| Pin | Functie |
+|---|---|
+| 2 en 3 | **Communicatie met IC1 (OT-controller)** — onze RX/TX-pads |
+| 7 | 5 V (voeding; iemand voedde er een ESP32 mee) |
+| 8 | GND |
+| 16 | **Ketel-aan** (relais schakelt) — mogelijke directe gasketel-sturing, zie onder |
+| 26 | TX naar WP (in gebruik: → Arduino D1 via 1 kΩ) |
+| 27 | RX vanaf WP (in gebruik: → Arduino D0) |
+
+Welke van pin 2/3 de IC1-TX is (onze RX) nog meten: de pad die in rust ~5 V voert en
+elke ~1–4 s korte activiteit toont wordt door IC1 gedreven → via 10 kΩ naar `OT_RX_PIN`.
+De andere is onze (fase 2-) TX. Zelfde les als bij de pomp-link: verwissel-risico is
+reëel — vandaar de zend-gate in de firmware.
+
+> **Pin 16 (ketel-relais)** is een interessante extra: mogelijk kan de gasketel-bijstook
+> in fase 3 ook met één digitale uitgang (via de relais-driver op het bord) i.p.v. of
+> naast het `0xF0`-frame. Eerst verifiëren wat het relais precies schakelt (maakcontact
+> ketelvraag?) en of de ketel dan werkelijk start — meten vóór gebruiken.
 
 ## 5. Softwareontwerp
 
