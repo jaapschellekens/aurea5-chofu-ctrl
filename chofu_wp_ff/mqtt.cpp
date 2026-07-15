@@ -1,5 +1,6 @@
 #include "mqtt.h"
 #include "adam.h"
+#include "ot.h"
 #include "eeprom.h"   // voor eeprom_save()
 #include "regelaar.h" // voor ctrl.reset_pid() / reset_ff() / koude_start()
 
@@ -703,6 +704,27 @@ void stuur_data(){
     if(adam_bron == AdamBron::MULTI){
       mqttClient.beginMessage(MQTT_PREFIX "/adam/actieve_zone");
       mqttClient.print(adam_actieve_zone());mqttClient.endMessage();
+    }
+  }
+
+  // OT-link status (fase 1: alleen luisteren)
+  if(ot_actief()){
+    mqttClient.beginMessage(MQTT_PREFIX "/ot/status");mqttClient.print(ot_status_str());mqttClient.endMessage();
+    mqttClient.beginMessage(MQTT_PREFIX "/ot/frames");mqttClient.print(String(ot_frames_ok()) + "/" + String(ot_frames_fout()));mqttClient.endMessage();
+    if(!isnan(ot_sp())){
+      mqttClient.beginMessage(MQTT_PREFIX "/ot/sp");mqttClient.print(ot_sp(),0);mqttClient.endMessage();
+    }
+    if(proto_logging && ot_frames_ok() > 0){
+      // Laatste geldige frame als hex — voor reverse engineering bytes 1-10
+      String hex;
+      const uint8_t* f = ot_laatste_frame();
+      for(uint8_t i = 0; i < 12; i++){
+        if(i) hex += ' ';
+        if(f[i] < 0x10) hex += '0';
+        hex += String(f[i], HEX);
+      }
+      mqttClient.beginMessage(MQTT_PREFIX "/ot/raw", (unsigned long)hex.length());
+      mqttClient.print(hex);mqttClient.endMessage();
     }
   }
 

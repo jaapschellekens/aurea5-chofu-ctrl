@@ -44,6 +44,7 @@
 #include "web.h"
 #include "knoppen.h"
 #include "adam.h"
+#include "ot.h"
 
 // ═══════════════════════════════════════════════════════════════
 //  SETUP
@@ -61,6 +62,13 @@ void setup(){
   #endif
   adam_config(ADAM_IP, ADAM_PASS, ADAM_ZONE);
   Serial.println("Adam API geconfigureerd: " ADAM_IP);
+#endif
+#if defined(OT_RX_PIN)
+  #ifndef OT_TX_PIN
+    #define OT_TX_PIN 9
+  #endif
+  ot_config(OT_RX_PIN, OT_TX_PIN);
+  Serial.println("OT-link (RX-only) op pin " + String(OT_RX_PIN));
 #endif
   knoppen_init();
   // SWW driewegklep-relais: uitgang, klep dicht bij start
@@ -228,6 +236,7 @@ void loop(){
 
   lees_warmtepomp_data();
   adam_poll();      // niet-blokkerend; doet zelf zijn 30s-timing
+  ot_poll();        // OT-link RX-only (fase 1, experimenteel)
   adam_pas_toe();   // vóór pas_sim_toe zodat de simulator altijd wint
   pas_sim_toe();
   pas_pid_aan();
