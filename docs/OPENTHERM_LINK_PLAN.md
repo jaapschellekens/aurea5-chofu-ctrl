@@ -81,7 +81,7 @@ pomp (timing-kritisch, blijft daar). Opties:
 | **A. SC16IS750 I²C-UART-bridge** (~€4 breakout) | **Aanbevolen voor de R4.** Hangt aan de bestaande I²C-bus (A4/A5, naast het LCD, ander adres). 64-byte FIFO — een 12-byte frame op 9600 baud (~12,5 ms) past ruim; pollen per loop-doorgang volstaat, geen interrupt nodig. Let op: de chip is 3,3 V — **level shifter (2-kanaals, ~€1) tussen bridge en de 5V-pads** van het voetje. |
 | B. ESP32 i.p.v. UNO R4 | De firmware compileert al voor ESP32 (3 UARTs: pomp op UART2, OT-link op UART1). Geen extra chips, wél: board wisselen, LED-matrix vervalt, en de ESP32 is 3,3 V → level shifters voor **beide** links. Goede optie bij een toch geplande board-wissel. |
 | C. Tweede SCI van de RA4M1 activeren | De chip heeft meer UARTs maar de Arduino-core stelt ze niet beschikbaar; FSP-gehack, breekt bij core-updates. Afgeraden. |
-| D. SoftwareSerial | Uitgesloten — crasht de WiFi-coprocessor (gedocumenteerd in ervaringen.md). |
+| **D. SoftwareSerial (te testen — eerst RX-only)** | De officiële R4-core (≥1.6) levert een SoftwareSerial op basis van **GPT-timers + DMA** (geen klassiek bit-bangen met interrupts uit). De eerdere crash-ervaring stamt uit oude code met een third-party port. Goedkoopste optie (0 extra hardware). Testprotocol: aparte branch, RX-only op D8, ≥1 dag draaien met drie afbreekcriteria: `JGC (30s)`-statistiek verandert niet, MQTT blijft stabiel, geen reboots. Faalt één criterium → optie A. Let op: deelt GPT-timers met de LED-matrix. |
 
 **Bekabeling (optie A):**
 
@@ -144,7 +144,7 @@ inbouw met opto-isolatie en de zend-pas-na-geldige-ontvangst-gate in de firmware
 | Fase | Wat | Risico |
 |---|---|---|
 | **0. Passief meeluisteren** | USB-TTL-adapter + laptop op pad "IC1-TX" + GND (9600 8N1): verifiëren dat IC1 nog 12-byte frames stuurt, checksum klopt, byte 0 = Anna-setpoint volgt, en wat Anna-koelen (10 °C?) op deze link doet. Geen firmware nodig. | Geen |
-| **1. Read-only in firmware** | SC16IS750 + level shifter inbouwen; module luistert alleen en publiceert naar MQTT. Vergelijken met Adam-API-waarden. | Laag |
+| **1. Read-only in firmware** | Eerst proberen met SoftwareSerial RX-only op D8 (via ≥1 kΩ; TX-draad fysiek niet aangesloten) — branch `feature/ot-link`. Module luistert alleen en publiceert naar MQTT; vergelijken met Adam-API-waarden. Bij WiFi/JGC-degradatie → SC16IS750 + level shifter. | Laag |
 | **2. Schrijven: status terugmelden** | TX-pad aansluiten; template + temperaturen + keepalive sturen → controlbox uit storing. Ketelgedrag observeren. | Middel |
 | **3. Bronkeuze + hybride** | `t_water_gewenst` uit OT-link; `0xF0`-logica voor gasketel-bijstook bij extreme kou; koelvraag. | Middel |
 
