@@ -695,14 +695,17 @@ Payload: 16.0 – 25.0    → watersetpoint bij Adam-koelvraag (default 18.0)
 | Topic | Inhoud |
 |-------|--------|
 | `chofu/adam/bron` | actieve bron |
-| `chofu/adam/status` | `uit` / `ok` / `fout` |
+| `chofu/adam/status` | `uit` / `init` (nog geen geslaagde poll) / `ok` / `fout` |
 | `chofu/adam/sp` | laatste intended_boiler_temperature |
 | `chofu/adam/koel_sp` | actueel koel-watersetpoint |
 | `chofu/adam/zone/<naam>` | temperatuur per zone (naam gesaneerd, max 8) |
 | `chofu/adam/zone/<naam>_sp` | thermostaatsetpoint per zone (indien aanwezig) |
 | `chofu/adam/actieve_zone` | actieve zone in multi-modus |
+| `chofu/adam/fout` | reden laatste mislukte poll: `verbinding mislukt`, `timeout <bytes>B st<state> http<code>`, `geen data (...)` — leeg = geen fout |
 
-**Terugval:** API >90 s onbereikbaar → laatste MQTT-waarden gelden weer + alert; herstel wordt gelogd. De poll is niet-blokkerend (max 512 bytes per loop-doorgang) en raakt de JGC-pomptiming niet.
+**Terugval:** API >90 s onbereikbaar → laatste MQTT-waarden gelden weer + alert; herstel wordt gelogd. De poll is niet-blokkerend (max 2048 bytes per loop-doorgang) en raakt de JGC-pomptiming niet.
+
+**Implementatie:** per poll (30 s) twee gerichte requests i.p.v. het 200KB+ domain_objects-document — `/core/appliances;class=heater_central` (SP) en `/core/locations` (zones). Reden: de WiFiS3 stokt bij downloads > ~76 KB (zie ervaringen.md). Een bronwissel via `chofu/cmd/adam_bron` triggert direct een poll. Bediening en status zijn ook beschikbaar in de webinterface (tab "Adam").
 
 ---
 
