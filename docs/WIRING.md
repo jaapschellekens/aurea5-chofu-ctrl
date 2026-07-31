@@ -164,6 +164,75 @@ Verkeerd om: herhaald "JGC timeout: geen frame >2s, stuur TX" → draai D0/D1 om
 
 ---
 
+## OpenTherm-link (fase 1: alleen luisteren — EXPERIMENTEEL)
+
+Optionele verbinding met T1.1, de OpenTherm-brug in de controlbox, via de vrijgekomen
+pads van het 28-pins IC-voetje. Zie [OPENTHERM_LINK_PLAN.md](OPENTHERM_LINK_PLAN.md)
+voor protocol en fasering.
+
+### WAARSCHUWING
+
+```
+LET OP:
+✗ T1.1 is NIET los verkrijgbaar — sneuvelt hij, dan is de controlbox
+  (OpenTherm naar Anna én ketel) onbruikbaar. Bij JGC is deze chip
+  tijdens experimenten kapot gegaan.
+✓ Fase 1 = ALLEEN LUISTEREN: uitsluitend de RX-draad aansluiten
+✓ Altijd 10 kΩ serie in de luisterdraad
+✓ Spanningsloos bedraden (controlbox uit), clips i.p.v. losse probes
+✓ De TX-draad (voetje pin 3) pas in fase 2, met opto-isolatie
+```
+
+### Schema (fase 1)
+
+```
+IC-voetje (verwijderde M1.1)         Arduino UNO R4
+┌──────────────────┐                ┌──────────────┐
+│  pin 2 (PD0/RXD) ●───[10kΩ]──────┼──● D8 (OT_RX_PIN)
+│  pin 3 (PD1/TXD) ●  NIET         │              │
+│                     AANSLUITEN   │              │
+│  pin 8 (GND)     ●───────────────┼──● GND (al gedeeld)
+└──────────────────┘                └──────────────┘
+```
+
+> **Richting (uit de chip-dump `data/atlantic`):** pin 2 = RXD van de verwijderde
+> chip = de lijn waarop T1.1 zendt → onze luisterpin. Pin 3 = TXD = onze
+> (toekomstige) zendlijn. Zelfde chip-perspectief-conventie als de pomp-link
+> (pin 26/27). Verificatie vóór aansluiten: op pin 2 hoort elke ~1–4 s korte
+> activiteit zichtbaar te zijn (~5 V in rust).
+
+### Activeren in de firmware
+
+```cpp
+// config.h:
+#define OT_RX_PIN 8    // D8; andere vrije digitale pin mag ook
+#define OT_TX_PIN 9    // gereserveerd voor fase 2, blijft onaangesloten
+```
+
+Zonder deze defines is de module volledig inactief. Met defines maar zonder draad
+gebeurt er ook niets (interne pull-up houdt de pin stil; status blijft `init`).
+
+### Verificatie
+
+```
+1. Flash en check chofu/ot/status → "init"
+2. Draad aansluiten (spanningsloos!), controlbox aan
+3. chofu/ot/frames moet gaan tellen (ok/fout); status → "ok"
+4. chofu/ot/sp = het Anna-aanvoersetpoint; met proto_log aan staat het
+   ruwe frame (hex) op chofu/ot/raw
+5. Bewaak ≥1 dag: JGC (30s)-statistiek gelijk, MQTT stabiel, geen
+   reboots (SoftwareSerial-test — zie plan, optie D)
+```
+
+### Bill of Materials (fase 1)
+
+| Item | Aantal | Prijs |
+|------|--------|-------|
+| 10 kΩ weerstand (1/4W) | 1 | €0,10 |
+| Jumper wire | 1 | €0,30 |
+
+---
+
 ## Foto Referenties
 
 ### Controlbox Terminals

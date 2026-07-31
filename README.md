@@ -213,6 +213,12 @@ Arduino GND      ───  GND controlbox
 
 > **Let op:** de RX/TX-labels op het IC-voetje zijn vanuit de *verwijderde chip* gezien — de Arduino vervangt die chip en stuurt dus pad "TX" met zijn eigen TX aan. Verkeerd om aangesloten = polls gaan uit maar de pomp antwoordt nooit. Zie [docs/WIRING.md](docs/WIRING.md).
 
+### OpenTherm-link (optioneel, experimenteel)
+```
+IC-voetje pin 2 ──[10kΩ]──→ D8   (alleen luisteren, fase 1)
+```
+Zie [docs/WIRING.md](docs/WIRING.md) en [docs/OPENTHERM_LINK_PLAN.md](docs/OPENTHERM_LINK_PLAN.md) — let op de waarschuwingen (T1.1 is onvervangbaar).
+
 ### LCD Display (optioneel)
 ```
 VCC → 5V
