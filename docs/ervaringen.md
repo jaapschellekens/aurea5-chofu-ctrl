@@ -85,6 +85,9 @@ De afsluitende `0x00` die `jgc.ino` per frame verwacht is **geen protocolbyte ma
 ### Half-duplex lijn met TX-echo
 Alle eigen TX-bytes komen als echo terug op RX (zichtbaar in de sniffer-dump). De parser negeert ze doordat ze geen `0x91` bevatten, maar: `jgc_is_ontvangend` moet waar blijven zolang de parser mid-frame zit (zoals `IsReceiving` in jgc.ino), TX wacht ≥99 ms na de laatste ontvangen byte, en een mid-frame timeout (600 ms) voorkomt permanente TX-blokkade bij een gestoord frame.
 
+### Inzichten uit de chip-dump (data/atlantic, juli 2026)
+Disassembly van de originele M1.1 (pomp-chip, vervangen) en T1.1 (OT-brug): (1) Atlantic moduleert stand 1–10 — onze standen 11/12 heeft de fabrikant nooit gestuurd en de vermogenswaarden daarvoor zijn extrapolaties; (2) koelmodus 0x02 komt in de hele fabrieks-flash niet voor — onze koeling is buiten-fabrieks (maar werkt in de praktijk); (3) M1.1 had een harde 5 °C-buitentemperatuur-lockout (fabrieks-bivalentiepunt) die onze firmware bewust niet heeft; (4) de OT-link is bevestigd: 12 bytes, 9600 8N1, som-checksum, kop 0xF0, temps op byte 7/8/9, statuscode op byte 10 (0 = OK → dooft de storingsled); (5) de "buitentemperatuur" uit pompframe ID2 is mogelijk een verdampersensor i.p.v. omgevingslucht.
+
 ### Spike-guard deadlock op buitentemperatuur
 De pomp stuurt bij koude start 0,0 °C buiten. Dat werd geaccepteerd (|0−5| = 5, net niet > 5), waarna de echte waarde (bijv. 21,6) voor eeuwig als spike werd afgewezen omdat `prev_t_outside` bij afwijzing niet werd bijgewerkt. Symptoom: `chofu/outside` blijft op 0 staan + herhaalde `JGC spike buiten`-alerts. Fix: `prev` wordt nu óók bij afwijzing bijgewerkt — een eenmalige glitch wordt nog steeds gefilterd, een aanhoudende waarde wordt bij het tweede frame geaccepteerd.
 

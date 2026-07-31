@@ -84,8 +84,9 @@ om CV-start te blokkeren) — exact gedrag te verifiëren in fase 2.
 2. **Anna-setpoint direct** — `t_water_gewenst` zonder Adam-API of MQTT-omweg
    (byte 0 = zelfde waarde als `intended_boiler_temperature`; vermoedelijk óók de
    koelconventie SP=10).
-3. **Echte hybride werking** — bij extreme kou kan de firmware bewust de gasketel
-   inschakelen (`0xF0`), zoals het origineel bedoeld was.
+3. **Echte hybride werking** — T1.1 beslist over de ketel op basis van wat wij hem
+   voeren (temperaturen, statuscode, byte 9); in fase 2/3 verkennen we hoe we bijstook
+   bij extreme kou netjes triggeren (het fabrieks-bivalentiepunt was 5 °C).
 4. **WP-temperaturen zichtbaar in Anna/Plugwise** (bytes 7/8/9 gaan naar OpenTherm).
 
 ## 4. Hardware: waar halen we de extra UART vandaan?
@@ -103,8 +104,8 @@ pomp (timing-kritisch, blijft daar). Opties:
 **Bekabeling (optie A):**
 
 ```
-IC-voetje pad "IC1-TX" (pad 1) ──[level shift]──→ SC16IS750 RX
-IC-voetje pad "IC1-RX" (pad 2) ←─[level shift]──── SC16IS750 TX
+IC-voetje pad "T1.1-TX" (pad 1) ──[level shift]──→ SC16IS750 RX
+IC-voetje pad "T1.1-RX" (pad 2) ←─[level shift]──── SC16IS750 TX
 GND gedeeld (al aanwezig) · SC16IS750: VCC 3.3V, SDA→A4, SCL→A5, adres ≠ 0x27 (LCD)
 ```
 
@@ -112,22 +113,19 @@ GND gedeeld (al aanwezig) · SC16IS750: VCC 3.3V, SDA→A4, SCL→A5, adres ≠ 
 
 | Pin | Functie |
 |---|---|
-| 2 en 3 | **Communicatie met IC1 (OT-controller)** — onze RX/TX-pads |
+| 2 en 3 | **Communicatie met T1.1 (de OT-brug)** — onze RX/TX-pads (= PD0/PD1 van de verwijderde M1.1) |
 | 7 | 5 V (voeding; iemand voedde er een ESP32 mee) |
 | 8 | GND |
-| 16 | **Ketel-aan** (relais schakelt) — mogelijke directe gasketel-sturing, zie onder |
+| 16 | PB2 — thread noemde "ketelrelais", maar volgens de chip-dump loopt de ketel via OpenTherm; PB2 volgt een modusingang. Eerst doormeten. |
 | 26 | TX naar WP (in gebruik: → Arduino D1 via 1 kΩ) |
 | 27 | RX vanaf WP (in gebruik: → Arduino D0) |
 
-Welke van pin 2/3 de IC1-TX is (onze RX) nog meten: de pad die in rust ~5 V voert en
-elke ~1–4 s korte activiteit toont wordt door IC1 gedreven → via 10 kΩ naar `OT_RX_PIN`.
+Welke van pin 2/3 de T1.1-TX is (onze RX) nog meten: de pad die in rust ~5 V voert en
+elke ~1–4 s korte activiteit toont wordt door T1.1 gedreven → via 10 kΩ naar `OT_RX_PIN`.
 De andere is onze (fase 2-) TX. Zelfde les als bij de pomp-link: verwissel-risico is
 reëel — vandaar de zend-gate in de firmware.
 
-> **Pin 16 (ketel-relais)** is een interessante extra: mogelijk kan de gasketel-bijstook
-> in fase 3 ook met één digitale uitgang (via de relais-driver op het bord) i.p.v. of
-> naast het `0xF0`-frame. Eerst verifiëren wat het relais precies schakelt (maakcontact
-> ketelvraag?) en of de ketel dan werkelijk start — meten vóór gebruiken.
+
 
 ## 5. Softwareontwerp
 
