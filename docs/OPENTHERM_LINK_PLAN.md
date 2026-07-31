@@ -113,17 +113,18 @@ GND gedeeld (al aanwezig) · SC16IS750: VCC 3.3V, SDA→A4, SCL→A5, adres ≠ 
 
 | Pin | Functie |
 |---|---|
-| 2 en 3 | **Communicatie met T1.1 (de OT-brug)** — onze RX/TX-pads (= PD0/PD1 van de verwijderde M1.1) |
+| 2 | **PD0/RXD van M1.1** — T1.1 zendt hierheen → **onze RX** (via 10 kΩ naar `OT_RX_PIN`) |
+| 3 | **PD1/TXD van M1.1** — onze (fase 2-) TX richting T1.1; nu niet aansluiten |
 | 7 | 5 V (voeding; iemand voedde er een ESP32 mee) |
 | 8 | GND |
 | 16 | PB2 — thread noemde "ketelrelais", maar volgens de chip-dump loopt de ketel via OpenTherm; PB2 volgt een modusingang. Eerst doormeten. |
 | 26 | TX naar WP (in gebruik: → Arduino D1 via 1 kΩ) |
 | 27 | RX vanaf WP (in gebruik: → Arduino D0) |
 
-Welke van pin 2/3 de T1.1-TX is (onze RX) nog meten: de pad die in rust ~5 V voert en
-elke ~1–4 s korte activiteit toont wordt door T1.1 gedreven → via 10 kΩ naar `OT_RX_PIN`.
-De andere is onze (fase 2-) TX. Zelfde les als bij de pomp-link: verwissel-risico is
-reëel — vandaar de zend-gate in de firmware.
+De richting is nu uit de chip-dump bekend (PD0=pin 2=RX, PD1=pin 3=TX, vanuit de
+verwijderde M1.1 gezien — zelfde conventie als de pomp-link op pin 26/27). Meet ter
+controle vóór aansluiten: op pin 2 hoort elke ~1–4 s korte activiteit van T1.1
+zichtbaar te zijn. De zend-gate in de firmware blijft als extra vangnet.
 
 
 
