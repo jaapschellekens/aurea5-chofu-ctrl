@@ -1,7 +1,10 @@
 # Analyse: OpenTherm-link van de controlbox lezen én schrijven
 
-Status: **analyse/voorstel** — nog niet geïmplementeerd.
-Bron: de inter-MCU-code in `JGC/jgc.ino` (Mega 2560, 3 UARTs) van JHN.
+Status: **fase 1 (RX-only) gebouwd** op branch `feature/ot-link`.
+Bronnen: `JGC/jgc.ino` (JHN) én — sterker — het chip-dump-verslag
+`data/atlantic` (disassembly van de originele M1.1/T1.1, juli 2026).
+**Naamgeving gecorrigeerd n.a.v. het verslag:** M1.1 = IC1 = de verwijderde
+pomp-chip (die wij vervangen); T1.1 = IC2 = de OpenTherm-brug die blijft zitten.
 
 ## 1. Wat is "de OpenTherm-communicatie" hier precies?
 
@@ -9,56 +12,70 @@ Bron: de inter-MCU-code in `JGC/jgc.ino` (Mega 2560, 3 UARTs) van JHN.
 zitten twee MCU's:
 
 ```
-Anna/Smile ──OpenTherm──┐
-Gasketel  ──OpenTherm──┤  IC1 (OT-MCU)  ←──9600 baud TTL──→  IC2 (HP-MCU, verwijderd!)
-                        └────────────────────────────────────────│
-                                                          666 baud → warmtepomp
+Anna ──OT (T1.1=slave)──┐
+                         ├─ T1.1 (IC2, OT-brug) ←──9600 baud TTL──→ M1.1 (IC1, VERWIJDERD)
+Gasketel ──OT (T1.1=master)┘                                            │
+                                                                666 baud → warmtepomp
 ```
 
-- **IC1** doet al het echte OpenTherm-werk (Anna, ketel) en blijft gewoon op het bord zitten.
-- **IC2** is de chip die wij verwijderd hebben. Onze Arduino bedient nu wél zijn
-  pomp-kant (666 baud), maar **niet** zijn IC1-kant (9600 baud) — daardoor staat de
-  controlbox in storing (rode knop) en start hij de gasketel bij warmtevraag.
+- **T1.1 (IC2)** is een tweezijdige OpenTherm-brúg: slave richting Anna, master richting
+  de ketel. Alle warmtevraag loopt er fysiek doorheen; hij herschrijft onderweg vijf
+  Data-ID's (o.a. ID25/ID28: Anna krijgt de wármtepomp-temperaturen te zien i.p.v. de
+  koude ketel). Hij blijft op het bord zitten.
+- **M1.1 (IC1)** is de chip die wij verwijderd hebben. Onze Arduino bedient zijn
+  pomp-kant (666 baud), maar nog niet zijn T1.1-kant (9600 baud) — daardoor ziet T1.1
+  een timeout, gaat de rode storingsled aan en stuurt hij warmtevraag naar de gasketel.
 
 Het aan te sluiten signaal is dus een gewone **TTL-UART op 9600 baud, 8N1**, op de
 vrijgekomen pads van het IC-voetje ("pad 1" = RX van IC1, "pad 2" = TX naar IC1 in
 JHN's notatie; in de praktijk één full-duplex UART).
 
-## 2. Protocol (uit jgc.ino, deels reverse-engineered)
+## 2. Protocol (geverifieerd via chip-dump `data/atlantic` + jgc.ino)
 
-**Framing:** vaste **12 bytes**, checksum = som van bytes 0–10 mod 256 in byte 11.
+**Framing:** vaste **12 bytes**, 9600 8N1 (UBRR-berekening in de binary bevestigt dit),
+checksum = som van bytes 0–10 mod 256 in byte 11. Geen CRC.
 
-**IC1 → Arduino** (`dataArrayOT_IC2_IC1`):
+**T1.1 → Arduino** (wat wij in fase 1 uitlezen):
 
-| Byte | Betekenis |
-|---|---|
-| 0 | **Gewenst aanvoersetpoint van Anna** (°C, integer) — de OpenTherm intended boiler temperature |
-| 1–10 | Onbekend (niet gebruikt door jgc.ino) |
-| 11 | Checksum |
+| Byte | Betekenis | Bron |
+|---|---|---|
+| 0 | **Gewenst aanvoersetpoint van Anna** (°C, integer; Anna's Control Setpoint) | jgc.ino — fase 1-hexdumps (`chofu/ot/raw`) moeten dit bevestigen |
+| 1–10 | Onbekend | te reverse-engineeren uit de dumps |
+| 11 | Checksum | bevestigd |
 
-**Arduino → IC1** (`dataArrayOT_IC1_IC2`, template `{32,20,154,0,0,0,0,32,29,7,0,18}`):
+**Arduino → T1.1** (fase 2 — indeling nu uit de binary bevestigd, dit is wat M1.1 stuurde):
 
-| Byte | Betekenis |
-|---|---|
-| 0 | Setpoint-echo, óf `0xF0` = "CV moet aan" (te koud voor WP) |
-| 4,5,6,10 | Op 0 zetten → dwingt IC1 om de WP-temperaturen naar OpenTherm door te geven |
-| 7 | `round(T_supply)` |
-| 8 | `round(T_return)` |
-| 9 | `round(T_outside)`; bij buiten < 4 °C vast `0x04` (voorkomt CV-start) |
-| 1–3 | Onbekend — templatewaarden (20, 154, 0) overnemen |
-| 11 | Checksum |
+| Byte | Betekenis | Bron |
+|---|---|---|
+| 0 | Kopbyte, **vast `0xF0`** | binary (T1.1 leest vanaf index 6) |
+| 7 | `round(T_supply)` — belandt via OT ID25 in Anna | binary |
+| 8 | `round(T_return)` — via OT ID28 naar Anna | binary |
+| 9 | `round(T_outside)` | binary |
+| 10 | **Statuscode: `0` = OK** (M1.1 kende alleen 0, 0x01=timeout, 0x64=vastgelopen). T1.1 vertaalt ≠0 naar het knipperpatroon van de storingsled — **status 0 sturen dooft dus de rode knop** | binary |
+| 1–6 | Onbekend; jgc-template (20, 154, 0, 0, 0, 0) aanhouden | jgc.ino |
+| 11 | Checksum | bevestigd |
+
+> **Correctie op jgc.ino:** het `0xF0`-in-byte-0 dat jgc als "CV moet aan"-commando
+> interpreteerde is volgens de binary gewoon de vaste kopbyte van élk M1.1-telegram.
+> De bijstook-beslissing zit niet in dit veld maar in T1.1 zelf (drempel op Anna's
+> Control Setpoint, ±20 °C) — zie §3b.
 
 **Timing:** antwoord ±200 ms na een ontvangen frame; **maximaal 4,2 s** tussen
 zendbeurten (keepalive — anders beschouwt IC1 de link als dood → storing).
 Ruim onkritisch vergeleken met de pomp-link (99 ms).
 
-**Hybride logica in jgc.ino** (TemperatureCategory):
+**Hybride logica.** Uit de binary: T1.1 beslist zélf over de ketel (OpenTherm-master):
+onder een drempel op Anna's Control Setpoint (~20 °C) krijgt de ketel een pro-forma
+setpoint van 10 °C ("blijf uit"), erboven een echte. M1.1 had bovendien een **harde
+5 °C-lockout** op de buitentemperatuur (health-teller → vraagrelais uit) — het
+fabrieks-bivalentiepunt. Onze firmware heeft die lockout bewust niet; ketel-bijstook
+kan in fase 3 via de buitentemperatuur in byte 9 beïnvloed worden (jgc stuurde daar 4
+om CV-start te blokkeren) — exact gedrag te verifiëren in fase 2.
 
-| Situatie | Actie richting IC1 |
-|---|---|
-| Buiten < −15 °C | byte 0 = `0xF0` → gasketel neemt over |
-| Buiten < 4 °C, WP draait | setpoint-echo + byte 9 = 4 → CV-start geblokkeerd |
-| WP uit / normaal | setpoint-echo + echte temperaturen |
+> **Let op (correctie op eerdere thread-info):** de ketel wordt volgens de binary
+> **niet** via een relais maar via OpenTherm aangestuurd. "Pin 16 = ketelrelais" uit
+> de Tweakers-thread is dus twijfelachtig (pin 16 = PB2, volgt modusingang PC2);
+> eerst doormeten voordat we er iets mee doen.
 
 ## 3. Wat levert het op
 
