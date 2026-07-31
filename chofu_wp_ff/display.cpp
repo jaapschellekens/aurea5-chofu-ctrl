@@ -141,7 +141,7 @@ void update_matrix() {
   if(nu - vorige_matrix_ms < 2000) return;
   vorige_matrix_ms = nu;
 
-  // Pagina 0 — stand bar: elke kolom = één stand (0–12)
+  // Pagina 0 — stand bar: elke kolom = één stand (0–10, matrix is 12 breed)
   // Pagina 1 — status icoon: vlam / sneeuwvlok / druppel (defrost) / cirkel (uit)
   static const uint8_t ICON_FLAME[8][12] = {
     {0,0,0,0,0,1,0,0,0,0,0,0},
@@ -240,7 +240,7 @@ void update_matrix() {
   memset(frame, 0, sizeof(frame));
 
   if(matrix_pagina == 0) {
-    int leds = min((int)ctrl.stand, 12);
+    int leds = min((int)ctrl.stand, 10);
     if(leds == 0) {
       // WP uit: één pixel in het midden als standby-indicator
       frame[3][5] = 1; frame[3][6] = 1;

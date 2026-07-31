@@ -147,6 +147,8 @@ const float AUTO_AANVOER_DEADBAND =  0.5f;    // °C aanvoerfout: geen standwijz
 // FF_AUTO start-beperking — als globals zodat ze via MQTT instelbaar zijn voor HIL-testen
 // Zie globals.h/cpp voor FF_MIN_OFF_MS, FF_RESTART_COAST, AUTO_HYST_DOWN_MS
 
-// Vermogen per stand 0–12 (W)
-const int VERMOGEN[] = {0, 240, 420, 640, 850, 1050, 1250, 1450, 1550, 1650, 1700, 1750, 1800};
+// Vermogen per stand 0–10 (W). Atlantic moduleert fabrieksmatig t/m stand 10
+// (chip-dump data/atlantic); de vroegere standen 11/12 waren extrapolaties en
+// zijn geschrapt.
+const int VERMOGEN[] = {0, 240, 420, 640, 850, 1050, 1250, 1450, 1550, 1650, 1700};
 #endif // CHOFU_TYPES_H

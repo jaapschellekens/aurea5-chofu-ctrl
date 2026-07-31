@@ -125,7 +125,7 @@ static void verwerk_bericht(const String& topic, const String& payload){
   }
   else if(topic == MQTT_PREFIX "/cmd/stand"){
     int val = payload.toInt();
-    if(val >= 0 && val <= 12){ modus = Modus::HANDMATIG; handmatig_stand = val;
+    if(val >= 0 && val <= 10){ modus = Modus::HANDMATIG; handmatig_stand = val;
       mqtt_log("Handmatig stand: " + String(val), "INFO"); }
   }
   else if(topic == MQTT_PREFIX "/cmd/stooklijn_basis"){
@@ -513,7 +513,7 @@ void discovery_fase3(){
   disco_pub("homeassistant/sensor/" HA_NODE "/pomp/config", pl);
   pl = "{\"name\":\"Chofu Stand Echo\",\"uniq_id\":\"" HA_NODE "_stand_echo\",\"stat_t\":\"" MQTT_PREFIX "/stand_echo\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/sensor/" HA_NODE "/stand_echo/config", pl);
-  pl = "{\"name\":\"Chofu Stand\",\"uniq_id\":\"" HA_NODE "_stand_cmd\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/stand\",\"stat_t\":\"" MQTT_PREFIX "/stand\",\"min\":0,\"max\":12,\"step\":1," + avty + "," + dev + "}";
+  pl = "{\"name\":\"Chofu Stand\",\"uniq_id\":\"" HA_NODE "_stand_cmd\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/stand\",\"stat_t\":\"" MQTT_PREFIX "/stand\",\"min\":0,\"max\":10,\"step\":1," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/" HA_NODE "/stand_cmd/config", pl);
   pl = "{\"name\":\"Chofu Koeling\",\"uniq_id\":\"" HA_NODE "_koeling\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/koeling\",\"stat_t\":\"" MQTT_PREFIX "/koeling\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/switch/" HA_NODE "/koeling/config", pl);

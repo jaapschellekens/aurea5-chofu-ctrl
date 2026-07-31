@@ -18,7 +18,7 @@ Dit is een versie gebaseerd op de geforkte code, aaangevuld met een andere versi
 
 Hoewel ik uiteindelijk veel handmatig heb gedaan is dit voor een groot deel met behulp van claude code en copilot gemaakt. 
 
-De controller spreekt het Chofu 0x19/0x91 serieel protocol op **666 baud** (JGC multi-frame formaat, CRC-CCITT — zie [Protocol](#protocol)), regelt het compressorvermogen in standen 0–8 (handmatig tot 12), en integreert volledig met Home Assistant via MQTT auto-discovery.
+De controller spreekt het Chofu 0x19/0x91 serieel protocol op **666 baud** (JGC multi-frame formaat, CRC-CCITT — zie [Protocol](#protocol)), regelt het compressorvermogen in standen 0–8 (handmatig tot 10), en integreert volledig met Home Assistant via MQTT auto-discovery.
 
 - Dit is geen simpele oplossing, het is beperkt getest en kan de boel kapot maken
 - Door de chip eruit te halen gaan de controlbox in storing (rode licht op de knop brand). Het gevolg is dat als je anna warmtevraag geeft de controlbox de gasketel aanzet. Mijn oplossing is de ketel in te stellen op tapwater alleen. Je kan de ketel ook op een aparte thermosthaat aansluiten
@@ -117,7 +117,8 @@ Selecteer: `chofu/cmd/modus = "ff_water"`
 
 ### Handmatige modus
 
-Vaste compressorstand 0–12 via MQTT. PID/FF niet actief.
+Vaste compressorstand 0–10 via MQTT. PID/FF niet actief.
+(Fabrieksbereik — de originele Atlantic-firmware moduleert t/m stand 10, zie chip-dump `data/atlantic`; de vroegere standen 11/12 waren extrapolaties en zijn geschrapt.)
 
 ```
 Stand 0  =    0 W  (uit)
@@ -132,8 +133,6 @@ Stand 8  = 1550 W  ← maximum in auto/water modus
 ─────────────────── alleen handmatig ───────────
 Stand 9  = 1650 W
 Stand 10 = 1700 W
-Stand 11 = 1750 W
-Stand 12 = 1800 W
 ```
 
 ---
@@ -270,7 +269,7 @@ Zie [docs/INSTALLATION.md](docs/INSTALLATION.md) voor uitgebreide stap-voor-stap
 | `chofu/outside` | Buitentemperatuur | °C |
 | `chofu/kamer` | Kamertemperatuur (Anna) | °C |
 | `chofu/kamer_gewenst` | Gewenste kamertemperatuur | °C |
-| `chofu/stand` | Compressorstand (0–12) | — |
+| `chofu/stand` | Compressorstand (0–10) | — |
 | `chofu/vermogen` | Gemeten compressorvermogen | W |
 | `chofu/stand_echo` | Door pomp bevestigde stand | 0–12 |
 | `chofu/delta_t` | Aanvoer − retour | °C |
@@ -294,7 +293,7 @@ Zie [docs/INSTALLATION.md](docs/INSTALLATION.md) voor uitgebreide stap-voor-stap
 | Topic | Omschrijving | Waarden |
 |-------|-------------|---------|
 | `chofu/cmd/modus` | Selecteer modus | `auto` / `ff_auto` / `water` / `ff_water` / `handmatig` |
-| `chofu/cmd/stand` | Vaste stand (→ handmatig) | 0–12 |
+| `chofu/cmd/stand` | Vaste stand (→ handmatig) | 0–10 |
 | `chofu/cmd/water_setpoint` | Aanvoer setpoint water modus (koeling: ~16–20) | 16–55°C |
 | `chofu/cmd/stooklijn_basis` | Aanvoer setpoint auto stooklijn | 20–45°C |
 | `chofu/cmd/koeling` | Koelmodus aan/uit | 0/1 |

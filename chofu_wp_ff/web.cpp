@@ -170,7 +170,7 @@ void handle_web_client(){
     // Handmatige stand — apart formulier (zet modus automatisch op handmatig).
     client.println("<div class='card'><h2>Handmatige stand</h2><form action='/'><input type='hidden' name='tab' value='bediening'>");
     client.print("<div>Stand: <input type='number' name='stand' value='"); client.print(handmatig_stand);
-    client.print("' step='1' min='0' max='12'><small class='hint'>Vaste compressorstand 0–12: hoger = meer vermogen/warmte. Zet de modus automatisch op handmatig.</small></div>");
+    client.print("' step='1' min='0' max='10'><small class='hint'>Vaste compressorstand 0–10 (fabrieksbereik; hoger = meer vermogen/warmte). Zet de modus automatisch op handmatig.</small></div>");
     client.println("<button type='submit'>Zet stand</button></form></div>");
     // losse actie
     client.println("<div class='card'><form action='/'><input type='hidden' name='tab' value='bediening'>");

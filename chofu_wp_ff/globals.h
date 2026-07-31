@@ -33,7 +33,7 @@ extern WiFiServer webServer;
 // ═══════════════════════════════════════════════════════════════
 
 extern float   t_supply, t_return, t_outside;
-extern uint8_t wp_stand_echo;        // frame 91-3 byte 9: echo van de gestuurde stand (0-12)
+extern uint8_t wp_stand_echo;        // frame 91-3 byte 9: echo van de gestuurde stand (0-10)
 extern uint8_t wp_vermogen_raw;      // frame 91-3 byte 10: compressorvermogen / 25.6
 extern bool    defrost;
 extern float   werkelijk_vermogen_w;

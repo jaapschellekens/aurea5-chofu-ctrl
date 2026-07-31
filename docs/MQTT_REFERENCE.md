@@ -60,7 +60,7 @@ Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt a
 
 | Topic | Type | Values | Beschrijving |
 |-------|------|--------|--------------|
-| `chofu/stand` | int | 0–12 | Huidige compressor stand |
+| `chofu/stand` | int | 0–10 | Huidige compressor stand |
 | `chofu/vermogen` | int | W | Compressorvermogen (gemeten: frame 91-3 byte 10 × 25.6; terugval: standtabel) |
 | `chofu/aan` | string | 0/1 | Warmtepomp aan/uit |
 | `chofu/modus` | string | auto/ff_auto/water/ff_water/handmatig | Regelingsmodus |
@@ -126,10 +126,11 @@ Payload: "1" → AAN (schakelt naar handmatig stand 1)
 
 ```
 Topic:   chofu/cmd/stand
-Payload: "0" – "12"  (integer)
+Payload: "0" – "10"  (integer)
 
 Schakelt automatisch naar handmatige modus.
-Stands 9–12 zijn alleen beschikbaar in handmatige modus.
+Stands 9–10 zijn alleen beschikbaar in handmatige modus.
+(Fabrieksbereik t/m 10 — bevestigd door de chip-dump; standen 11/12 geschrapt.)
 
 Stand mapping:
   0  = UIT           (   0 W)
@@ -142,9 +143,7 @@ Stand mapping:
   7  = Hoog+         (1450 W)
   8  = Max auto      (1550 W)  ← max in auto/water modus
   9  = Uitgebreid-   (1650 W)  ← alleen handmatig
- 10  = Uitgebreid    (1700 W)  ← alleen handmatig
- 11  = Uitgebreid+   (1750 W)  ← alleen handmatig
- 12  = Maximum       (1800 W)  ← alleen handmatig
+ 10  = Maximum       (1700 W)  ← alleen handmatig
 ```
 
 ### Water Modus

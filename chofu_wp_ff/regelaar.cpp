@@ -24,7 +24,7 @@ static float ff_cop_koel(float T_aanvoer, float T_buiten){
 
 // Laagste stand waarvan VERMOGEN[s] >= P_elec (W)
 static uint8_t ff_stand_voor_vermogen(float P_elec){
-  for(uint8_t s = 0; s < 13; s++){
+  for(uint8_t s = 0; s < 11; s++){   // VERMOGEN heeft 11 entries (stand 0-10)
     if(VERMOGEN[s] >= P_elec) return min(s, (uint8_t)8);
   }
   return 8;

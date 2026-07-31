@@ -8,7 +8,7 @@
 
 static void pas_stand_aan(int delta){
   modus = Modus::HANDMATIG;
-  int nieuw = constrain((int)handmatig_stand + delta, 0, 12);
+  int nieuw = constrain((int)handmatig_stand + delta, 0, 10);
   handmatig_stand = (uint8_t)nieuw;
   data_sturen_gevraagd = true;
   vorige_lcd_ms = 0;    // LCD direct verversen zodat nieuwe stand zichtbaar is
