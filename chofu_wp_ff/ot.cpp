@@ -43,6 +43,11 @@ void ot_config(uint8_t rx_pin, uint8_t tx_pin){
   ot_serial = &ot_serial_hw;
   ot_serial->begin(9600, SERIAL_8N1, rx_pin, tx_pin);
 #endif
+  // Interne pull-up: een niet-aangesloten RX-pin zweeft anders en vangt ruis
+  // op (spook-bytes, onnodige timer/DMA-activiteit). Met de pull-up is de lijn
+  // stil tot er echt iets aangesloten wordt; via de 10k serieweerstand blijft
+  // een laag-gedreven signaal ruim onder de logische drempel.
+  pinMode(rx_pin, INPUT_PULLUP);
   cfg_ok = true;
 }
 
