@@ -209,7 +209,7 @@ void pas_ff_aan(){
 
   // ── Regelafwijking ─────────────────────────────────────────────
   float regel_fout = is_water ? (wsp - t_supply) : (t_kamer_gewenst - t_kamer);
-  float afschakeldrempel = is_water ? -1.5f : FF_AFSCHAKEL_AUTO;
+  float afschakeldrempel = is_water ? -FF_WATER_DEADBAND : FF_AFSCHAKEL_AUTO;
 
   // ── Predictieve terugschakeling (alleen ff_auto) ───────────────
   // Bereken afgeleide van kamertemp over een sliding window van 20 min
@@ -320,6 +320,14 @@ void pas_ff_aan(){
   // Voorkomt trage 0→1→2→... opbouw als kamer al op setpoint staat.
   if(ctrl.stand > 0)
     nieuwe_stand_i = constrain(nieuwe_stand_i, max(0, (int)ctrl.stand - max_stap), min(8, (int)ctrl.stand + max_stap));
+  // ff_water deadband: binnen ±FF_WATER_DEADBAND de huidige stand vasthouden
+  // (ook stand 0: pas herstarten als aanvoer > deadband onder setpoint zakt).
+  // Te koud (boven de band) → niet terugschakelen; te warm loopt via de afschakeltak.
+  if(is_water){
+    if(fabsf(regel_fout) <= FF_WATER_DEADBAND) nieuwe_stand_i = ctrl.stand;
+    else if(regel_fout > 0)                     nieuwe_stand_i = max(nieuwe_stand_i, (int)ctrl.stand);
+    if(t_outside < T_VORST) nieuwe_stand_i = max(1, nieuwe_stand_i);
+  }
   uint8_t nieuwe_stand = (uint8_t)nieuwe_stand_i;
 
   // ── Online leren ───────────────────────────────────────────────

@@ -143,6 +143,7 @@ const float FF_COAST_WATER = 2.5f;     // anticipatiezone water [°C] — verlaa
 const float AUTO_AAN_DREMPEL      =  0.4f;    // kamer °C onder setpoint → WP aan
 const float AUTO_UIT_DREMPEL      = -0.4f;    // kamer °C boven setpoint → WP afbouwen
 const float AUTO_AANVOER_DEADBAND =  0.5f;    // °C aanvoerfout: geen standwijziging binnen deadband
+const float FF_WATER_DEADBAND     =  2.0f;    // °C aanvoerfout ff_water: stand vasthouden binnen ±deadband (rustiger draaien)
 
 // FF_AUTO start-beperking — als globals zodat ze via MQTT instelbaar zijn voor HIL-testen
 // Zie globals.h/cpp voor FF_MIN_OFF_MS, FF_RESTART_COAST, AUTO_HYST_DOWN_MS

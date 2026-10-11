@@ -128,6 +128,9 @@ Integraalcorrectie:    ±0–2 standen (trager, bij kleine fout)
 | `FF_COAST_WATER` | 2.5°C | *(code)* | — | FF_WATER |
 | `FF_KI_AUTO` | 0.026 | *(code)* | — | FF_AUTO |
 | `FF_KI_WATER` | 0.017 | *(code)* | — | FF_WATER |
+| `FF_WATER_DEADBAND` | 2.0°C | *(code)* | — | FF_WATER |
+
+> **FF_WATER deadband:** zolang de aanvoer binnen ±`FF_WATER_DEADBAND` van het water-setpoint ligt, blijft de stand staan (ook stand 0: herstart pas als de aanvoer meer dan de deadband onder het setpoint zakt). Bij te koud wordt niet teruggeschakeld; bij te warm (> deadband boven setpoint) schakelt de afschakeltak 1 stand per `HYST_DOWN_MS` terug. Doel: rustiger draaien, minder standwisselingen.
 
 > `FF_COAST_*` en `FF_KI_*` staan in `types.h` en zijn niet via MQTT instelbaar. Bij aanpassing: firmware opnieuw uploaden én `EEPROM_MAGIC` verhogen.
 
