@@ -419,6 +419,7 @@ De map `python/` bevat tools voor het optimaliseren en valideren van regelparame
 - [docs/STOOKLIJN.md](docs/STOOKLIJN.md) — Stooklijn werking en instelling
 - [docs/LCD.md](docs/LCD.md) — LCD scherm-indeling per modus
 - [docs/ervaringen.md](docs/ervaringen.md) — Valkuilen en bevindingen uit de ontwikkeling
+- [docs/ESPHOME_AVR_BRUG_PLAN.md](docs/ESPHOME_AVR_BRUG_PLAN.md) — Plan: ATmega328P-brug in IC2 en eventuele overstap naar ESPHome
 
 ---
 
