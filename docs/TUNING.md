@@ -130,7 +130,9 @@ Integraalcorrectie:    ±0–2 standen (trager, bij kleine fout)
 | `FF_KI_WATER` | 0.017 | *(code)* | — | FF_WATER |
 | `FF_WATER_DEADBAND` | 2.0°C | *(code)* | — | FF_WATER |
 
-> **FF_WATER deadband:** zolang de aanvoer binnen ±`FF_WATER_DEADBAND` van het water-setpoint ligt, blijft de stand staan (ook stand 0: herstart pas als de aanvoer meer dan de deadband onder het setpoint zakt). Bij te koud wordt niet teruggeschakeld; bij te warm (> deadband boven setpoint) schakelt de afschakeltak 1 stand per `HYST_DOWN_MS` terug. Doel: rustiger draaien, minder standwisselingen.
+> **FF_WATER deadband:** zolang de aanvoer binnen ±`FF_WATER_DEADBAND` van het water-setpoint ligt, blijft de stand staan. Bij te koud wordt niet teruggeschakeld; bij te warm (> deadband boven setpoint) schakelt de afschakeltak 1 stand per `HYST_DOWN_MS` terug, maar niet onder stand 1 (zie minimumstand). Bij nieuwe warmtevraag (SP van 0 naar > 0) start de WP direct op stand 1, zonder `HYST_SLOW`-wachttijd. Doel: rustiger draaien, minder standwisselingen.
+>
+> **FF_WATER minimumstand:** bij verwarmen draait de WP minimaal op stand 1 zolang Adam warmtevraag geeft (water-SP > 0), ook als de aanvoer boven het setpoint uitkomt. Zo pendelt de WP bij zacht weer niet aan/uit, warmt de kamer door en beëindigt Adam zelf de warmtevraag (SP = 0 → WP uit).
 
 > `FF_COAST_*` en `FF_KI_*` staan in `types.h` en zijn niet via MQTT instelbaar. Bij aanpassing: firmware opnieuw uploaden én `EEPROM_MAGIC` verhogen.
 

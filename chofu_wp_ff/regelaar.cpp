@@ -247,9 +247,12 @@ void pas_ff_aan(){
     if(!min_off_ok || !fout_ok) return;
   }
 
-  // ── Te warm: uitschakelen (of minimum bij vorst) ──────────────
+  // ── Te warm: uitschakelen (of minimum bij vorst / ff_water) ───
+  // ff_water: zolang Adam warmtevraag geeft (SP > 0) nooit onder stand 1.
+  // Anders pendelt de WP bij zacht weer aan/uit en wordt de kamer nooit warm
+  // genoeg om Adam de warmtevraag te laten beëindigen.
   if(regel_fout_eff < afschakeldrempel){
-    if(t_outside < T_VORST){
+    if(t_outside < T_VORST || (is_water && ctrl.stand <= 1)){
       // Vorstbeveiliging geldt voor alle FF-modi: nooit onder stand 1
       if(ctrl.stand != 1 || !ctrl.wp_aan){
         ctrl.stand = 1; ctrl.wp_aan = true; ctrl.vorige_stand_wijz_ms = nu;
@@ -258,7 +261,8 @@ void pas_ff_aan(){
       // Bij grote overshoot meer stappen tegelijk: COP is dan hoog en elke
       // stand levert nog netto warmte, dus 1 stap/min is niet snel genoeg.
       int stap = (-regel_fout > 4.0f) ? 2 : 1;
-      ctrl.stand = (uint8_t)max(0, (int)ctrl.stand - stap);
+      int min_stand = is_water ? 1 : 0;
+      ctrl.stand = (uint8_t)max(min_stand, (int)ctrl.stand - stap);
       ctrl.vorige_stand_wijz_ms = nu;
       ctrl.wp_aan = (ctrl.stand > 0);
       if(ctrl.stand == 0){ ctrl.wp_uit_ms = nu; ctrl.wp_thermal_stop = true; ctrl.reset_ff(); }
@@ -321,12 +325,15 @@ void pas_ff_aan(){
   if(ctrl.stand > 0)
     nieuwe_stand_i = constrain(nieuwe_stand_i, max(0, (int)ctrl.stand - max_stap), min(8, (int)ctrl.stand + max_stap));
   // ff_water deadband: binnen ±FF_WATER_DEADBAND de huidige stand vasthouden
-  // (ook stand 0: pas herstarten als aanvoer > deadband onder setpoint zakt).
   // Te koud (boven de band) → niet terugschakelen; te warm loopt via de afschakeltak.
+  // Minimaal stand 1 zolang er warmtevraag is (SP > 0 is hier al gegarandeerd).
   if(is_water){
     if(fabsf(regel_fout) <= FF_WATER_DEADBAND) nieuwe_stand_i = ctrl.stand;
     else if(regel_fout > 0)                     nieuwe_stand_i = max(nieuwe_stand_i, (int)ctrl.stand);
-    if(t_outside < T_VORST) nieuwe_stand_i = max(1, nieuwe_stand_i);
+    nieuwe_stand_i = max(1, nieuwe_stand_i);
+    // Zachte start: vanuit 0 altijd op stand 1 beginnen (FF-schatting + coast
+    // gaf bij zacht weer direct stand 3). Daarna regelt de FF normaal op.
+    if(ctrl.stand == 0) nieuwe_stand_i = 1;
   }
   uint8_t nieuwe_stand = (uint8_t)nieuwe_stand_i;
 
@@ -366,6 +373,9 @@ void pas_ff_aan(){
   if(nieuwe_stand < ctrl.stand)  hyst = HYST_DOWN_MS;
   else if(regel_fout > coast_k)  hyst = HYST_FAST_MS;
   else                           hyst = HYST_SLOW_MS;
+  // ff_water: stand 0 komt alleen nog voor bij SP=0 (Adam beslist over aan/uit).
+  // Bij nieuwe warmtevraag direct starten, niet HYST_SLOW (10 min) wachten.
+  if(is_water && ctrl.stand == 0) hyst = 0;
 
   Serial.print("FF dbg: kgew="); Serial.print(t_kamer_gewenst,1);
   Serial.print(" kamer="); Serial.print(t_kamer,1);
