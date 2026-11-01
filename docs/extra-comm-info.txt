@@ -1,0 +1,34 @@
+Direction   Frame   Byte(s) Content Encoding / values   d-param Status  Notes
+Box → HP    19-0    0–7 Whole telegram  19 00 08 00 00 00 D9 B5     Constant
+Box → HP    19-1    3–9 7 zero bytes    19 01 0C 00 00 00 00 00 00 00 AA 35     Constant    Possibly reserved or request fields; constant in both logs
+Box → HP    19-2    3   Mode    00 off, 01 heating, 02 cooling      Confirmed   Cooling proven 5 Apr 2025
+Box → HP    19-2    4   Compressor level    0–10        Confirmed
+Box → HP    19-2    5   –   00      Unknown
+Box → HP    19-3    3–5 Constant B2 02 00   19 03 08 B2 02 00 C1 9A     Unknown 0x02B2 = 690 (little-endian); possibly configuration, e.g. unit type or a limit
+HP → Box    91-0    3–9 Constant 0D 07 04 2F 5A CE E1   Never changes       Speculative Possibly identification/firmware; 0D 07 04 reads as 2013-07-04
+HP → Box    91-1    3   Operating status bitfield   0x50 heating; 0x40 stopped for/during defrost; 0x00 off. Bit 0x10 = heating active      High
+HP → Box    91-1    4   Defrost active  0 / 1       High
+HP → Box    91-1    5–8 Always 0 in both logs           Hypothesis  Likely error/alarm fields; check during a fault
+HP → Box    91-1    9   Compressor permit   0x8A permitted, 0x00 during stop before defrost and for ~3 min after a normal stop; probably a bitfield     Medium
+HP → Box    91-1    10  Fan speed setpoint  ×10 rpm: 82 = 820 rpm normal, 63 = 630 rpm after start, 0 = off     High    91-3 byte 4 follows it; no display counterpart
+HP → Box    91-2    3–4 Supply (flow) temperature   int16 little-endian, /10 °C d9  Confirmed
+HP → Box    91-2    5–6 Return temperature  int16 little-endian, /10 °C d0  Confirmed
+HP → Box    91-2    7–8 Outdoor air temperature int16 little-endian, /10 °C d6  Confirmed   Display rounds to 0.5 °C
+HP → Box    91-2    9   Page selector   00 = data page, 01 = constant page      Confirmed
+HP → Box    91-2    10 (page 0) Slow-moving value   8–21, nonzero when off; rises with load, decays slowly after stop       Low Possibly inverter heatsink temperature; no display counterpart
+HP → Box    91-2    11 (page 0) Defrost / coil temperature  T = raw/2 − c (c ≈ 41)  d5  High    Flat during defrost = coil held at 0 °C by melting ice; that plateau (81 or 82) pins c
+HP → Box    91-2    12 (page 0) Suction temperature T = raw/2 − c (c ≈ 41)  d8  High    Rises during defrost (77→123 = −2.5→20.5 °C)
+HP → Box    91-2    13 (page 0) Discharge temperature   °C direct   d2  Confirmed   46–50 running (Feb), 45–51 at 70 Hz (Oct)
+HP → Box    91-2    14 (page 0) Temperature tracking the water side T = raw/2 − c (c ≈ 41)  d4  High    Display list labels d4 as fan rotations, but the value is a temperature; plate HX or liquid line likely
+HP → Box    91-2    10–15 (page 1)  Constant 00 02 00 00 26 D8          Speculative Identification or configuration
+HP → Box    91-3    3   Compressor operating frequency  d1 = byte × 2/3 d1  Confirmed   Level 1→21 (14), 4→59 (39), 9→105 (70) in Oct log; Feb 4→74, defrost 135 (90). Value per level depends on conditions/ramping
+HP → Box    91-3    4   Actual fan speed    ×10 rpm; follows 91-1 byte 10, coasts down after stop       High    Only 0, 63, 82 seen
+HP → Box    91-3    5   Unknown 240 standby, 41 at start, 150→165 rising with level, 200 in defrost     Low Not the pump (pump byte is 91-3 byte 13)
+HP → Box    91-3    6   Electronic expansion valve opening  240 standby, 200 defrost, ~100–113 at start, 43–154 in control      Medium  ×2 gives 480 pulses fully open, a common EEV range
+HP → Box    91-3    7   Unknown 45 off / 21 running; switches with compressor, not with pump        Low
+HP → Box    91-3    8   Status bitfield Bit 0 = defrost; bit 6 (0x40) set exactly 60 min after first start; bit 1 unknown       Medium  Bit 6 possibly runtime or defrost-enable timer
+HP → Box    91-3    9   Current (input or compressor)   d3 = byte / 5   d3  High    Lags byte 3 (current follows frequency). If unit is 0.1 A, meter readings give PF 0.8–0.9; unit not proven
+HP → Box    91-3    10  Electrical power    × 25.6 W        Confirmed   Within ~2 % of Shelly PM (Feb); 4–10 % below user meter readings (Oct), possibly circulator/standby
+HP → Box    91-3    11–12   Constant 02 00          Speculative
+HP → Box    91-3    13  Water pump related  24 pump off, 152 (dithers 154) pump on  d7? Medium  On ~1¾ min before compressor, stays on after stop (overrun). Only byte to deviate during pump-setting change (156, 144). Probably PWM command; d7 (30/34/36/39) itself not found on bus
+HP → Box    91-3    14–17   Constant 00 00 00 00            Speculative

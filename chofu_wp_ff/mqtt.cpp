@@ -3,6 +3,7 @@
 #include "ot.h"
 #include "eeprom.h"   // voor eeprom_save()
 #include "regelaar.h" // voor ctrl.reset_pid() / reset_ff() / koude_start()
+#include "protocol.h" // voor wp_diag_json()
 
 // ═══════════════════════════════════════════════════════════════
 //  LOGGING
@@ -509,10 +510,21 @@ void discovery_fase3(){
   disco_pub("homeassistant/binary_sensor/" HA_NODE "/defrost/config", pl);
   pl = "{\"name\":\"Chofu PID\",\"uniq_id\":\"" HA_NODE "_pid\",\"stat_t\":\"" MQTT_PREFIX "/pid\",\"unit_of_meas\":\"%\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/sensor/" HA_NODE "/pid/config", pl);
-  pl = "{\"name\":\"Chofu Pomp\",\"uniq_id\":\"" HA_NODE "_pomp\",\"stat_t\":\"" MQTT_PREFIX "/pomp\"," + avty + "," + dev + "}";
+  // Oude, verkeerd gelabelde entiteiten (chofu/pomp, chofu/stand_echo) uit HA verwijderen:
+  // een lege retained config laat HA de entiteit opruimen.
+  pl = "";
   disco_pub("homeassistant/sensor/" HA_NODE "/pomp/config", pl);
-  pl = "{\"name\":\"Chofu Stand Echo\",\"uniq_id\":\"" HA_NODE "_stand_echo\",\"stat_t\":\"" MQTT_PREFIX "/stand_echo\"," + avty + "," + dev + "}";
   disco_pub("homeassistant/sensor/" HA_NODE "/stand_echo/config", pl);
+  pl = "{\"name\":\"Chofu Circulatiepomp\",\"uniq_id\":\"" HA_NODE "_circ_pomp\",\"stat_t\":\"" MQTT_PREFIX "/circ_pomp\",\"pl_on\":\"1\",\"pl_off\":\"0\",\"dev_cla\":\"running\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/binary_sensor/" HA_NODE "/circ_pomp/config", pl);
+  pl = "{\"name\":\"Chofu Compressor Vrijgave\",\"uniq_id\":\"" HA_NODE "_comp_vrijgave\",\"stat_t\":\"" MQTT_PREFIX "/comp_vrijgave\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/binary_sensor/" HA_NODE "/comp_vrijgave/config", pl);
+  pl = "{\"name\":\"Chofu Compressor Frequentie\",\"uniq_id\":\"" HA_NODE "_comp_hz\",\"stat_t\":\"" MQTT_PREFIX "/comp_hz\",\"unit_of_meas\":\"Hz\",\"dev_cla\":\"frequency\",\"stat_cla\":\"measurement\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/" HA_NODE "/comp_hz/config", pl);
+  pl = "{\"name\":\"Chofu Persgas\",\"uniq_id\":\"" HA_NODE "_t_persgas\",\"stat_t\":\"" MQTT_PREFIX "/t_persgas\",\"unit_of_meas\":\"°C\",\"dev_cla\":\"temperature\",\"stat_cla\":\"measurement\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/" HA_NODE "/t_persgas/config", pl);
+  pl = "{\"name\":\"Chofu Stroom\",\"uniq_id\":\"" HA_NODE "_stroom\",\"stat_t\":\"" MQTT_PREFIX "/stroom\",\"stat_cla\":\"measurement\"," + avty + "," + dev + "}";
+  disco_pub("homeassistant/sensor/" HA_NODE "/stroom/config", pl);
   pl = "{\"name\":\"Chofu Stand\",\"uniq_id\":\"" HA_NODE "_stand_cmd\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/stand\",\"stat_t\":\"" MQTT_PREFIX "/stand\",\"min\":0,\"max\":10,\"step\":1," + avty + "," + dev + "}";
   disco_pub("homeassistant/number/" HA_NODE "/stand_cmd/config", pl);
   pl = "{\"name\":\"Chofu Koeling\",\"uniq_id\":\"" HA_NODE "_koeling\",\"cmd_t\":\"" MQTT_PREFIX "/cmd/koeling\",\"stat_t\":\"" MQTT_PREFIX "/koeling\",\"pl_on\":\"1\",\"pl_off\":\"0\"," + avty + "," + dev + "}";
@@ -640,10 +652,14 @@ void stuur_data(){
   mqttClient.beginMessage(MQTT_PREFIX "/lcd");mqttClient.print(lcd_enabled?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/defrost");mqttClient.print(defrost?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/pid");mqttClient.print(ctrl.pid_output,1);mqttClient.endMessage();
-  // stand_echo = door de pomp bevestigde stand (frame 91-3 byte 9).
-  // Het oude chofu/pomp ("pompsnelheid") en chofu/comp_hz waren verkeerd
-  // gelabeld: byte 10 is compressorvermogen/25.6 en zit nu in chofu/vermogen.
-  mqttClient.beginMessage(MQTT_PREFIX "/stand_echo");mqttClient.print(wp_stand_echo);mqttClient.endMessage();
+  // Extra pompwaarden (docs/extra-comm-info.txt). stroom = display d3 = 91-3 byte 9 / 5
+  // (eerder als "stand_echo" gepubliceerd; eenheid nog niet bewezen).
+  mqttClient.beginMessage(MQTT_PREFIX "/stroom");mqttClient.print(wp_stroom_raw / 5.0f,1);mqttClient.endMessage();
+  if(!isnan(comp_hz)){ mqttClient.beginMessage(MQTT_PREFIX "/comp_hz");mqttClient.print(comp_hz,0);mqttClient.endMessage(); }
+  if(!isnan(t_persgas)){ mqttClient.beginMessage(MQTT_PREFIX "/t_persgas");mqttClient.print(t_persgas,0);mqttClient.endMessage(); }
+  mqttClient.beginMessage(MQTT_PREFIX "/comp_vrijgave");mqttClient.print(comp_vrijgave?"1":"0");mqttClient.endMessage();
+  mqttClient.beginMessage(MQTT_PREFIX "/circ_pomp");mqttClient.print(circ_pomp?"1":"0");mqttClient.endMessage();
+  { String d = wp_diag_json(); mqttClient.beginMessage(MQTT_PREFIX "/diag", (unsigned long)d.length()); mqttClient.print(d); mqttClient.endMessage(); }
   mqttClient.beginMessage(MQTT_PREFIX "/sim_actief");mqttClient.print(sim_actief()?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/proto_log", true);mqttClient.print(proto_logging?"1":"0");mqttClient.endMessage();
   mqttClient.beginMessage(MQTT_PREFIX "/seriallog_state", true);mqttClient.print(seriallog_enabled?"1":"0");mqttClient.endMessage();

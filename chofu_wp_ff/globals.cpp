@@ -18,10 +18,14 @@ WiFiServer webServer(80);
 // ═══════════════════════════════════════════════════════════════
 
 float   t_supply = 25.0, t_return = 20.0, t_outside = 5.0;
-uint8_t wp_stand_echo = 0;
+uint8_t wp_stroom_raw = 0;
 uint8_t wp_vermogen_raw = 0;
 bool    defrost = false;
 float   werkelijk_vermogen_w = 0;
+float   comp_hz = NAN, t_persgas = NAN, t_verdamper = NAN, t_zuiggas = NAN, t_d4 = NAN;
+bool    comp_vrijgave = false;
+bool    circ_pomp = false;
+uint8_t wp_alarm[4] = {0};
 
 // ═══════════════════════════════════════════════════════════════
 //  KAMER / WATER

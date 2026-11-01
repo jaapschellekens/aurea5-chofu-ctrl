@@ -37,6 +37,8 @@ static uint32_t jgc_laatste_byte_ms = 0;  // tijdstip laatste ontvangen byte
 static uint8_t jgc_tx_pending_buf[12];
 static uint8_t jgc_tx_pending_len = 0;   // 0 = niets pending
 static uint8_t jgc_tx_pending_nr  = 0;
+static uint8_t jgc_p0_b10 = 0;            // 91-2 b10 van pagina 0 (traag; mogelijk koellichaam)
+static bool    jgc_alarm_gewijzigd = false;  // alarmbytes 91-1 b5-8 veranderd → uitgestelde alert
 
 static void jgc_sla_frame_op(uint8_t id, uint8_t data_len, uint8_t *payload){
   // data_len = msg_len - 4 = werkelijke payloadbytes (incl. 2 CRC-bytes aan het eind).
@@ -94,10 +96,36 @@ static void jgc_verwerk_frames(){
     prev_t_outside = new_outside;
   }
 
-  // Frame 91-3 (per JGC-referentie): byte 9 = stand-echo, byte 10 = vermogen/25.6
-  wp_stand_echo   = jgc_frames[3][9];
-  wp_vermogen_raw = jgc_frames[3][10];
-  werkelijk_vermogen_w = 25.6f * wp_vermogen_raw;
+  // Frame 91-2 byte 9 = paginakiezer: alleen op pagina 0 staan in bytes 10-14
+  // meetwaarden (op pagina 1 constanten). Zie docs/extra-comm-info.txt.
+  if(jgc_frames[2][9] == 0){
+    auto koel_temp = [](uint8_t raw) -> float { return raw / 2.0f - 41.0f; };
+    t_verdamper = koel_temp(jgc_frames[2][11]);
+    t_zuiggas   = koel_temp(jgc_frames[2][12]);
+    t_persgas   = jgc_frames[2][13];
+    t_d4        = koel_temp(jgc_frames[2][14]);
+    jgc_p0_b10  = jgc_frames[2][10];
+  }
+
+  // Frame 91-3: byte 3 = compressorfrequentie (×2/3 Hz), byte 9 = stroom (d3 = /5;
+  // eerder ten onrechte als stand-echo gelezen), byte 10 = vermogen/25.6,
+  // byte 13 = circulatiepomp (24 uit, ~152 aan). Alleen als frame 3 al binnen is.
+  if(jgc_frames[3][0] == 0x91){
+    comp_hz         = jgc_frames[3][3] * 2.0f / 3.0f;
+    wp_stroom_raw   = jgc_frames[3][9];
+    wp_vermogen_raw = jgc_frames[3][10];
+    werkelijk_vermogen_w = 25.6f * wp_vermogen_raw;
+    circ_pomp       = jgc_frames[3][13] > 100;
+  }
+
+  // Frame 91-1: byte 9 = compressor-vrijgave (0 tijdens de ~3 min herstartblokkade),
+  // bytes 5-8 = vermoedelijk alarmvelden (altijd 0 in de bekende logs).
+  if(jgc_frames[1][0] == 0x91){
+    comp_vrijgave = jgc_frames[1][9] != 0;
+    for(uint8_t i = 0; i < 4; i++){
+      if(jgc_frames[1][5 + i] != wp_alarm[i]){ wp_alarm[i] = jgc_frames[1][5 + i]; jgc_alarm_gewijzigd = true; }
+    }
+  }
 
   // Defrost uit ID=1. Ontdooien bestaat alleen bij verwarmen; in koeling betekent
   // deze byte iets anders, dus negeren we hem dan (anders staat 'defrost' vals aan).
@@ -219,6 +247,15 @@ static void lees_warmtepomp_data_jgc(){
     }
   }
 
+  // Alarmbytes gewijzigd: alert buiten het RX-pad (blokkerende publish)
+  if(jgc_alarm_gewijzigd && !jgc_is_ontvangend){
+    jgc_alarm_gewijzigd = false;
+    char buf[48];
+    snprintf(buf, sizeof(buf), "WP alarmbytes 91-1 b5-8: %02X %02X %02X %02X",
+             wp_alarm[0], wp_alarm[1], wp_alarm[2], wp_alarm[3]);
+    stuur_alert(buf);
+  }
+
   // Fouten-samenvatting: elke 30s één regel (altijd met proto_log aan,
   // anders alleen bij nieuwe fouten)
   static uint32_t laatste_fout_pub_ms = 0;
@@ -297,6 +334,27 @@ void stuur_stand_telegram(){
 
 void lees_warmtepomp_data(){
   lees_warmtepomp_data_jgc();
+}
+
+// Diagnosewaarden zonder eigen topic, als JSON voor chofu/diag
+String wp_diag_json(){
+  auto tmp = [](float v) -> String { return isnan(v) ? String("null") : String(v, 1); };
+  char hex[8];
+  String j = "{\"t_verdamper\":" + tmp(t_verdamper) +
+             ",\"t_zuiggas\":"   + tmp(t_zuiggas) +
+             ",\"t_d4\":"        + tmp(t_d4) +
+             ",\"ventilator_rpm\":" + String(jgc_frames[3][4] * 10) +
+             ",\"ventilator_doel_rpm\":" + String(jgc_frames[1][10] * 10) +
+             ",\"eev\":"         + String(jgc_frames[3][6] * 2);
+  snprintf(hex, sizeof(hex), "%02X", jgc_frames[1][3]); j += ",\"status\":\"" + String(hex) + "\"";
+  snprintf(hex, sizeof(hex), "%02X", jgc_frames[3][8]); j += ",\"status2\":\"" + String(hex) + "\"";
+  snprintf(hex, sizeof(hex), "%02X", jgc_frames[1][9]); j += ",\"vrijgave\":\"" + String(hex) + "\"";
+  j += ",\"pomp_raw\":" + String(jgc_frames[3][13]);
+  j += ",\"onbekend_91_3_b5\":" + String(jgc_frames[3][5]);
+  j += ",\"onbekend_91_3_b7\":" + String(jgc_frames[3][7]);
+  j += ",\"onbekend_91_2_b10\":" + String(jgc_p0_b10);
+  j += "}";
+  return j;
 }
 
 void pas_sim_toe(){

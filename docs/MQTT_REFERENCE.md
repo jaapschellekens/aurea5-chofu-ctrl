@@ -70,7 +70,12 @@ Alle state topics worden elke **10 seconden** gepubliceerd. HA discovery zorgt a
 | `chofu/ff_ua_house` | float | W/K | Geleerde UA huis (FF auto) |
 | `chofu/ff_ua_emitter` | float | W/K | Geleerde UA emitter (FF water) |
 | `chofu/defrost` | string | 0/1 | Defrost actief |
-| `chofu/stand_echo` | int | 0–12 | Door de pomp bevestigde stand (frame 91-3 byte 9) |
+| `chofu/stroom` | float | — | Stroom zoals display d3 (frame 91-3 byte 9 / 5; eenheid niet bewezen). Vervangt het oude `chofu/stand_echo`, dat een verkeerde interpretatie was |
+| `chofu/comp_hz` | int | Hz | Compressorfrequentie (91-3 byte 3 × 2/3, display d1) |
+| `chofu/t_persgas` | int | °C | Persgastemperatuur (91-2 byte 13, display d2) |
+| `chofu/comp_vrijgave` | string | 0/1 | Pomp geeft compressor vrij (91-1 byte 9 ≠ 0); 0 tijdens de ~3 min herstartblokkade en vlak vóór defrost |
+| `chofu/circ_pomp` | string | 0/1 | Circulatiepomp draait (91-3 byte 13: 24 = uit, ~152 = aan); loopt ~1¾ min vóór de compressor aan en draait na |
+| `chofu/diag` | JSON | — | Diagnose: `t_verdamper`, `t_zuiggas`, `t_d4` (°C, raw/2 − 41), `ventilator_rpm`, `ventilator_doel_rpm`, `eev` (pulsen), statusbytes (hex) en onbekende bytes |
 | `chofu/lcd` | string | 0/1 | LCD backlight status |
 | `chofu/sim_actief` | string | 0/1 | Simulatiemodus actief |
 | `chofu/proto_log` | string | 0/1 | Protocol logging actief |

@@ -179,7 +179,8 @@ Belangrijke bevindingen (juni 2026, zie [docs/ervaringen.md](docs/ervaringen.md)
 
 - De lijn is **half-duplex met echo**: eigen TX-bytes komen terug op RX.
 - De "eindnul" uit de oorspronkelijke JGC-code is een **AVR-artefact** (break → 0x00); de Renesas-UART van de UNO R4 filtert die weg. Frames zijn exact `lenbyte` bytes.
-- ID=2 bevat de temperaturen (aanvoer/retour/buiten, little-endian ×0,1 °C); ID=3 byte 9 = stand-echo en byte 10 = compressorvermogen/25,6; ID=1 defrost.
+- ID=2 bevat de temperaturen (aanvoer/retour/buiten, little-endian ×0,1 °C) en op pagina 0 (byte 9 = 0) ook persgas, verdamper, zuiggas en d4; ID=3 byte 3 = compressorfrequentie (×2/3 Hz), byte 9 = stroom (d3 = /5), byte 10 = compressorvermogen/25,6, byte 13 = circulatiepomp; ID=1 byte 4 = defrost, byte 9 = compressor-vrijgave, bytes 5–8 = vermoedelijk alarmvelden (bij wijziging → `chofu/alert`).
+- Volledige byte-tabel met betrouwbaarheid per veld: [docs/extra-comm-info.txt](docs/extra-comm-info.txt).
 - De JGC-parser (CRC-CCITT) is de enige ondersteunde parser; de pomp antwoordt niet op het oudere 25-byte formaat.
 
 Voor busdiagnose zonder WiFi/MQTT: flash `sniffer/sniffer.ino` (pollt zelf en dumpt alle bytes als hex op USB-serial). Met `chofu/cmd/proto_log = 1` publiceert de firmware hex-frames op `chofu/proto/rx|tx` en elke 30 s een foutensamenvatting (`JGC (30s): CRC +x abort +y ok +z`).
@@ -277,7 +278,12 @@ Zie [docs/INSTALLATION.md](docs/INSTALLATION.md) voor uitgebreide stap-voor-stap
 | `chofu/kamer_gewenst` | Gewenste kamertemperatuur | °C |
 | `chofu/stand` | Compressorstand (0–10) | — |
 | `chofu/vermogen` | Gemeten compressorvermogen | W |
-| `chofu/stand_echo` | Door pomp bevestigde stand | 0–12 |
+| `chofu/stroom` | Stroom (display d3) | — |
+| `chofu/comp_hz` | Compressorfrequentie | Hz |
+| `chofu/t_persgas` | Persgastemperatuur | °C |
+| `chofu/comp_vrijgave` | Compressor vrijgegeven door pomp | 0/1 |
+| `chofu/circ_pomp` | Circulatiepomp draait | 0/1 |
+| `chofu/diag` | Diagnose-JSON (verdamper, zuiggas, ventilator, EEV, statusbytes) | JSON |
 | `chofu/delta_t` | Aanvoer − retour | °C |
 | `chofu/modus` | Huidige modus | auto/ff_auto/water/ff_water/handmatig |
 | `chofu/stooklijn_basis` | Actief aanvoer setpoint | °C |

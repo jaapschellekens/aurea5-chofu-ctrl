@@ -33,10 +33,19 @@ extern WiFiServer webServer;
 // ═══════════════════════════════════════════════════════════════
 
 extern float   t_supply, t_return, t_outside;
-extern uint8_t wp_stand_echo;        // frame 91-3 byte 9: echo van de gestuurde stand (0-10)
+extern uint8_t wp_stroom_raw;        // frame 91-3 byte 9: stroom (display d3 = raw/5; eenheid niet bewezen)
 extern uint8_t wp_vermogen_raw;      // frame 91-3 byte 10: compressorvermogen / 25.6
 extern bool    defrost;
 extern float   werkelijk_vermogen_w;
+// Extra pompwaarden (zie docs/extra-comm-info.txt). NAN = nog niet ontvangen.
+extern float   comp_hz;              // 91-3 b3 × 2/3 (display d1)
+extern float   t_persgas;            // 91-2 b13 pagina 0, °C direct (d2)
+extern float   t_verdamper;          // 91-2 b11 pagina 0, raw/2 − 41 (d5)
+extern float   t_zuiggas;            // 91-2 b12 pagina 0, raw/2 − 41 (d8)
+extern float   t_d4;                 // 91-2 b14 pagina 0, raw/2 − 41 (d4, waterzijde)
+extern bool    comp_vrijgave;        // 91-1 b9 != 0 (0x8A = compressor mag draaien)
+extern bool    circ_pomp;            // 91-3 b13 > 100 (24 = uit, ~152 = aan)
+extern uint8_t wp_alarm[4];          // 91-1 b5..8, normaal altijd 0
 
 // ═══════════════════════════════════════════════════════════════
 //  KAMER / WATER
