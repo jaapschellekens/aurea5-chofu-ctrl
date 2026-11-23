@@ -61,6 +61,10 @@ class ChofuWP : public PollingComponent, public uart::UARTDevice {
   float get_power() const { return wp_power_w_; }       // Vermogen (W), ID3 byte 10 x 25,6
   bool get_defrost() const { return defrost_; }
   bool get_running() const { return stand_ > 0; }
+  // Ontvangsttellers sinds de start (voor sensoren in HA).
+  int get_no_term(int id) const { return (id >= 0 && id < 4) ? no_term_[id] : -1; }
+  int get_crc_fail_total() const { return crc_fail_[0] + crc_fail_[1] + crc_fail_[2] + crc_fail_[3]; }
+  int get_aborts() const { return aborts_; }
   // Seconden sinds het laatste geldige ID2-frame (temperaturen); -1 = nog nooit.
   int get_id2_age_s() const { return last_id_ms_[2] == 0 ? -1 : (int) ((millis() - last_id_ms_[2]) / 1000); }
   bool get_comm_ok() const {

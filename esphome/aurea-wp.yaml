@@ -2062,6 +2062,44 @@ sensor:
       sorting_group_id: grp_diag
       sorting_weight: 4
 
+  # Eigen toevoeging: ontvangsttellers van de pomp-link sinds de laatste start.
+  # "ID2 zonder eindbyte" > 0 = een temperatuurframe dat vroeger verloren ging en nu gered is.
+  - platform: template
+    name: "ID2 zonder eindbyte"
+    lambda: 'return (float) id(wp)->get_no_term(2);'
+    update_interval: 30s
+    accuracy_decimals: 0
+    state_class: total_increasing
+    entity_category: diagnostic
+    icon: mdi:link-variant-off
+    web_server:
+      sorting_group_id: grp_diag
+      sorting_weight: 5
+
+  - platform: template
+    name: "Pomp CRC-fouten"
+    lambda: 'return (float) id(wp)->get_crc_fail_total();'
+    update_interval: 30s
+    accuracy_decimals: 0
+    state_class: total_increasing
+    entity_category: diagnostic
+    icon: mdi:alert-circle-outline
+    web_server:
+      sorting_group_id: grp_diag
+      sorting_weight: 6
+
+  - platform: template
+    name: "Pomp afgebroken frames"
+    lambda: 'return (float) id(wp)->get_aborts();'
+    update_interval: 30s
+    accuracy_decimals: 0
+    state_class: total_increasing
+    entity_category: diagnostic
+    icon: mdi:content-cut
+    web_server:
+      sorting_group_id: grp_diag
+      sorting_weight: 7
+
   - platform: template
     name: "Brug gemiste berichten"
     lambda: 'return id(otlink)->get_missed();'
