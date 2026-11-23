@@ -1,6 +1,7 @@
 # aurea-wp.yaml voor de ESPHome Device Builder (Home Assistant).
 # Basis: Aapjedotinfo/atlantic-aurea-esphome aurea-wp.yaml @ 651aae3 (2026-11-10).
 # Wijzigingen: avr_versie "1", componenten en AVR-pakket uit git, stooklijn volgt warmtevraag,
+# chofu_wp uit deze repo (vangnet bij uitblijvende ID2-frames, RX-diagnose, sensor "Temperatuurdata leeftijd"),
 # en haakjes rond ${thermo_ok}: bij v1 is dat `A || B`, dus `!${thermo_ok}` werd `!A || B` en gaf
 # "geen thermostaat" zodra de thermostaat Data-ID 0 stuurde (dus vrijwel altijd).
 # Secrets nodig: wifi_ssid, wifi_password, fallback_password, api_encryption.
@@ -66,7 +67,15 @@ external_components:
       type: git
       url: https://github.com/Aapjedotinfo/atlantic-aurea-esphome
       ref: main
-    components: [chofu_wp, aurea_link, aurea_link2, aurea_link_org]
+    components: [aurea_link, aurea_link2, aurea_link_org]
+  # chofu_wp uit deze repo (jaapschellekens/aurea5-chofu-ctrl, map esphome/components): kopie van
+  # die van Aapjedotinfo met vangnet bij uitblijvende ID2-frames en RX-diagnose.
+  - source:
+      type: git
+      url: https://github.com/jaapschellekens/aurea5-chofu-ctrl
+      ref: main
+      path: esphome/components
+    components: [chofu_wp]
 
 # Het stuk dat van de AVR-versie afhangt: de uart naar de AVR, het component
 # (aurea_link of aurea_link2), de buitentemperatuur naar de thermostaat en, bij
@@ -2036,6 +2045,22 @@ sensor:
     web_server:
       sorting_group_id: grp_diag
       sorting_weight: 2
+
+  # Eigen toevoeging: hoe oud de temperaturen van de warmtepomp zijn (ID2-frame).
+  # Normaal een paar seconden; boven 60 s gaat de unit uit (zie chofu_wp).
+  - platform: template
+    name: "Temperatuurdata leeftijd"
+    lambda: |-
+      const int a = id(wp)->get_id2_age_s();
+      return a < 0 ? NAN : (float) a;
+    update_interval: 10s
+    unit_of_measurement: "s"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: mdi:timer-alert-outline
+    web_server:
+      sorting_group_id: grp_diag
+      sorting_weight: 4
 
   - platform: template
     name: "Brug gemiste berichten"
