@@ -68,6 +68,8 @@ class ChofuWP : public PollingComponent, public uart::UARTDevice {
   int get_aborts() const { return aborts_; }
   // Frames met geldige CRC maar een ID/lengte die we niet kennen (bv. rond een defrost).
   int get_unknown() const { return unknown_; }
+  // Extra startbyte: "91 91 <ID> ...". Onschuldig, de tweede 0x91 is het echte begin.
+  int get_double_start() const { return double_start_; }
   // Laatste onbekende (geldige CRC) en laatst afgekeurde frame in hex, voor een
   // tekstsensor in HA. Leeg = nog niets gezien.
   std::string get_last_unknown() const { return std::string(last_unknown_); }
@@ -303,6 +305,7 @@ class ChofuWP : public PollingComponent, public uart::UARTDevice {
   bool id2_stale_{false};
   // Onbekende frames (geldige CRC, ID/lengte niet standaard): vastleggen, niet gebruiken.
   uint16_t unknown_{0}, diag_unknown_prev_{0};
+  uint32_t double_start_{0};
   char last_unknown_[40 * 3 + 1]{};
   uint16_t seen_combo_[16]{};      // (ID << 8 | lengte) al eens volledig gelogd
   uint8_t seen_n_{0};

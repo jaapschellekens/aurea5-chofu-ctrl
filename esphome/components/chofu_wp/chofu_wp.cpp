@@ -4,7 +4,8 @@
 //  - ID2-gat: >15 s stand vasthouden, >120 s temperaturen NaN, >15 min stand 0 (geen blinde regeling),
 //  - elke 30 s een RX-diagnose als er frames afgekeurd worden of ID2 uitblijft,
 //  - kop ruim (ID 0-15, lengte 6-40): frames met geldige CRC maar onbekend ID/lengte worden
-//    gelogd en geteld, niet gebruikt; na een vals begin worden de bytes opnieuw bekeken.
+//    gelogd en geteld, niet gebruikt; na een vals begin worden de bytes opnieuw bekeken,
+//  - "91 91" (extra startbyte na een defrost) is geen fout: alleen geteld, geen waarschuwing.
 #include "chofu_wp.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -110,6 +111,14 @@ void ChofuWP::handle_rx_() {
         if (frame_len_ < sizeof(frame_))
           frame_[frame_len_++] = b;
         if (rx_hdr_idx_ == 0) {
+          if (b == 0x91) {
+            // Extra startbyte (24-11-2026: ~10 min na elke defrost, ongeveer één
+            // per rondje). De tweede 0x91 is het echte begin; vroeger ging het
+            // hele frame erachter verloren. Geen fout, alleen tellen.
+            double_start_++;
+            frame_len_ = 1;  // frame_[0] is al 0x91; blijf in READ_HEADER
+            break;
+          }
           rx_id_ = b;
           // Ruim: ook ID's boven 3 doorlaten tot de CRC-controle. Rond een defrost
           // stuurt de unit frames die hier vroeger al bij de kop sneuvelden.
@@ -396,9 +405,9 @@ void ChofuWP::report_diag_(uint32_t now) {
     return;
   ESP_LOGW(TAG,
            "RX-diagnose: ID2 %d s geleden | CRC-fout per ID %u/%u/%u/%u | zonder eindbyte %u/%u/%u/%u | "
-           "afgebroken %u | onbekend %u | laatst afgekeurd: %s | laatst onbekend: %s",
+           "afgebroken %u | onbekend %u | dubbele start %u | laatst afgekeurd: %s | laatst onbekend: %s",
            id2, crc_fail_[0], crc_fail_[1], crc_fail_[2], crc_fail_[3], no_term_[0], no_term_[1], no_term_[2],
-           no_term_[3], aborts_, unknown_, last_bad_[0] ? last_bad_ : "-", last_unknown_[0] ? last_unknown_ : "-");
+           no_term_[3], aborts_, unknown_, (unsigned) double_start_, last_bad_[0] ? last_bad_ : "-", last_unknown_[0] ? last_unknown_ : "-");
   diag_crc_prev_ = crc;
   diag_noterm_prev_ = noterm;
   diag_abort_prev_ = aborts_;

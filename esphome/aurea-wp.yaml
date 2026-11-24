@@ -2213,6 +2213,18 @@ sensor:
       sorting_weight: 7
 
   - platform: template
+    name: "Pomp dubbele start"
+    lambda: 'return (float) id(wp)->get_double_start();'
+    update_interval: 30s
+    accuracy_decimals: 0
+    state_class: total_increasing
+    entity_category: diagnostic
+    icon: mdi:numeric-2-box-multiple-outline
+    web_server:
+      sorting_group_id: grp_diag
+      sorting_weight: 8
+
+  - platform: template
     name: "Pomp onbekende frames"
     lambda: 'return (float) id(wp)->get_unknown();'
     update_interval: 30s
