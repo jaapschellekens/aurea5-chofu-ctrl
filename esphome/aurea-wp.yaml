@@ -2476,6 +2476,26 @@ binary_sensor:
       sorting_weight: 5
 
 text_sensor:
+  # Eigen toevoeging: laatste onbekende pompframe (geldige CRC, ID/lengte niet standaard) en
+  # laatst afgekeurde frame, in hex. HA bewaart de geschiedenis, dus na een defrost terug te zien.
+  - platform: template
+    name: "Laatst onbekend pompframe"
+    lambda: 'return id(wp)->get_last_unknown();'
+    update_interval: 10s
+    entity_category: diagnostic
+    icon: mdi:help-circle-outline
+    web_server:
+      sorting_group_id: grp_diag
+      sorting_weight: 9
+  - platform: template
+    name: "Laatst afgekeurd pompframe"
+    lambda: 'return id(wp)->get_last_bad();'
+    update_interval: 10s
+    entity_category: diagnostic
+    icon: mdi:alert-outline
+    web_server:
+      sorting_group_id: grp_diag
+      sorting_weight: 10
   - platform: template
     name: "AVR-versie (verwacht)"
     lambda: 'return std::string("${avr_verwacht}");'

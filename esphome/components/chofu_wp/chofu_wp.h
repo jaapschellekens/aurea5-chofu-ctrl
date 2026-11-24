@@ -23,6 +23,7 @@
 #include "esphome/components/uart/uart.h"
 
 #include <cmath>
+#include <string>
 
 namespace esphome {
 namespace chofu_wp {
@@ -67,6 +68,10 @@ class ChofuWP : public PollingComponent, public uart::UARTDevice {
   int get_aborts() const { return aborts_; }
   // Frames met geldige CRC maar een ID/lengte die we niet kennen (bv. rond een defrost).
   int get_unknown() const { return unknown_; }
+  // Laatste onbekende (geldige CRC) en laatst afgekeurde frame in hex, voor een
+  // tekstsensor in HA. Leeg = nog niets gezien.
+  std::string get_last_unknown() const { return std::string(last_unknown_); }
+  std::string get_last_bad() const { return std::string(last_bad_); }
   // Seconden sinds het laatste geldige ID2-frame (temperaturen); -1 = nog nooit.
   int get_id2_age_s() const { return last_id_ms_[2] == 0 ? -1 : (int) ((millis() - last_id_ms_[2]) / 1000); }
   bool get_comm_ok() const {
