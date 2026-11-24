@@ -171,9 +171,15 @@ class ChofuWP : public PollingComponent, public uart::UARTDevice {
   static const uint32_t SEND_TIMEOUT_MS = 2000;       // Fallback als RX uitblijft
   static const uint32_t MIN_SEND_INTERVAL_MS = 300;   // Min. tijd tussen TX's
   static const uint32_t COMM_TIMEOUT_MS = 60000;      // Geen geldige RX -> fail-safe
-  // Geen geldig ID2-frame (aanvoer/retour/buiten) -> temperaturen onbekend en unit uit.
-  // Zonder dit regelt de unit blind door op de laatst bekende (bevroren) aanvoer.
-  static const uint32_t ID2_STALE_MS = 60000;
+  // Geen geldig ID2-frame (aanvoer/retour/buiten). Bij een defrost blijft ID2 vaak
+  // ~1 min weg (24-11-2026). Zonder vangnet regelde de unit blind door op de
+  // bevroren aanvoer (stand 8 bij "20 °C").
+  //   > ID2_HOLD_MS  : niet meer regelen, stand vasthouden (geen beslissing op oude data)
+  //   > ID2_STALE_MS : temperaturen onbekend (NaN) in HA en voor de thermostaat
+  //   > ID2_STOP_MS  : unit uit (stand 0)
+  static const uint32_t ID2_HOLD_MS = 15000;
+  static const uint32_t ID2_STALE_MS = 120000;
+  static const uint32_t ID2_STOP_MS = 15UL * 60000UL;
   static const uint32_t DIAG_EVERY_MS = 30000;        // Samenvatting afgekeurde frames
   // Harde botsingsbescherming: bij 666 baud duurt één byte ~15 ms, dus 40 ms
   // stilte op de lijn betekent gegarandeerd dat de WP klaar is met zenden.

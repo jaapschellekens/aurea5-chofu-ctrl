@@ -2,6 +2,7 @@
 # Basis: Aapjedotinfo/atlantic-aurea-esphome aurea-wp.yaml @ 651aae3 (2026-11-10).
 # Wijzigingen: avr_versie "1", componenten en AVR-pakket uit git, stooklijn volgt warmtevraag,
 # chofu_wp uit deze repo (vangnet bij uitblijvende ID2-frames, RX-diagnose, sensor "Temperatuurdata leeftijd"),
+# uitschakelen pas na 3 min aaneen geen warmtevraag,
 # en haakjes rond ${thermo_ok}: bij v1 is dat `A || B`, dus `!${thermo_ok}` werd `!A || B` en gaf
 # "geen thermostaat" zodra de thermostaat Data-ID 0 stuurde (dus vrijwel altijd).
 # Secrets nodig: wifi_ssid, wifi_password, fallback_password, api_encryption.
@@ -215,6 +216,13 @@ interval:
           }
 
           const float vraag  = id(otlink)->get_ot(1, ${ot_ns}::OT_FROM_STAT);
+
+          // EIGEN AANPASSING: een korte dip in de warmtevraag (de Adam zakte 's nachts
+          // een minuut onder 20 graden) zet een draaiende warmtepomp niet meteen uit.
+          // Pas na 3 minuten aaneen geen vraag. Staat hij al stil, dan direct uit.
+          const bool geen_vraag_nu = !std::isnan(vraag) && vraag < 20.0f;
+          if (geen_vraag_nu) id(g_geen_vraag_s) += 30; else id(g_geen_vraag_s) = 0;
+          const bool vraag_dip = geen_vraag_nu && id(wp)->get_running() && id(g_geen_vraag_s) < 180;
           const float buiten = id(wp)->get_outside();
           const float doel_max = id(n_wp_plafond)->state;
 
@@ -281,6 +289,10 @@ interval:
             }
 
             // ── Geen warmtevraag ──
+            if (vraag_dip) {
+              id(g_reden) = str_sprintf("warmtevraag even weg (%d s) - warmtepomp blijft aan", id(g_geen_vraag_s));
+              return;
+            }
             if (vraag < 20.0f) {
               id(wp)->set_system_on(false);
               id(otlink)->set_brake_setpoint(id(n_brake_setpoint)->state);
@@ -312,6 +324,10 @@ interval:
               if (!(${thermo_ok}) || std::isnan(vraag)) {
                 id(wp)->set_system_on(false);
                 vangnet("geen thermostaat");
+                return;
+              }
+              if (vraag_dip) {
+                id(g_reden) = str_sprintf("stooklijn: warmtevraag even weg (%d s) - warmtepomp blijft aan", id(g_geen_vraag_s));
                 return;
               }
               if (vraag < 20.0f) {
@@ -412,6 +428,12 @@ interval:
           id(otlink)->set_standalone_modulation(id(wp)->get_stand() * 10.0f);
 
 globals:
+  # Eigen toevoeging: hoe lang de thermostaat al aaneen geen warmtevraag geeft (s).
+  - id: g_geen_vraag_s
+    type: int
+    restore_value: false
+    initial_value: '0'
+
   # Laatst bekende buitentemperatuur van de warmtepomp, voor de ketelgrens als
   # de warmtepomp zelf weg is.
   - id: g_laatste_buiten
@@ -2047,7 +2069,8 @@ sensor:
       sorting_weight: 2
 
   # Eigen toevoeging: hoe oud de temperaturen van de warmtepomp zijn (ID2-frame).
-  # Normaal een paar seconden; boven 60 s gaat de unit uit (zie chofu_wp).
+  # Normaal een paar seconden. Bij een defrost ~1 min. Boven 15 s houdt chofu_wp de stand vast,
+  # boven 120 s worden de temperaturen onbekend, boven 15 min gaat de unit uit.
   - platform: template
     name: "Temperatuurdata leeftijd"
     lambda: |-

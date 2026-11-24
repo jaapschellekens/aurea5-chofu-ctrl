@@ -1,7 +1,7 @@
 // Kopie van components/chofu_wp uit Aapjedotinfo/atlantic-aurea-esphome @ 119e800,
 // met eigen toevoegingen (aurea5-chofu-ctrl, 2026-11-23):
 //  - frames zonder 00-eindbyte worden niet meer weggegooid (CRC zonder laatste byte),
-//  - >60 s geen geldig ID2 -> temperaturen NaN en stand 0 (geen blinde regeling),
+//  - ID2-gat: >15 s stand vasthouden, >120 s temperaturen NaN, >15 min stand 0 (geen blinde regeling),
 //  - elke 30 s een RX-diagnose als er frames afgekeurd worden of ID2 uitblijft.
 #include "chofu_wp.h"
 #include "esphome/core/helpers.h"
@@ -491,22 +491,24 @@ float ChofuWP::target_supply_(uint32_t now) {
 void ChofuWP::run_control_() {
   const uint32_t now = millis();
 
-  // Geen verse temperaturen: liever "onbekend" dan een bevroren waarde, zodat
-  // HA, de thermostaat-substitutie en de historie niet op oude data draaien.
-  const bool id2_stale = last_id_ms_[2] != 0 && (now - last_id_ms_[2]) > ID2_STALE_MS;
-  if (id2_stale) {
-    if (!id2_stale_)
-      ESP_LOGW(TAG, "Al %u s geen geldig ID2-frame - temperaturen onbekend, unit uit",
-               (unsigned) ((now - last_id_ms_[2]) / 1000));
+  // Geen verse temperaturen (zie ID2_*_MS in chofu_wp.h): eerst stand vasthouden,
+  // daarna "onbekend" in plaats van een bevroren waarde, en pas na lange tijd uit.
+  const uint32_t id2_age = last_id_ms_[2] == 0 ? 0 : now - last_id_ms_[2];
+  const bool id2_hold = last_id_ms_[2] != 0 && id2_age > ID2_HOLD_MS;
+  const bool id2_stop = id2_hold && id2_age > ID2_STOP_MS;
+  if (id2_hold && id2_age > ID2_STALE_MS) {
     t_supply_ = t_return_ = t_outside_ = NAN;
     t_defrost_ = t_suction_ = t_discharge_ = t_water_ = NAN;
-  } else if (id2_stale_) {
-    ESP_LOGI(TAG, "ID2-frames weer binnen - regeling hervat");
   }
-  id2_stale_ = id2_stale;
+  if (id2_hold && !id2_stale_)
+    ESP_LOGW(TAG, "Al %u s geen geldig ID2-frame - stand %u vastgehouden", (unsigned) (id2_age / 1000), stand_);
+  else if (!id2_hold && id2_stale_)
+    ESP_LOGI(TAG, "ID2-frames weer binnen - regeling hervat");
+  id2_stale_ = id2_hold;
 
-  // Historie van aanvoer en retour bijhouden, ook als hij stilstaat.
-  if (!std::isnan(t_supply_) && (hist_last_ms_ == 0 || now - hist_last_ms_ >= 10000)) {
+  // Historie van aanvoer en retour bijhouden, ook als hij stilstaat - maar niet
+  // met bevroren waarden tijdens een ID2-gat (dat vertekent stijging en middeling).
+  if (!id2_hold && !std::isnan(t_supply_) && (hist_last_ms_ == 0 || now - hist_last_ms_ >= 10000)) {
     sup_hist_[hist_idx_] = t_supply_;
     ret_hist_[hist_idx_] = t_return_;
     hist_idx_ = (uint8_t) ((hist_idx_ + 1) % HIST_N);
@@ -540,10 +542,16 @@ void ChofuWP::run_control_() {
     return;
   }
 
-  if (id2_stale) {
+  if (id2_stop) {
+    if (stand_ != 0)
+      ESP_LOGW(TAG, "Al %u min geen ID2-frame - unit uit", (unsigned) (id2_age / 60000));
     stand_ = 0;
     sp_eff_ = NAN;
     set_reason_("geen temperatuurdata van de warmtepomp (ID2) - unit uit");
+    return;
+  }
+  if (id2_hold) {
+    set_reason_("geen temperatuurdata van de warmtepomp (ID2) - stand vastgehouden");
     return;
   }
 
