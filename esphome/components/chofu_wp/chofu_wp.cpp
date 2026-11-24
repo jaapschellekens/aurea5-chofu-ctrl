@@ -2,7 +2,9 @@
 // met eigen toevoegingen (aurea5-chofu-ctrl, 2026-11-23):
 //  - frames zonder 00-eindbyte worden niet meer weggegooid (CRC zonder laatste byte),
 //  - ID2-gat: >15 s stand vasthouden, >120 s temperaturen NaN, >15 min stand 0 (geen blinde regeling),
-//  - elke 30 s een RX-diagnose als er frames afgekeurd worden of ID2 uitblijft.
+//  - elke 30 s een RX-diagnose als er frames afgekeurd worden of ID2 uitblijft,
+//  - kop ruim (ID 0-15, lengte 6-40): frames met geldige CRC maar onbekend ID/lengte worden
+//    gelogd en geteld, niet gebruikt; na een vals begin worden de bytes opnieuw bekeken.
 #include "chofu_wp.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -80,12 +82,19 @@ void ChofuWP::loop() {
 //  RX - 0x91 berichten van de warmtepomp, per ID (state machine uit de sketches van WackoH)
 // ═══════════════════════════════════════════════════════════════
 void ChofuWP::handle_rx_() {
-  while (this->available()) {
+  for (;;) {
     uint8_t b;
-    if (!this->read_byte(&b))
+    if (replay_pos_ < replay_len_) {
+      // Eerst bytes die na een vals begin opnieuw bekeken moeten worden
+      b = replay_[replay_pos_++];
+      if (replay_pos_ >= replay_len_)
+        replay_pos_ = replay_len_ = 0;
+    } else if (this->available() && this->read_byte(&b)) {
+      last_byte_ms_ = millis();  // Voor de lijn-stiltebewaking in maybe_send_()
+    } else {
       break;
+    }
     is_receiving_ = true;
-    last_byte_ms_ = millis();  // Voor de lijn-stiltebewaking in maybe_send_()
 
     switch (rx_state_) {
       case WAIT_START:
@@ -102,16 +111,20 @@ void ChofuWP::handle_rx_() {
           frame_[frame_len_++] = b;
         if (rx_hdr_idx_ == 0) {
           rx_id_ = b;
-          if (rx_id_ > 3) {  // ID moet 0-3 zijn
+          // Ruim: ook ID's boven 3 doorlaten tot de CRC-controle. Rond een defrost
+          // stuurt de unit frames die hier vroeger al bij de kop sneuvelden.
+          if (rx_id_ > 0x0F) {
             this->abort_frame_("ongeldig ID");
             break;
           }
         } else if (rx_hdr_idx_ == 1) {
           uint8_t msg_length = b + 1;
-          if (!valid_msg_length_(msg_length)) {
+          // Elke lengte die in de buffer past; de CRC beslist of het frame echt is.
+          if (msg_length < 6 || msg_length > sizeof(frame_)) {
             this->abort_frame_("ongeldige lengte");
             break;
           }
+          rx_msglen_ = msg_length;
           rx_datalen_ = msg_length - 3;
           rx_idx_ = 0;
           rx_state_ = READ_PAYLOAD;
@@ -150,6 +163,10 @@ void ChofuWP::finish_frame_() {
              crc == 0 ? "OK" : "FOUT");
   }
 
+  // Standaardframes: ID 0-3 met hun vaste lengte. Al het andere wordt alleen vastgelegd.
+  static const uint8_t EXPECTED_LEN[4] = {13, 14, 19, 21};
+  const bool standard = rx_id_ < 4 && rx_msglen_ == EXPECTED_LEN[rx_id_];
+
   bool borrowed_start = false;
   if (crc != 0) {
     // Ontbreekt de 00-eindbyte, dan heeft de parser de eerste byte van het
@@ -159,22 +176,47 @@ void ChofuWP::finish_frame_() {
     if (frame_len_ > 3 && crc_ccitt_(frame_, frame_len_ - 1) == 0) {
       borrowed_start = frame_[frame_len_ - 1] == 0x91;
       frame_len_--;
-      if (rx_id_ < 4 && no_term_[rx_id_] < 0xFFFF)
+      if (standard && no_term_[rx_id_] < 0xFFFF)
         no_term_[rx_id_]++;
     } else {
-      if (rx_id_ < 4 && crc_fail_[rx_id_] < 0xFFFF)
-        crc_fail_[rx_id_]++;
       for (size_t i = 0; i < frame_len_; i++)
         sprintf(last_bad_ + i * 3, "%02X ", frame_[i]);
       last_bad_[frame_len_ * 3] = '\0';
+      if (standard) {
+        if (crc_fail_[rx_id_] < 0xFFFF)
+          crc_fail_[rx_id_]++;
+      } else {
+        // Waarschijnlijk een vals begin (0x91 midden in de data): niet als
+        // CRC-fout tellen, wel de bytes opnieuw laten bekijken.
+        if (aborts_ < 0xFFFF)
+          aborts_++;
+        this->rescan_frame_();
+      }
       return;  // Corrupt frame negeren
     }
   }
 
   last_valid_rx_ms_ = millis();
-  if (rx_id_ < 4)
+  if (standard)
     last_id_ms_[rx_id_] = last_valid_rx_ms_;
 
+  if (!standard) {
+    // Geldig maar onbekend: vastleggen zodat we de inhoud kunnen ontcijferen.
+    if (unknown_ < 0xFFFF)
+      unknown_++;
+    for (size_t i = 0; i < frame_len_; i++)
+      sprintf(last_unknown_ + i * 3, "%02X ", frame_[i]);
+    last_unknown_[frame_len_ * 3] = '\0';
+    const uint16_t combo = (uint16_t) ((rx_id_ << 8) | rx_msglen_);
+    bool seen = false;
+    for (uint8_t i = 0; i < seen_n_; i++)
+      seen |= seen_combo_[i] == combo;
+    if (!seen) {
+      if (seen_n_ < 16)
+        seen_combo_[seen_n_++] = combo;
+      ESP_LOGW(TAG, "Onbekend frame (geldige CRC) ID%u lengte %u: %s", rx_id_, rx_msglen_, last_unknown_);
+    }
+  } else
   // Temperaturen: signed 16-bit LITTLE-endian (LSB eerst), /10.
   switch (rx_id_) {
     case 1:
@@ -237,11 +279,32 @@ void ChofuWP::abort_frame_(const char *reason) {
   for (size_t i = 0; i < frame_len_; i++)
     sprintf(last_bad_ + i * 3, "%02X ", frame_[i]);
   last_bad_[frame_len_ * 3] = '\0';
+  this->rescan_frame_();
   if (raw_debug_)
     ESP_LOGD(TAG, "RX afgebroken (%s) - resync", reason);
   is_receiving_ = false;
   prev_msg_in_ended_ms_ = millis();
   rx_state_ = WAIT_START;
+}
+
+// Vals begin: de bytes na de eerste 0x91 opnieuw door de parser halen, vóór wat
+// er nog in de replay-buffer stond. Zo gaat een echt frame dat binnen een
+// afgekeurd "frame" begon niet verloren.
+void ChofuWP::rescan_frame_() {
+  uint8_t from = 1;
+  while (from < frame_len_ && frame_[from] != 0x91)
+    from++;
+  if (from >= frame_len_)
+    return;
+  uint8_t tmp[sizeof(replay_)];
+  uint8_t n = 0;
+  for (uint8_t i = from; i < frame_len_ && n < sizeof(tmp); i++)
+    tmp[n++] = frame_[i];
+  for (uint8_t i = replay_pos_; i < replay_len_ && n < sizeof(tmp); i++)
+    tmp[n++] = replay_[i];
+  memcpy(replay_, tmp, n);
+  replay_len_ = n;
+  replay_pos_ = 0;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -327,17 +390,19 @@ void ChofuWP::report_diag_(uint32_t now) {
     noterm += no_term_[i];
   }
   const int id2 = get_id2_age_s();
-  const bool nieuw = crc != diag_crc_prev_ || noterm != diag_noterm_prev_ || aborts_ != diag_abort_prev_;
+  const bool nieuw = crc != diag_crc_prev_ || noterm != diag_noterm_prev_ || aborts_ != diag_abort_prev_ ||
+                     unknown_ != diag_unknown_prev_;
   if (!nieuw && !(id2 > 30))
     return;
   ESP_LOGW(TAG,
            "RX-diagnose: ID2 %d s geleden | CRC-fout per ID %u/%u/%u/%u | zonder eindbyte %u/%u/%u/%u | "
-           "afgebroken %u | laatst afgekeurd: %s",
+           "afgebroken %u | onbekend %u | laatst afgekeurd: %s | laatst onbekend: %s",
            id2, crc_fail_[0], crc_fail_[1], crc_fail_[2], crc_fail_[3], no_term_[0], no_term_[1], no_term_[2],
-           no_term_[3], aborts_, last_bad_[0] ? last_bad_ : "-");
+           no_term_[3], aborts_, unknown_, last_bad_[0] ? last_bad_ : "-", last_unknown_[0] ? last_unknown_ : "-");
   diag_crc_prev_ = crc;
   diag_noterm_prev_ = noterm;
   diag_abort_prev_ = aborts_;
+  diag_unknown_prev_ = unknown_;
 }
 
 void ChofuWP::set_reason_(const char *r) {

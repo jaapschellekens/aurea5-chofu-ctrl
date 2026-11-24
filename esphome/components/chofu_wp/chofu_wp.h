@@ -65,6 +65,8 @@ class ChofuWP : public PollingComponent, public uart::UARTDevice {
   int get_no_term(int id) const { return (id >= 0 && id < 4) ? no_term_[id] : -1; }
   int get_crc_fail_total() const { return crc_fail_[0] + crc_fail_[1] + crc_fail_[2] + crc_fail_[3]; }
   int get_aborts() const { return aborts_; }
+  // Frames met geldige CRC maar een ID/lengte die we niet kennen (bv. rond een defrost).
+  int get_unknown() const { return unknown_; }
   // Seconden sinds het laatste geldige ID2-frame (temperaturen); -1 = nog nooit.
   int get_id2_age_s() const { return last_id_ms_[2] == 0 ? -1 : (int) ((millis() - last_id_ms_[2]) / 1000); }
   bool get_comm_ok() const {
@@ -294,6 +296,16 @@ class ChofuWP : public PollingComponent, public uart::UARTDevice {
   uint32_t diag_last_ms_{0};
   char last_bad_[sizeof(uint8_t) * 40 * 3 + 1]{};  // hex van het laatst afgekeurde frame
   bool id2_stale_{false};
+  // Onbekende frames (geldige CRC, ID/lengte niet standaard): vastleggen, niet gebruiken.
+  uint16_t unknown_{0}, diag_unknown_prev_{0};
+  char last_unknown_[40 * 3 + 1]{};
+  uint16_t seen_combo_[16]{};      // (ID << 8 | lengte) al eens volledig gelogd
+  uint8_t seen_n_{0};
+  uint8_t rx_msglen_{0};           // lengte volgens de kop (lengtebyte + 1)
+  // Bytes die opnieuw door de parser moeten na een vals begin (0x91 midden in een frame).
+  uint8_t replay_[80];
+  uint8_t replay_len_{0}, replay_pos_{0};
+  void rescan_frame_();
   void report_diag_(uint32_t now);
 
   // ── TX-rotatie ──
