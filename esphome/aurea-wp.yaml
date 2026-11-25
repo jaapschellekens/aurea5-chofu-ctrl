@@ -2,6 +2,7 @@
 # Basis: Aapjedotinfo/atlantic-aurea-esphome aurea-wp.yaml @ 651aae3 (2026-11-10).
 # Wijzigingen: avr_versie "1", componenten en AVR-pakket uit git, stooklijn volgt warmtevraag,
 # chofu_wp uit deze repo (vangnet bij uitblijvende ID2-frames, RX-diagnose, sensor "Temperatuurdata leeftijd"),
+# omschakelen naar alleen de ketel onder een buitentemperatuur (schakelaar, standaard uit),
 # bijspring-fix van Aapjedotinfo (branch fix/bijspringen-cv-vlag @ 5be7b6a: CV-vlag door bij bijstook, marge boven WP-aanvoer),
 # en haakjes rond ${thermo_ok}: bij v1 is dat `A || B`, dus `!${thermo_ok}` werd `!A || B` en gaf
 # "geen thermostaat" zodra de thermostaat Data-ID 0 stuurde (dus vrijwel altijd).
@@ -251,6 +252,38 @@ interval:
             }
           };
 
+          // ── EIGEN AANPASSING: omschakelen naar alleen de ketel bij kou ──
+          // Zoals de originele Atlantic-sturing: onder de grens de warmtepomp uit
+          // en de ketel volgt de thermostaat volledig. Bij twee parallelle takken
+          // zitten ketel en WP elkaar anders in de weg (de sterkere ketelpomp drukt
+          // de WP via zijn bypass rond, en het bijspringen gaat pendelen).
+          // 1 graad hysterese en minstens 30 min in een stand: de buitenvoeler zit
+          // op de unit en beweegt mee met zon en ontdooien.
+          if (id(sw_alleen_ketel)->state && !std::isnan(buiten_ketel)) {
+            const float grens = id(n_alleen_ketel_buiten)->state;
+            const bool lang_zo = id(g_alleen_ketel_ms) == 0 || millis() - id(g_alleen_ketel_ms) > 30UL * 60000UL;
+            if (!id(g_alleen_ketel) && buiten_ketel < grens && lang_zo) {
+              id(g_alleen_ketel) = true;
+              id(g_alleen_ketel_ms) = millis();
+            } else if (id(g_alleen_ketel) && buiten_ketel > grens + 1.0f && lang_zo) {
+              id(g_alleen_ketel) = false;
+              id(g_alleen_ketel_ms) = millis();
+            }
+          } else if (!id(sw_alleen_ketel)->state && id(g_alleen_ketel)) {
+            id(g_alleen_ketel) = false;
+            id(g_alleen_ketel_ms) = millis();
+          }
+          if (id(g_alleen_ketel)) {
+            id(wp)->set_system_on(false);
+            id(g_bijstook) = true;                       // CV-vlag door naar de ketel
+            if (id(sw_brake)->state) id(sw_brake)->turn_off();   // ketel krijgt de vraag van de thermostaat
+            if (id(sw_subst)->state) id(sw_subst)->turn_off();   // thermostaat ziet de echte keteltemperatuur
+            id(g_tekort_s) = 0;
+            id(g_reden) = str_sprintf("alleen ketel (buiten %.1f onder grens %.1f)",
+                                      buiten_ketel, id(n_alleen_ketel_buiten)->state);
+            return;
+          }
+
           // ── Vangnet 1: geen warmtepomp ──
           if (!id(wp)->get_comm_ok()) {
             vangnet("warmtepomp stil");
@@ -480,6 +513,16 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
+
+  # Eigen toevoeging: staat de omschakeling "alleen ketel" nu aan, en sinds wanneer.
+  - id: g_alleen_ketel
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: g_alleen_ketel_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
 
   # Wanneer het stand-plafond voor het laatst geschreven is. Nul betekent
   # "nooit geschreven", dus geen beperking actief en niets te bewaken.
@@ -1231,6 +1274,25 @@ number:
   # HOGER dan een weerbericht (gemeten over 350 uur tegen de Anna). Bedoel je
   # "onder nul", zet hem dan rond 2,5.
   - platform: template
+    name: "Alleen ketel onder buitentemperatuur"
+    id: n_alleen_ketel_buiten
+    min_value: -20
+    max_value: 15
+    step: 0.5
+    initial_value: -3
+    optimistic: true
+    restore_value: true
+    unit_of_measurement: "°C"
+    mode: box
+    icon: mdi:snowflake-alert
+    entity_category: config
+    web_server:
+      sorting_group_id: grp_beleid
+      sorting_weight: 11
+
+  # Grens voor de bijstook (hierboven: eigen toevoeging, de grens voor
+  # "Omschakelen naar ketel bij kou"; zelfde voeler, dus dezelfde +2,5 graad).
+  - platform: template
     name: "Bijstook pas onder buitentemperatuur"
     id: n_bijstook_buiten
     min_value: -20
@@ -1639,6 +1701,22 @@ switch:
     web_server:
       sorting_group_id: grp_beleid
       sorting_weight: 14
+
+  # EIGEN TOEVOEGING: zoals de originele Atlantic-sturing. Onder "Alleen ketel onder
+  # buitentemperatuur" (1 graad hysterese, minstens 30 min per stand) gaat de
+  # warmtepomp uit en volgt de ketel de thermostaat volledig, zonder rem en zonder
+  # WP-temperaturen naar de thermostaat. Bedoeld voor ketel en WP op parallelle
+  # takken, waar bijspringen gaat pendelen. Uit = alleen het bijspringbeleid.
+  - platform: template
+    name: "Omschakelen naar ketel bij kou"
+    id: sw_alleen_ketel
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    entity_category: config
+    icon: mdi:swap-horizontal-bold
+    web_server:
+      sorting_group_id: grp_beleid
+      sorting_weight: 10
 
   # ── K3, het aan/uit-ketelcontact ──
   #
